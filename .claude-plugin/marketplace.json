@@ -1,0 +1,11 @@
+{
+  "name": "keel-local",
+  "owner": { "name": "jonah" },
+  "plugins": [
+    {
+      "name": "keel",
+      "source": "./plugins/keel",
+      "description": "Lightweight project discipline: one plan file, staged work, verification against the running product, fresh-eyes review, and a secret guard on commits."
+    }
+  ]
+}

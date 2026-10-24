@@ -1,0 +1,45 @@
+---
+name: stage
+description: Run the next stage of the project plan end to end — scope it, build it (fanning independent parts out to subagents), test, verify against the running product, review, update the plan, commit, and stop for the user's review. Use when the user says to start, continue or "go" on planned work, or names a stage to build.
+---
+
+# Keel: stage
+
+A stage is done when its checks pass against the running product, the suite is green, the plan says so, and it's committed. Then you stop and the user looks.
+
+## 1. Scope it
+
+- Read the plan (`docs/PLAN.md`, or the plan the project already keeps). No plan yet: run `keel:plan` first.
+- Take the stage the user named, or the first unchecked one.
+- Write its `## Now` section: scope, risk line, acceptance checks each with its proof, open decisions. If the scope is ambiguous or the user's latest words changed it, confirm in one short message before building; otherwise go.
+
+## 2. Build it
+
+- **Foundation yourself, leaves in parallel.** Shared pieces (data, types, layout, conventions) you build first. Independent parts that only consume them can go to subagents, several at once.
+- **Brief subagents like peers.** Each brief states the goal, the files the agent owns (and that it must not touch others), the interfaces to use, the conventions to match, and how to check its own work. Never hand an agent your conclusions to confirm.
+- **Check what comes back yourself.** Read the diff, run it, look at it. An agent's "done" is a claim, not evidence.
+- **Tests travel with risky logic.** Money, dates, parsing, permissions, state machines: write the test with the code. A bug fix starts with a test that fails for the bug.
+- **Match the codebase.** Its naming, comment density, file layout and idioms win over your defaults.
+
+## 3. Verify it
+
+Run `keel:verify`. Fix what fails and re-verify the affected checks. Never call the stage done on red.
+
+## 4. Review it
+
+Run `keel:review` when the stage's risk is anything beyond "UI only", when it closes a milestone, or when it touched more than you expected. Fix what's confirmed; log deferred items in the plan's open questions.
+
+## 5. Close it
+
+- Update the plan in the same change: tick the stage, record decisions made along the way (dated, with the why), set `## Now` to the next stage with a one-line scope (its full checks get written when it starts).
+- Commit. One commit per stage, or a few if the stage has clearly separate parts. Stage files by name rather than `git add -A`. The message says what the stage delivers and anything a reviewer should know. The keel hook blocks a commit that carries a secret; if it fires, fix the cause, never work around it.
+
+## 6. Stop and report
+
+Tell the user, briefly:
+- what the stage delivers, in their terms;
+- how it was verified, with the evidence (screenshots, test counts, command output), including anything that failed and how it was fixed;
+- what review found, fixed and deferred;
+- open decisions, and the next stage in one line.
+
+Then wait for their go. Don't start the next stage on your own unless the user said to run several in a row.

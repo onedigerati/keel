@@ -1,0 +1,7 @@
+{
+  "name": "keel",
+  "version": "0.1.0",
+  "description": "Lightweight project discipline: one plan file, staged work, verification against the running product, fresh-eyes review, and a secret guard on commits.",
+  "author": { "name": "jonah" },
+  "license": "MIT"
+}

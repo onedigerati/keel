@@ -1,0 +1,6 @@
+node_modules
+.claude-plugin/types
+*.Zone.Identifier
+.DS_Store
+plugins/keel/.claude-plugin/types
+plugins/keel/tsconfig.json
