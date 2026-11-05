@@ -19,6 +19,7 @@ A stage is done when its checks pass against the running product, the suite is g
 - **Brief subagents like peers.** Each brief states the goal, the files the agent owns (and that it must not touch others), the interfaces to use, the conventions to match, and how to check its own work. Never hand an agent your conclusions to confirm.
 - **Check what comes back yourself.** Read the diff, run it, look at it. An agent's "done" is a claim, not evidence.
 - **Tests travel with risky logic.** Money, dates, parsing, permissions, state machines: write the test with the code. A bug fix starts with a test that fails for the bug.
+- **Pin down untested code before changing it.** When the stage changes code that no test covers, first write a test that records what it does today and see it pass, then make the change. If the change alters that behavior on purpose, update the test in the same commit and say why in the message.
 - **Match the codebase.** Its naming, comment density, file layout and idioms win over your defaults.
 
 ## 3. Verify it

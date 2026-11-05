@@ -10,8 +10,15 @@ One file holds the project's state: `docs/PLAN.md`. If the project already keeps
 ## Creating a plan
 
 1. Gather what's already known: the user's words in this conversation, the repo (README, existing docs, code layout), and memory. Ask only about real gaps, in one short round, and only those whose answer changes the plan: who it's for, what "done" looks like, hard constraints, what's out of scope. Pick sensible defaults for the rest and record them as decisions.
-2. Cut the work into stages a user can review in one sitting. Each stage ends in something that runs and can be checked. Earlier stages lay foundations the later ones reuse. Three to eight stages is typical; more means the stages are too small or the project should be split.
-3. Write the file using the layout below, then show the user the stage list and the decisions you defaulted, and ask whether to start: stage by stage (`keel:stage`), or the whole plan on autopilot (`keel:autopilot`).
+2. **If the repo already has code, survey it before cutting stages.** Hand the survey to one or more `Explore` agents (split by area in a large repo) and have them return conclusions, not file dumps:
+   - how the project runs, tests and builds, and the exact commands;
+   - the conventions it follows (layout, naming, error handling, how tests are written);
+   - where this work will land: the modules, entry points and interfaces it touches;
+   - what's risky near it: auth, money, personal data, migrations, and code with no tests.
+
+   Survey only what the plan touches, not the whole repo. Then run the test suite (and lint and build, if they're quick) once, and record the result as the plan's baseline. Failures that are already there belong to the baseline, not to the first stage. If the run, test and build commands aren't in `CLAUDE.md`, offer to add them there: that file reaches every session and subagent, and the plan doesn't need to repeat them.
+3. Cut the work into stages a user can review in one sitting. Each stage ends in something that runs and can be checked. Earlier stages lay foundations the later ones reuse. Three to eight stages is typical; more means the stages are too small or the project should be split. In existing code, let the survey shape the stages: code with no tests near the change gets its tests first, and the risk lines name what the survey found.
+4. Write the file using the layout below, then show the user the stage list and the decisions you defaulted, and ask whether to start: stage by stage (`keel:stage`), or the whole plan on autopilot (`keel:autopilot`).
 
 ## Layout
 
@@ -20,6 +27,9 @@ One file holds the project's state: `docs/PLAN.md`. If the project already keeps
 
 ## Goal
 One paragraph: what this is, who it's for, and what done looks like.
+
+## Baseline
+2026-10-24 · tests: 212 pass, 3 fail (`test/sync.test.ts` › retries, times out on CI too) · lint: clean · build: ok
 
 ## Now
 Stage 2 of 5 · <name>
@@ -39,6 +49,8 @@ Open: <decision waiting on the user, or "none">
 ## Open questions
 - <question> — <who decides, what it blocks>
 ```
+
+`## Baseline` is for a project that already had code when the plan started: the project's checks as they stood before any stage, so later failures can be told apart as inherited or new. Leave it out for a new project. When a stage fixes a baseline failure, update the line and log it as a decision.
 
 The risk line is `UI only`, or a list of what the stage touches: user input, auth, money, personal data, secrets, external services.
 

@@ -9,7 +9,9 @@ A clean type check proves the code compiles. Verification proves it does what th
 
 ## 1. The project's own checks
 
-Find how this project checks itself: `package.json` scripts, `Makefile`, `pyproject.toml`, `Cargo.toml`, CI config (`.github/workflows`). Run, in order, whatever exists: type check, lint, tests, build. All must pass.
+Find how this project checks itself: `package.json` scripts, `Makefile`, `pyproject.toml`, `Cargo.toml`, CI config (`.github/workflows`). Run, in order, whatever exists: type check, lint, tests, build. All must pass, apart from failures the plan's `## Baseline` already lists.
+
+- Compare against the baseline. A failure it lists is inherited: report it as such, and leave it alone unless the stage is about it. Any failure it doesn't list is new and belongs to this work, even if it looks unrelated; fix it or prove it isn't yours by running the same check on the last stage commit (`git stash`, or a worktree) and showing it failing there too.
 
 - A failure gets its output reported, never summarized as "mostly passing".
 - A test that fails then passes on rerun is flaky: say so, don't hide it.

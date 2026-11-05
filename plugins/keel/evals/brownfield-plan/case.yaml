@@ -1,0 +1,39 @@
+schema_version: "1.0"
+name: brownfield-plan
+description: Planning a change in existing code surveys it, records the already-failing test as baseline, and tests the untested code before changing it.
+tags: [brownfield, outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    This is an existing project. I want to add percentage discount codes to invoices (for example SAVE10 takes 10%
+    off the subtotal), alongside the fixed-amount codes it already has. Plan it before writing any code; assume
+    sensible defaults rather than asking me.
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-plan
+    tool: Skill
+    input_match: "plan"
+    min: 1
+    arm: with-only
+  - type: llm
+    name: records-baseline
+    focus: trace
+    criteria: >-
+      The agent ran the existing test suite before planning and the plan it produces records the result as a
+      baseline: one test passes and "shows thousands with a separator" already fails, identified as a pre-existing
+      problem unrelated to discounts rather than something the new work caused.
+  - type: llm
+    name: tests-untested-code-first
+    focus: trace
+    criteria: >-
+      The plan notices that src/discount.js has no tests of its own (the existing tests never pass a discount code)
+      and has the existing fixed-amount behavior pinned down by tests before or alongside changing that module.
+      Its risk line or equivalent names money.
+  - type: regex
+    name: no-source-changes
+    target: files
+    pattern: "src/"
+    match: not_contains

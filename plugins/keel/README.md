@@ -1,12 +1,12 @@
 # Keel
 
-Keeps long, multi-stage work with Claude Code on course without a heavyweight process. All project state lives in one plan file plus git.
+Keeps long, multi-stage work with Claude Code on course without a heavyweight process. All project state lives in one plan file plus git. Works on new projects and existing ones: there's no separate codebase map to keep current, because the plan surveys what it touches and durable facts (how to run and test) go in `CLAUDE.md`.
 
 ## Skills
 
 | Command | What it does |
 | --- | --- |
-| `/keel:plan` | Creates or updates `docs/PLAN.md`: goal, current position, stages with acceptance checks and a risk line, dated decisions, open questions. Adopts an existing plan file instead of starting a second one. |
+| `/keel:plan` | Creates or updates `docs/PLAN.md`: goal, current position, stages with acceptance checks and a risk line, dated decisions, open questions. Adopts an existing plan file instead of starting a second one. In a repo that already has code, it first surveys the part the plan will touch (how to run and test it, conventions, where the change lands, what's risky) and records the test suite's state as a baseline. |
 | `/keel:stage` | Runs the next stage: scope, build (independent parts fanned out to subagents in their own worktrees), test, verify, review, update the plan, commit, then stop for your review. |
 | `/keel:autopilot` | Autopilot: Claude takes over an approved plan as project manager and runs every remaining stage without stopping between them. Builders are subagents; the manager verifies, reviews, commits and keeps the plan current. It pauses before stages that touch auth, money or personal data, on decisions only you can make, on checks it can't get green, and before anything outward-facing (push, deploy, real data). |
 | `/keel:verify` | Type check, lint, tests, build and a dependency audit, then each acceptance check proven in the running product with evidence. |
