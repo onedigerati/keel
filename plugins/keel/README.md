@@ -60,8 +60,9 @@ The plugin is read straight from the clone, so edits take effect after `/reload-
   - an autopilot line left in a repo doesn't start a run;
   - a plan in existing code records the inherited test failure as baseline and tests untested code first (`brownfield-plan`);
   - starting the next plan archives the old one and carries forward only binding decisions (`next-feature`).
+  - a new feature that fits the current Goal is added to that plan as stages rather than starting a new one (`feature-within-goal`).
 
-Each case builds a small project with its own `scaffold.sh`. Most are generated from `evals/fixtures/repo.sh`; `brownfield-plan` and `next-feature` are written by hand.
+Each case builds a small project with its own `scaffold.sh`. Most are generated from `evals/fixtures/repo.sh`; `brownfield-plan`, `next-feature` and `feature-within-goal` are written by hand.
 
 Each run is a real Claude session on your credentials, so it costs money:
 

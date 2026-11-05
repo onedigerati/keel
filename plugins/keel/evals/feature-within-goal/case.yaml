@@ -1,0 +1,36 @@
+schema_version: "1.0"
+name: feature-within-goal
+description: A new feature that fits the current plan's Goal is added as stages to that plan, not started as a fresh plan.
+tags: [outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    One more feature for this: JSON export too, alongside the CSV export, so I can load the data into a notebook.
+    Work it into the plan, but don't build anything yet; assume sensible defaults rather than asking me.
+  max_turns: 20
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill]
+graders:
+  - type: tool_used
+    name: loads-plan
+    tool: Skill
+    input_match: "plan"
+    min: 1
+    arm: with-only
+  - type: file_exists
+    name: no-archive
+    path: "docs/plans/*.md"
+    exists: false
+  - type: llm
+    name: added-to-current-plan
+    focus: { source: file, path: docs/PLAN.md }
+    criteria: >-
+      This is still the same plan: the Goal still covers totals, reports and exports (it may mention JSON), stage 1
+      is still ticked, stages 2 to 4 are still there, and the current stage in Now is still Category reports.
+      JSON export is added as a new stage numbered after the existing ones, or folded into the export stage with
+      its scope widened. Stages are not renumbered from 1 and nothing is archived.
+  - type: regex
+    name: no-source-changes
+    target: files
+    pattern: "src/"
+    match: not_contains
