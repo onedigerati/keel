@@ -24,6 +24,13 @@ Claude also uses them on its own when the moment fits.
 
 ## Install
 
+From GitHub:
+
+```
+claude plugin marketplace add onedigerati/keel
+claude plugin install keel@keel-local
+```
+
 From a local clone of this repository:
 
 ```
