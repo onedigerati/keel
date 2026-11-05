@@ -18,10 +18,11 @@ graders:
   - type: file_exists
     name: writes-plan-file
     path: docs/PLAN.md
+    arm: with-only
   - type: llm
     name: plan-quality
-    focus: { source: file, path: docs/PLAN.md }
+    focus: trace
     criteria: >-
-      The plan has Goal, Now, Stages, Decisions and Open questions sections; 3 to 8 stages, each ending in something
+      The plan the agent produces (written to a file or given in its reply) has Goal, Now, Stages, Decisions and Open questions sections; 3 to 8 stages, each ending in something
       runnable; acceptance checks in Now that are observable (a specific command and its output, not "works") and
       each name a proof; a Risk line; and dated decisions for the defaults it chose.

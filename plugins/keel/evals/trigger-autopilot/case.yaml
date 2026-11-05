@@ -19,4 +19,5 @@ graders:
     name: not-the-app-runner
     tool: Skill
     input_match: '"skill":\s*"run"'
+    min: 0
     max: 0

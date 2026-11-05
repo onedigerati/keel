@@ -1,6 +1,6 @@
 schema_version: "1.0"
 name: trigger-stage
-description: "go" on a planned project loads keel:stage.
+description: 'Saying "go" on a planned project loads keel:stage.'
 tags: [trigger]
 context:
   scaffold_script: scaffold.sh
