@@ -23,7 +23,7 @@ Run the stack's audit if it's available without installing anything: `npm audit 
 
 For each check in the plan's `## Now`, use the proof it names:
 
-- **Web UI**: start the app (reuse a dev server that's already running), drive it with Playwright or the project's browser tooling, take screenshots at the states the check describes, and look at them. Check the console for errors. Check a phone-width viewport when layout matters.
+- **Web UI**: start the app (reuse a dev server that's already running; the built-in `run` skill knows how to launch most project types), drive it with Playwright or the project's browser tooling, take screenshots at the states the check describes, and look at them. Check the console for errors. Check a phone-width viewport when layout matters.
 - **API or service**: real requests (`curl`, a short script) for the success path and at least one bad input.
 - **CLI**: run it with realistic arguments and with a wrong one.
 - **Library or logic**: the tests are the proof; confirm a test covers the check, and that it fails when the behavior is broken (break it briefly if in doubt).
@@ -32,4 +32,4 @@ Keep throwaway scripts and screenshots in the scratchpad, not the repo.
 
 ## 4. Report
 
-A short table: check → pass or fail → evidence (screenshot path, test name, command and result). Then the project checks and audit in one line each. If anything failed, fix it, re-verify the affected checks, and report both the failure and the fix. Only when everything passes is the stage verified.
+Tick each check that passed in the plan's `## Now` (`- [x]`). Then a short table: check → pass or fail → evidence (screenshot path, test name, command and result). Then the project checks and audit in one line each. If anything failed, fix it, re-verify the affected checks, and report both the failure and the fix. Only when everything passes is the stage verified.

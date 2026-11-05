@@ -11,7 +11,7 @@ One file holds the project's state: `docs/PLAN.md`. If the project already keeps
 
 1. Gather what's already known: the user's words in this conversation, the repo (README, existing docs, code layout), and memory. Ask only about real gaps, in one short round, and only those whose answer changes the plan: who it's for, what "done" looks like, hard constraints, what's out of scope. Pick sensible defaults for the rest and record them as decisions.
 2. Cut the work into stages a user can review in one sitting. Each stage ends in something that runs and can be checked. Earlier stages lay foundations the later ones reuse. Three to eight stages is typical; more means the stages are too small or the project should be split.
-3. Write the file using the layout below, then show the user the stage list and the decisions you defaulted, and ask whether to start.
+3. Write the file using the layout below, then show the user the stage list and the decisions you defaulted, and ask whether to start: stage by stage (`keel:stage`), or the whole plan on autopilot (`keel:autopilot`).
 
 ## Layout
 
@@ -41,6 +41,10 @@ Open: <decision waiting on the user, or "none">
 ```
 
 The risk line is `UI only`, or a list of what the stage touches: user input, auth, money, personal data, secrets, external services.
+
+While `keel:autopilot` drives the plan, `## Now` also carries a mode line: `Mode: autopilot`, or `Mode: paused — <reason>` while it waits on the user. No mode line means the user steps through the stages themselves. The line records where a run stands; it doesn't authorize one. A session arms autopilot only when the user starts it there, so a line left from an earlier session waits for the user's go.
+
+Checks start unticked and are ticked (`- [x]`) as `keel:verify` proves them; the keel hook refuses a commit that closes a stage whose checks it never saw ticked.
 
 ## Rules that keep it useful
 

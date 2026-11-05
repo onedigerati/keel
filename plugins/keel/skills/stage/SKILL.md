@@ -15,7 +15,7 @@ A stage is done when its checks pass against the running product, the suite is g
 
 ## 2. Build it
 
-- **Foundation yourself, leaves in parallel.** Shared pieces (data, types, layout, conventions) you build first. Independent parts that only consume them can go to subagents, several at once.
+- **Foundation yourself, leaves in parallel.** Shared pieces (data, types, layout, conventions) you build first. Independent parts that only consume them can go to subagents, several at once, each with `isolation: "worktree"` so parallel edits can't collide; check each one's branch and merge it back.
 - **Brief subagents like peers.** Each brief states the goal, the files the agent owns (and that it must not touch others), the interfaces to use, the conventions to match, and how to check its own work. Never hand an agent your conclusions to confirm.
 - **Check what comes back yourself.** Read the diff, run it, look at it. An agent's "done" is a claim, not evidence.
 - **Tests travel with risky logic.** Money, dates, parsing, permissions, state machines: write the test with the code. A bug fix starts with a test that fails for the bug.
@@ -23,7 +23,7 @@ A stage is done when its checks pass against the running product, the suite is g
 
 ## 3. Verify it
 
-Run `keel:verify`. Fix what fails and re-verify the affected checks. Never call the stage done on red.
+Run `keel:verify`, and tick each check in `## Now` as it's proven, in its own edit before the stage closes. Fix what fails and re-verify the affected checks. Never call the stage done on red: the keel hook refuses a commit that ticks a stage whose checks it never saw ticked.
 
 ## 4. Review it
 
@@ -42,4 +42,4 @@ Tell the user, briefly:
 - what review found, fixed and deferred;
 - open decisions, and the next stage in one line.
 
-Then wait for their go. Don't start the next stage on your own unless the user said to run several in a row.
+Then wait for their go. Don't start the next stage on your own unless the user said to run several in a row; to hand the whole plan over, use `keel:autopilot`.

@@ -1,5 +1,6 @@
 import type { EngineInterface, Register } from 'claude-code'
 import { findSecrets, type Finding } from './secrets.ts'
+import { addScope, commitScope, gitCall, joinPath, outwardReason, parseCommands, type Command } from './shell.ts'
 
 /** Where a project's plan can live; the first that exists wins. */
 const PLAN_PATHS = ['docs/PLAN.md', 'PLAN.md', 'docs/BUILD_PLAN.md']
@@ -7,9 +8,38 @@ const PLAN_PATHS = ['docs/PLAN.md', 'PLAN.md', 'docs/BUILD_PLAN.md']
 /** The most of the plan's "Now" section that rides in every request. */
 const NOW_MAX_LINES = 40
 
+/** Context fill, in percent, past which autopilot compacts before carrying on. */
+const COMPACT_AT = 65
+
+/** Turns in a row that may end with the plan unchanged before autopilot stops prompting. */
+const MAX_STALLED_TURNS = 3
+
+/** How long after a turn ends autopilot waits, so the session is idle when it acts. */
+const SETTLE_MS = 1000
+
+/** What a risk line names that autopilot must not build without the user's word. */
+const RISKY = /\b(auth\w*|log-?ins?|passwords?|money|payments?|billing|personal data|pii)\b/gi
+
+/** Prompts a person sent, as against a plugin, a background task or another session. */
+const USER_ORIGINS = new Set(['composer', 'bridge', 'sdk'])
+
+/** The `Mode:` line in `## Now`: `autopilot` while keel:autopilot is in charge, `paused — <reason>` while it waits. */
+type Mode = { kind: 'autopilot' } | { kind: 'paused'; reason: string }
+
+interface Stage {
+  /** The first line of `## Now`, e.g. `Stage 3 of 5 · Accounts`. */
+  key: string
+  number: string | undefined
+  /** What the risk line names that holds autopilot, e.g. `auth, personal data`; empty when nothing does. */
+  risky: string[]
+  checks: { text: string; done: boolean }[]
+}
+
 interface Plan {
   path: string
   now: string | undefined
+  mode: Mode | undefined
+  stage: Stage | undefined
   done: number
   total: number
   current: string | undefined
@@ -35,6 +65,24 @@ export function parsePlan(path: string, text: string): Plan {
 
   const nowLines = sections.get('now')
   const now = nowLines?.join('\n').trim() ? nowLines.slice(0, NOW_MAX_LINES).join('\n').trim() : undefined
+  const modeLine = nowLines?.map(l => l.match(/^Mode:\s*(autopilot|paused)\b\s*[—–:-]?\s*(.*)$/i)).find(Boolean)
+  const mode: Mode | undefined = !modeLine
+    ? undefined
+    : modeLine[1]?.toLowerCase() === 'autopilot'
+      ? { kind: 'autopilot' }
+      : { kind: 'paused', reason: modeLine[2]?.trim() || 'waiting on the user' }
+
+  let stage: Stage | undefined
+  if (now && nowLines) {
+    const key = now.split('\n')[0]?.trim() ?? ''
+    const risk = nowLines.map(l => l.match(/^Risk:\s*(.*)$/i)?.[1]).find(r => r !== undefined) ?? ''
+    const risky = [...new Set([...risk.matchAll(RISKY)].map(m => (m[1] ?? '').toLowerCase()))]
+    const checks = nowLines
+      .map(l => l.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/))
+      .filter(m => m !== null)
+      .map(m => ({ text: (m[2] ?? '').trim(), done: m[1] !== ' ' }))
+    stage = { key, number: key.match(/\bstage\s+(\d+)/i)?.[1], risky, checks }
+  }
 
   const stageKey = [...sections.keys()].find(k => k.includes('stage'))
   const stages = (sections.get(stageKey ?? '') ?? []).filter(l => /^[-*]\s+\[[ xX]\]/.test(l))
@@ -45,16 +93,92 @@ export function parsePlan(path: string, text: string): Plan {
     .split(/\s+[—–-]\s+/)[0]
     ?.trim()
 
-  return { path, now, done: stages.length - stages.filter(l => /\[ \]/.test(l)).length, total: stages.length, current }
+  const done = stages.length - stages.filter(l => /\[ \]/.test(l)).length
+  return { path, now, mode, stage, done, total: stages.length, current }
 }
 
-function statusLine(plan: Plan): string {
+// ---- session state: what this session, not the repo, says about autopilot ----
+
+const ARMED = { plugin: 'keel', key: 'armed' } as const
+const SEEN_MODE = { plugin: 'keel', key: 'seenMode' } as const
+const CLEARED = { plugin: 'keel', key: 'cleared' } as const
+const OPEN_CHECKS = { plugin: 'keel', key: 'openChecks' } as const
+
+interface Session {
+  armed: boolean
+  cleared: string[]
+  openChecks: Record<string, string[]>
+}
+
+async function readSession($: EngineInterface): Promise<Session> {
+  const [armed, cleared, openChecks] = await Promise.all([$.state.get(ARMED), $.state.get(CLEARED), $.state.get(OPEN_CHECKS)])
+  return { armed: armed.value ?? false, cleared: cleared.value ?? [], openChecks: openChecks.value ?? {} }
+}
+
+/**
+ * Brings the session's view up to date with the plan. Autopilot arms when the Mode line turns to autopilot
+ * during this session, and disarms when the line goes; a plan that already said autopilot when the session
+ * first looked stays unarmed, so a repo can never start a run by itself. Also notes which checks are unticked.
+ */
+async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session> {
+  const mode = plan?.mode?.kind ?? 'none'
+  const [seen, session] = await Promise.all([$.state.get(SEEN_MODE), readSession($)])
+  if (seen.value !== mode) {
+    if (seen.value !== undefined && mode === 'autopilot') session.armed = true
+    if (mode === 'none') session.armed = false
+    await $.state.set(SEEN_MODE, mode)
+    await $.state.set(ARMED, session.armed)
+  }
+  const stage = plan?.stage
+  if (stage?.number && stage.checks.length) {
+    const open = stage.checks.filter(c => !c.done).map(c => c.text)
+    if (JSON.stringify(session.openChecks[stage.number] ?? null) !== JSON.stringify(open)) {
+      session.openChecks = { ...session.openChecks, [stage.number]: open }
+      await $.state.set(OPEN_CHECKS, session.openChecks)
+    }
+  }
+  return session
+}
+
+const driving = (plan: Plan | undefined, s: Session) => plan?.mode?.kind === 'autopilot' && s.armed
+
+/** Autopilot is holding the current stage: its risk line names auth, money or personal data and the user hasn't spoken to it. */
+const held = (plan: Plan | undefined, s: Session) =>
+  driving(plan, s) && !!plan?.stage?.risky.length && !s.cleared.includes(plan.stage.key)
+
+// ---- what rides in the system prompt ----
+
+function statusLine(plan: Plan, s: Session): string {
   if (plan.total === 0) return `keel · ${plan.path}`
   if (!plan.current) return `keel · all ${plan.total} stages done`
-  return `keel · ${plan.done}/${plan.total} done · next: ${plan.current}`
+  const mode = !plan.mode
+    ? ''
+    : plan.mode.kind === 'paused'
+      ? ' · paused'
+      : !s.armed
+        ? ' · autopilot (not armed)'
+        : held(plan, s)
+          ? ' · autopilot held'
+          : ' · autopilot'
+  return `keel${mode} · ${plan.done}/${plan.total} done · next: ${plan.current}`
 }
 
-function planSection(plan: Plan): string {
+function workingRules(plan: Plan, s: Session): string {
+  const base =
+    'Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review;'
+  const skills = 'The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.'
+  if (plan.mode?.kind === 'autopilot' && !s.armed)
+    return `${base} commit per stage. The plan's Mode line says autopilot, but that was set in an earlier session and autopilot is not armed in this one: do not carry on by yourself. Tell the user where the run stands and ask whether to resume; on their yes, run keel:autopilot. ${skills}`
+  if (held(plan, s))
+    return `${base} commit per stage. Autopilot is on, and the current stage is held: its risk line names ${plan.stage?.risky.join(', ')}. Building it (file edits outside the plan, builder agents) is blocked until the user okays it: commit what is finished, set the Mode line to \`paused — <reason>\`, and ask. ${skills}`
+  if (plan.mode?.kind === 'autopilot')
+    return `${base} commit per stage. Autopilot is on: you are the project manager under keel:autopilot. Go from stage to stage without stopping for review, delegate the building, and stop only for the reasons keel:autopilot lists, setting the Mode line to paused when you do. Outward-facing commands (push, publish, deploy, sending data out) are blocked while it runs. ${skills}`
+  if (plan.mode?.kind === 'paused')
+    return `${base} commit per stage. Autopilot is paused (${plan.mode.reason}): settle that with the user, then set the Mode line back to autopilot and carry on under keel:autopilot. ${skills}`
+  return `${base} commit per stage and stop for the user's review. ${skills}`
+}
+
+function planSection(plan: Plan, s: Session): string {
   const position = plan.now ?? (plan.current ? `Next stage: ${plan.current}` : 'No open stage in the plan.')
   return [
     `# Keel`,
@@ -63,37 +187,117 @@ function planSection(plan: Plan): string {
     `Current position (from the plan):`,
     position,
     ``,
-    `Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; commit per stage and stop for the user's review. The keel skills (plan, stage, verify, review, resume) hold the details.`,
+    workingRules(plan, s),
   ].join('\n')
 }
 
-/** `git commit` anywhere in a shell command line, including `git -C dir commit`. */
-const COMMIT = /\bgit\b(?:\s+-[cC]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+commit\b/
-/** The command also stages files as it commits. */
-const STAGES_TOO = /\bgit\b[^;&|\n]*\s(add|commit\s+[^;&|\n]*(-a\b|-am\b|--all\b))/
+/** What the summarizer must keep, whoever asked for the compaction. */
+const KEEP =
+  'Keep the project-plan state exactly: the active stage, its acceptance checks and which have passed, decisions made since the plan file was last updated, and any uncommitted work in progress with its file paths.'
 
-async function git($: EngineInterface, args: string[]) {
-  const r = await $.process.run(['git', ...args])
+// ---- the autopilot loop ----
+
+/** Main-loop turns started this load; a turn that starts while autopilot waits means someone else has the floor. */
+let mainTurns = 0
+/** The plan as it stood when the last autopilot turn ended, and how many turns in a row left it so. */
+let lastProgress: string | undefined
+let stalledTurns = 0
+/** The mode the plan had at the last main-loop turn's end, to notice it change. */
+let lastMode: Mode['kind'] | undefined
+/** Whether the latest prompt came from the person. */
+let lastPromptFromUser = false
+/** The held stage the person was last told about, so they hear it once. */
+let heldNoticeFor: string | undefined
+
+/** Background agents the main loop started that are still working: their notifications will start the next turn. */
+async function backgroundBusy($: EngineInterface): Promise<boolean> {
+  const agents = await $.agent.list().catch(() => [])
+  return agents.some(a => !a.parentId && (a.status === 'pending' || a.status === 'running' || a.status === 'waiting'))
+}
+
+/** Between turns: compact if the context is filling, then prompt the next step, unless a turn started meanwhile. */
+async function carryOn($: EngineInterface, plan: Plan, turn: number) {
+  if (mainTurns !== turn) return
+  const { context } = await $.session.usage()
+  let compacted = false
+  if ((context.percent ?? 0) >= COMPACT_AT) {
+    // a compaction that fails or is vetoed still lets the run go on; the engine's own threshold remains
+    const result = await $.session.compact({ instructions: KEEP }).catch(() => undefined)
+    compacted = result !== undefined && !('skip' in result)
+    if (!result) $.ui.toast('keel: autopilot could not compact the context; carrying on')
+  }
+  if (mainTurns !== turn) return
+  const note = compacted ? ' The context was just compacted: reread the plan before acting.' : ''
+  await $.prompt.submit({
+    text: `keel autopilot: carry on with \`${plan.path}\` under keel:autopilot. Next: ${plan.current}.${note}`,
+  })
+}
+
+// ---- the commit guard ----
+
+async function git($: EngineInterface, args: string[], cwd: string) {
+  const r = await $.process.run(['git', ...args], { cwd })
   if (r.exitCode !== 0) throw new Error(`git ${args[0]} failed: ${r.stderr.slice(0, 200)}`)
   return r.stdout
 }
 
-/** Everything the commit could carry: the staged diff, plus unstaged and new files when the command stages them itself. */
-async function pendingChanges($: EngineInterface, command: string) {
-  const diffs = [await git($, ['diff', '--cached', '-U0', '--no-color', '--no-ext-diff'])]
+const DIFF = ['-U0', '--no-color', '--no-ext-diff']
+
+/** Everything a commit could carry: its repo's index, plus what it or a `git add` before it on the same line takes from the working tree. */
+async function pendingChanges($: EngineInterface, root: string, commands: Command[], at: number) {
+  const call = gitCall(commands[at]!)!
+  const scope = commitScope(call)
+  const dir = joinPath(root, scope.dir ?? '.')
+  const diffs = [await git($, ['diff', '--cached', ...DIFF], dir)]
   const files: { path: string; text: string }[] = []
-  if (STAGES_TOO.test(command)) {
-    diffs.push(await git($, ['diff', '-U0', '--no-color', '--no-ext-diff']))
-    const untracked = (await git($, ['ls-files', '--others', '--exclude-standard'])).split('\n').filter(Boolean)
-    for (const path of untracked.slice(0, 500)) {
-      const text = await $.fs.read(path).catch(() => undefined)
+
+  if (scope.all) diffs.push(await git($, ['diff', ...DIFF], dir))
+  if (scope.paths.length) {
+    const against = await git($, ['diff', 'HEAD', ...DIFF, '--', ...scope.paths], dir).catch(() => git($, ['diff', ...DIFF, '--', ...scope.paths], dir))
+    diffs.push(against)
+  }
+
+  // a `git add` earlier on this line hasn't run yet: scan what it will stage
+  for (const cmd of commands.slice(0, at)) {
+    const add = (() => {
+      const c = gitCall(cmd)
+      return c ? addScope(c) : undefined
+    })()
+    if (!add) continue
+    const addDir = joinPath(root, add.dir ?? '.')
+    diffs.push(await git($, ['diff', ...DIFF, '--', ...add.paths], addDir))
+    if (!add.untracked) continue
+    const listed = await git($, ['ls-files', '--others', ...(add.ignored ? [] : ['--exclude-standard']), '--', ...add.paths], addDir)
+    for (const path of listed.split('\n').filter(Boolean).slice(0, 500 - files.length)) {
+      const text = await $.fs.read(joinPath(addDir, path)).catch(() => undefined)
       if (typeof text === 'string' && !text.includes('\u0000')) files.push({ path, text })
     }
   }
   return { diff: diffs.join('\n'), files }
 }
 
-function denial(found: Finding[]): string {
+/** Stage numbers whose `[ ]` turns to `[x]` in the plan file's part of a diff. */
+export function closedStages(diff: string, planPath: string): string[] {
+  const ticked = new Set<string>()
+  const unticked = new Set<string>()
+  let inPlan = false
+  for (const raw of diff.split('\n')) {
+    const header = raw.match(/^\+\+\+ (?:b\/)?(.+)$/)
+    if (header) {
+      const file = header[1] ?? ''
+      inPlan = file === planPath || file.endsWith(`/${planPath}`)
+      continue
+    }
+    if (!inPlan) continue
+    const m = raw.match(/^([+-])\s*[-*]\s+\[([ xX])\]\s+(?:\*\*)?(?:stage\s+)?(\d+)\b/i)
+    if (!m) continue
+    if (m[1] === '+' && m[2] !== ' ') ticked.add(m[3] ?? '')
+    if (m[1] === '-' && m[2] === ' ') unticked.add(m[3] ?? '')
+  }
+  return [...ticked].filter(n => unticked.has(n))
+}
+
+function secretDenial(found: Finding[]): string {
   const list = found
     .slice(0, 8)
     .map(f => `  - ${f.file}${f.line ? `:${f.line}` : ''}: ${f.kind}`)
@@ -107,33 +311,155 @@ function denial(found: Finding[]): string {
   ].join('\n')
 }
 
+function checksDenial(stage: string, open: string[]): string {
+  return [
+    `keel blocked this commit: it closes stage ${stage}, but these checks were never seen ticked in \`## Now\`:`,
+    ...open.slice(0, 8).map(c => `  - ${c}`),
+    `Prove them (keel:verify). If they pass, put stage ${stage}'s checks back in \`## Now\` ticked, then close the stage again. If a check no longer applies, say why in the plan's decisions and drop it from \`## Now\` first.`,
+  ].join('\n')
+}
+
 export const register: Register = on => {
   // the plan's current position rides in the system prompt, so it survives compaction and long runs
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)
     const plan = await loadPlan($).catch(() => undefined)
-    $.ui.status(plan ? statusLine(plan) : undefined)
+    const s = await sync($, plan)
+    $.ui.status(plan ? statusLine(plan, s) : undefined)
     if (!plan) return composed
-    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan), scope: 'session' as const }] }
+    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s), scope: 'session' as const }] }
   })
 
   // tell the summarizer what must survive
   on('session.compact', async ($, e, next) => {
-    if (e.agentId || !(await loadPlan($).catch(() => undefined))) return next(e)
-    const keep =
-      'Keep the project-plan state exactly: the active stage, its acceptance checks and which have passed, decisions made since the plan file was last updated, and any uncommitted work in progress with its file paths.'
-    return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${keep}` : keep })
+    if (e.agentId || e.instructions?.includes(KEEP) || !(await loadPlan($).catch(() => undefined))) return next(e)
+    return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${KEEP}` : KEEP })
+  }).catch(($, e, next) => next(e))
+
+  on('turn.start', ($, e, next) => {
+    if (!e.agentId) mainTurns++
+    return next(e)
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    const fromUser = USER_ORIGINS.has(e.origin.kind)
+    // the person speaking up gives a stalled autopilot a fresh allowance
+    if (e.origin.kind !== 'plugin') stalledTurns = 0
+    lastPromptFromUser = fromUser
+    if (fromUser) {
+      if (/^\s*\/keel:autopilot\b/.test(e.text)) await $.state.set(ARMED, true)
+      // the person spoke while a risky stage was held or paused: they have the floor, and their word clears it
+      const plan = await loadPlan($).catch(() => undefined)
+      const s = await readSession($)
+      const stage = plan?.stage
+      if (stage?.risky.length && (plan?.mode?.kind === 'paused' || driving(plan, s)) && !s.cleared.includes(stage.key))
+        await $.state.set(CLEARED, [...s.cleared, stage.key])
+    }
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // autopilot: when a turn ends with stages left and nothing waiting on the person, keep the run going
+  on('turn.complete', async ($, e, next) => {
+    const result = await next(e)
+    if (e.agentId || e.reason !== 'answer') return result
+    const plan = await loadPlan($).catch(() => undefined)
+    const s = await sync($, plan)
+    const mode = plan?.mode?.kind
+    const was = lastMode
+    lastMode = mode
+    if (!plan || mode !== 'autopilot') {
+      if (was !== 'autopilot') return result
+      if (plan?.mode?.kind === 'paused') await $.ui.notify(`Autopilot paused: ${plan.mode.reason}`, { title: 'keel' })
+      else if (plan && !plan.current) await $.ui.notify(`All ${plan.total} stages done.`, { title: 'keel' })
+      return result
+    }
+    // a Mode line left from an earlier session (or shipped in a repo) never drives this one
+    if (!s.armed || !plan.current) return result
+
+    if (held(plan, s)) {
+      if (heldNoticeFor !== plan.stage?.key) {
+        heldNoticeFor = plan.stage?.key
+        await $.ui.notify(`Autopilot is holding before ${plan.stage?.key}: it touches ${plan.stage?.risky.join(', ')}.`, { title: 'keel' })
+      }
+      return result
+    }
+
+    // builders still running in the background will start the next turn when they report
+    if (await backgroundBusy($)) return result
+
+    const progress = `${plan.done}\n${plan.now}`
+    stalledTurns = progress === lastProgress ? stalledTurns + 1 : 0
+    lastProgress = progress
+    if (stalledTurns >= MAX_STALLED_TURNS) {
+      $.ui.toast(`keel: autopilot stopped prompting; ${MAX_STALLED_TURNS} turns ended without the plan moving`)
+      if (stalledTurns === MAX_STALLED_TURNS)
+        await $.ui.notify('Autopilot stalled: the plan has not moved in several turns. Say "go" to resume.', { title: 'keel' })
+      return result
+    }
+
+    const turn = mainTurns
+    $.clock.after(SETTLE_MS, () => {
+      carryOn($, plan, turn).catch(() => $.ui.toast('keel: autopilot could not prompt the next step; say "go" to resume'))
+    })
+    return result
+  }).catch(($, e, next) => next(e))
+
+  // starting keel:autopilot from the person's own turn arms it, including over a Mode line an earlier session left
+  on('tool.call', { tool: 'Skill' }, async ($, e, next) => {
+    if (!e.agentId && lastPromptFromUser && /^(?:keel:)?autopilot$/.test(e.skill)) await $.state.set(ARMED, true)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  // a held stage: no building until the person okays it
+  on('tool.call', async ($, e, next) => {
+    if (e.tool !== 'Edit' && e.tool !== 'Write' && e.tool !== 'NotebookEdit' && e.tool !== 'Agent') return next(e)
+    const plan = await loadPlan($)
+    if (!plan || !held(plan, await sync($, plan))) return next(e)
+    const target = 'file_path' in e ? String(e.file_path) : 'notebook_path' in e ? String(e.notebook_path) : ''
+    if (target && (target === plan.path || target.endsWith(`/${plan.path}`))) return next(e)
+    return {
+      deny: `keel autopilot is holding ${plan.stage?.key}: its risk line names ${plan.stage?.risky.join(', ')}, so it isn't built without the user's word. Commit what's finished, set the Mode line to \`paused — <reason>\`, and ask the user.`,
+    }
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (!COMMIT.test(e.command)) return next(e)
-    const { diff, files } = await pendingChanges($, e.command)
-    const found = findSecrets(diff, files)
-    return found.length ? { deny: denial(found) } : next(e)
+    if (!/\bgit\b|\b(gh|npm|pnpm|yarn|bun|cargo|twine|gem|poetry|uv|docker|podman|vercel|netlify|fly|flyctl|firebase|serverless|sls|wrangler|railway|cdk|terraform|tofu|pulumi|kubectl|helm|gcloud|az|aws|curl)\b/.test(e.command))
+      return next(e)
+    const commands = parseCommands(e.command)
+    const plan = await loadPlan($).catch(() => undefined)
+    const s = await sync($, plan)
+
+    // while autopilot drives, outward-facing steps wait for the person
+    if (driving(plan, s)) {
+      const reason = commands.map(outwardReason).find(Boolean)
+      if (reason)
+        return {
+          deny: `keel autopilot holds outward-facing steps for the user (${reason}). Commit what's finished, set the Mode line to \`paused — <what you want to run and why>\`, and ask the user.`,
+        }
+    }
+
+    const commits = commands.flatMap((c, i) => {
+      const call = gitCall(c)
+      return call?.sub === 'commit' && !commitScope(call).dryRun ? [i] : []
+    })
+    if (!commits.length) return next(e)
+
+    const root = await $.session.cwd().catch(() => '.')
+    for (const at of commits) {
+      const { diff, files } = await pendingChanges($, root, commands, at)
+      const found = findSecrets(diff, files)
+      if (found.length) return { deny: secretDenial(found) }
+      if (plan)
+        for (const n of closedStages(diff, plan.path)) {
+          const open = s.openChecks[n]
+          if (open?.length) return { deny: checksDenial(n, open) }
+        }
+    }
+    return next(e)
   }).catch(($, e, next) => {
     if (next.called) return next(e)
     // a guard that cannot read the repository steps aside rather than block every commit
-    $.ui.toast('keel: the secret check could not run on this commit')
+    $.ui.toast('keel: the commit check could not run on this command')
     return next(e)
   })
 }

@@ -26,4 +26,4 @@ In a few lines:
 - decisions waiting on the user;
 - the next step you'd take.
 
-Then wait for the user's go, unless they already gave it in the message that brought you here.
+Then wait for the user's go, unless they already gave it in the message that brought you here. If `## Now` says `Mode: autopilot` and keel's context says autopilot is armed in this session, the go was given: say where things stand in a line and carry on under `keel:autopilot`. If it says autopilot but isn't armed (the line is left from an earlier session), report where the run stands and ask whether to resume; on the user's yes, run `keel:autopilot`. If it says `paused`, lead with what the pause is waiting on.

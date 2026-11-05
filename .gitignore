@@ -4,3 +4,6 @@ node_modules
 .DS_Store
 plugins/keel/.claude-plugin/types
 plugins/keel/tsconfig.json
+
+# eval results
+plugins/keel/evals/results

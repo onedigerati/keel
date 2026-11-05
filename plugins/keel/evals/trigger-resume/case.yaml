@@ -1,0 +1,23 @@
+schema_version: "1.0"
+name: trigger-resume
+description: After a break, "where were we" loads keel:resume and reports the stage from the plan and git.
+tags: [trigger]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: I'm back after a few days. Where were we on this?
+  max_turns: 12
+  allowed_tools: [Read, Glob, Grep, Bash, Skill]
+graders:
+  - type: tool_used
+    name: loads-resume
+    tool: Skill
+    input_match: "resume"
+    min: 1
+    arm: with-only
+  - type: llm
+    name: reports-position
+    criteria: >-
+      The reply says the project is on stage 2 (CSV input) of 3, that stage 1 is done and committed, that neither of
+      stage 2's checks has passed yet, and proposes building stage 2 as the next step. It waits for the user's go
+      rather than starting to write code.
