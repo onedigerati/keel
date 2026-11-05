@@ -1,0 +1,37 @@
+schema_version: "1.0"
+name: next-feature
+description: With the plan finished, the next large feature archives the old plan, carries forward only binding decisions, and starts a fresh plan.
+tags: [outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    That feature is done. Next big piece of work: monthly reports, grouping expenses by month and category and
+    printing a summary table. Plan it before writing code; assume sensible defaults rather than asking me.
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-plan
+    tool: Skill
+    input_match: "plan"
+    min: 1
+    arm: with-only
+  - type: file_exists
+    name: archives-old-plan
+    path: "docs/plans/*.md"
+    arm: with-only
+  - type: llm
+    name: fresh-plan-carries-what-binds
+    focus: { source: file, path: docs/PLAN.md }
+    criteria: >-
+      This is a new plan for monthly reports, not the old plan with stages appended: its Goal is about monthly
+      reports and its stages are numbered from 1. It carries forward the integer-cents decision (with its original
+      2026-10-01 date) as still binding, keeps the open question about negative amounts, and records the finished
+      CSV-totals feature as shipped. It does not carry forward the bank-export column decision as binding unless it
+      explains why it still applies.
+  - type: regex
+    name: no-source-changes
+    target: files
+    pattern: "src/"
+    match: not_contains

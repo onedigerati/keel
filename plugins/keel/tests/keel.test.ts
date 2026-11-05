@@ -66,7 +66,7 @@ test('reads a plan with a Now section and a stage checklist', () => {
 
 test('reads an older plan with bold stage names and no Now section', () => {
   const plan = parsePlan('docs/BUILD_PLAN.md', '## Stages\n\n- [x] **Stage 1** — scaffold\n- [x] **Stage 2** — Act 2\n')
-  expect(plan).toEqual({ path: 'docs/BUILD_PLAN.md', now: undefined, mode: undefined, stage: undefined, done: 2, total: 2, current: undefined })
+  expect(plan).toEqual({ path: 'docs/BUILD_PLAN.md', goal: undefined, now: undefined, mode: undefined, stage: undefined, done: 2, total: 2, current: undefined })
 })
 
 test('reads the autopilot mode, and a pause with its reason', () => {
@@ -411,4 +411,20 @@ test('closing a stage whose checks were never ticked is refused', async ($, on) 
   await $.turn.complete(ended('t2'))
   const passed = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2: share mode"' })
   expect(passed.deny).toBeUndefined()
+})
+
+test('a new Goal starts the per-stage records afresh', async ($, on) => {
+  const planFor = (goal: string, check: string) =>
+    ['## Goal', goal, '## Now', 'Stage 1 of 2 · Start', 'Checks:', check, '## Stages', '- [ ] 1. Start', '- [ ] 2. Finish'].join('\n')
+  const plan = { text: planFor('Feature one.', '- [ ] old check never ticked') }
+  engine(on, plan)
+  fakeGit(on, () => diffOf('docs/PLAN.md', '-- [ ] 1. Start', '+- [x] 1. Start'), false)
+
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m one' })).deny).toContain('old check never ticked')
+
+  // feature two's plan: no checklist written yet for its stage 1, so nothing of feature one's may linger
+  plan.text = planFor('Feature two.', 'Open: none')
+  await $.turn.complete(ended('t2'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m two' })).deny).toBeUndefined()
 })

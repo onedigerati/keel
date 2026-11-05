@@ -37,6 +37,8 @@ interface Stage {
 
 interface Plan {
   path: string
+  /** The `## Goal` paragraph: when it changes, the plan is for a new feature. */
+  goal: string | undefined
   now: string | undefined
   mode: Mode | undefined
   stage: Stage | undefined
@@ -94,7 +96,8 @@ export function parsePlan(path: string, text: string): Plan {
     ?.trim()
 
   const done = stages.length - stages.filter(l => /\[ \]/.test(l)).length
-  return { path, now, mode, stage, done, total: stages.length, current }
+  const goal = sections.get('goal')?.join('\n').trim() || undefined
+  return { path, goal, now, mode, stage, done, total: stages.length, current }
 }
 
 // ---- session state: what this session, not the repo, says about autopilot ----
@@ -103,6 +106,7 @@ const ARMED = { plugin: 'keel', key: 'armed' } as const
 const SEEN_MODE = { plugin: 'keel', key: 'seenMode' } as const
 const CLEARED = { plugin: 'keel', key: 'cleared' } as const
 const OPEN_CHECKS = { plugin: 'keel', key: 'openChecks' } as const
+const GOAL = { plugin: 'keel', key: 'goal' } as const
 
 interface Session {
   armed: boolean
@@ -122,7 +126,18 @@ async function readSession($: EngineInterface): Promise<Session> {
  */
 async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session> {
   const mode = plan?.mode?.kind ?? 'none'
-  const [seen, session] = await Promise.all([$.state.get(SEEN_MODE), readSession($)])
+  const [seen, seenGoal, session] = await Promise.all([$.state.get(SEEN_MODE), $.state.get(GOAL), readSession($)])
+  // a new Goal is a new feature: its stages restart at 1, so the last feature's per-stage records go
+  const goal = plan?.goal ?? ''
+  if (seenGoal.value !== goal) {
+    if (seenGoal.value !== undefined && plan) {
+      session.openChecks = {}
+      session.cleared = []
+      await $.state.set(OPEN_CHECKS, {})
+      await $.state.set(CLEARED, [])
+    }
+    if (plan) await $.state.set(GOAL, goal)
+  }
   if (seen.value !== mode) {
     if (seen.value !== undefined && mode === 'autopilot') session.armed = true
     if (mode === 'none') session.armed = false
@@ -150,7 +165,7 @@ const held = (plan: Plan | undefined, s: Session) =>
 
 function statusLine(plan: Plan, s: Session): string {
   if (plan.total === 0) return `keel · ${plan.path}`
-  if (!plan.current) return `keel · all ${plan.total} stages done`
+  if (!plan.current) return `keel · all ${plan.total} stages done · next feature: keel:plan`
   const mode = !plan.mode
     ? ''
     : plan.mode.kind === 'paused'

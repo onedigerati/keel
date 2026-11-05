@@ -9,6 +9,8 @@ declare module 'claude-code' {
       cleared: string[]
       /** For each stage number, the checks last seen unticked in `## Now` while that stage was current. */
       openChecks: Record<string, string[]>
+      /** The plan's Goal at the last look; a change means a new feature, and resets the per-stage records. */
+      goal: string
     }
   }
 }

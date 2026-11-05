@@ -1,6 +1,6 @@
 {
   "name": "keel",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Lightweight project discipline: one plan file, staged work, an autopilot project manager, verification against the running product, fresh-eyes review, and a secret guard on commits.",
   "author": {
     "name": "jonah"

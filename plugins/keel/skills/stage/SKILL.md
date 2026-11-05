@@ -43,4 +43,6 @@ Tell the user, briefly:
 - what review found, fixed and deferred;
 - open decisions, and the next stage in one line.
 
+When that was the plan's last stage, say the feature is done and offer `keel:plan` for the next one: it archives this plan and starts fresh.
+
 Then wait for their go. Don't start the next stage on your own unless the user said to run several in a row; to hand the whole plan over, use `keel:autopilot`.
