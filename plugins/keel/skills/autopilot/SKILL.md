@@ -50,4 +50,4 @@ When the last stage closes, remove the `Mode:` line, set `## Now` to "All stages
 - what was deferred (the plan's open questions), and the decisions you made along the way;
 - anything you'd check yourself before shipping.
 
-Then offer the next step in one line: when the user has another feature, `keel:plan` archives this plan and starts a fresh one.
+Then offer the next step in one line: when the user has more work beyond this plan's goal, `keel:plan` archives this plan and starts a fresh one.

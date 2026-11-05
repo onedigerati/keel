@@ -6,12 +6,12 @@ Keeps long, multi-stage work with Claude Code on course without a heavyweight pr
 
 | Command | What it does |
 | --- | --- |
-| `/keel:plan` | Creates or updates `docs/PLAN.md`: goal, current position, stages with acceptance checks and a risk line, dated decisions, open questions. Adopts an existing plan file instead of starting a second one. In a repo that already has code, it first surveys the part the plan touches and records a test baseline. When a feature is finished, it starts the next one (see below). |
+| `/keel:plan` | Creates or updates `docs/PLAN.md`: goal, current position, stages with acceptance checks and a risk line, dated decisions, open questions. Adopts an existing plan file instead of starting a second one. In a repo that already has code, it first surveys the part the plan touches and records a test baseline. When a plan's goal is met, it starts the next plan (see below). |
 | `/keel:stage` | Runs the next stage: scope, build (independent parts fanned out to subagents in their own worktrees), test, verify, review, update the plan, commit, then stop for your review. |
 | `/keel:autopilot` | Autopilot: Claude takes over an approved plan as project manager and runs every remaining stage without stopping between them. Builders are subagents; the manager verifies, reviews, commits and keeps the plan current. It pauses before stages that touch auth, money or personal data, on decisions only you can make, on checks it can't get green, and before anything outward-facing (push, deploy, real data). |
 | `/keel:verify` | Type check, lint, tests, build and a dependency audit, then each acceptance check proven in the running product with evidence. |
 | `/keel:review` | A fresh-eyes review by an agent that didn't write the code, with a security pass for risky stages. Findings are verified and sorted into fix, defer or reject. |
-| `/keel:resume` | After a break or a context summary: reads the plan and git, reports where things stand and what's next, and offers the next feature when the plan is finished. |
+| `/keel:resume` | After a break or a context summary: reads the plan and git, reports where things stand and what's next, and offers the next plan when this one is finished. |
 
 Claude also uses them on its own when the moment fits.
 
@@ -19,7 +19,7 @@ Claude also uses them on its own when the moment fits.
 
 1. **Plan.** `/keel:plan` writes `docs/PLAN.md`. In existing code it first surveys what the work will touch: how to run and test it, its conventions, where the change lands, what's risky nearby. It runs the checks once and records the result as a `## Baseline`, so failures that were already there aren't blamed on new work. Run and test commands go in `CLAUDE.md` rather than a separate codebase map.
 2. **Build.** Step through the stages with `/keel:stage`, stopping after each for your review, or hand the plan to `/keel:autopilot`. Each stage is verified against the running product, reviewed when risky, and committed. Untested code gets a test of its current behavior before it changes.
-3. **Next feature.** One plan covers one feature or milestone. When it's done and the next one starts, `/keel:plan` archives it to `docs/plans/<date>-<feature>.md` and carries forward only what still applies: decisions that still bind (under `## Standing decisions`, with their dates and a link back) and open questions. It adds a line to `## Shipped`, then plans the new feature fresh, with a new survey, a new baseline and stages numbered from 1. It commits the switch on its own and suggests `/clear` before building; nothing is lost, since the plan, the archive and git hold it all.
+3. **Next plan.** A plan covers one body of work with one Goal: a single feature, several features, or a milestone. New work that fits the Goal is added as stages; work beyond it either widens the Goal or waits for the next plan, and Claude asks which. When the Goal is met and the next body of work starts, `/keel:plan` archives the plan to `docs/plans/<date>-<plan>.md` and carries forward only what still applies: decisions that still bind (under `## Standing decisions`, with their dates and a link back) and open questions. It adds a line to `## Shipped`, then plans the new work fresh, with a new survey, a new baseline and stages numbered from 1. It commits the switch on its own and suggests `/clear` before building; nothing is lost, since the plan, the archive and git hold it all.
 
 ## Hooks
 
@@ -59,7 +59,7 @@ The plugin is read straight from the clone, so edits take effect after `/reload-
   - a risky stage is paused;
   - an autopilot line left in a repo doesn't start a run;
   - a plan in existing code records the inherited test failure as baseline and tests untested code first (`brownfield-plan`);
-  - the next feature archives the old plan and carries forward only binding decisions (`next-feature`).
+  - starting the next plan archives the old one and carries forward only binding decisions (`next-feature`).
 
 Each case builds a small project with its own `scaffold.sh`. Most are generated from `evals/fixtures/repo.sh`; `brownfield-plan` and `next-feature` are written by hand.
 

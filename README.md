@@ -12,4 +12,4 @@ claude plugin marketplace add onedigerati/keel
 claude plugin install keel@keel-local
 ```
 
-See [plugins/keel/README.md](plugins/keel/README.md) for the skills, hooks and how a project flows from plan to the next feature.
+See [plugins/keel/README.md](plugins/keel/README.md) for the skills, hooks and how a project flows from one plan to the next.
