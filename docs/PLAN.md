@@ -7,20 +7,19 @@ Keep the evidence from verification after the session ends. Right now `keel:veri
 2026-11-06 · tests: 34 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 3 of 4 · Evidence gate
+Stage 4 of 4 · Docs and release
 Mode: autopilot
-Risk: commit guard (hook code that can block every commit, or let a stage close with nothing behind it)
+Risk: docs and version only
 Checks:
-- [ ] A commit that closes stage n is refused when `docs/evidence/stage-<n>/report.md` is neither in the commit nor in the working tree, and the denial names the path and how to write or backfill it with keel:verify (proof: test)
-- [ ] A report whose table has fewer check rows than the stage's checks in `## Now` is refused; one with a row per check passes, whether it's already in the tree or added in the same commit (proof: test)
-- [ ] Commits that close no stage, repos with no plan, and the guard's existing behavior are unchanged: the 34 existing tests still pass, and a guard error still steps aside (proof: test)
-- [ ] This repo's own stage 3 commit, made with the new hook loaded, passes the gate with `docs/evidence/stage-3/report.md` (proof: run the product)
+- [ ] `plugins/keel/README.md` describes evidence: where verify writes it, what's committed and how a repo opts in to screenshots, how archiving moves it, and the evidence gate with its limits (a plan edited on the same command line as the commit isn't seen; committed images get no secret scan; `git -C` into another repo is checked against this one; a report that exists but isn't committed counts) (proof: read the README)
+- [ ] The root `README.md` mentions evidence in "What it does"; the plugin README's eval list includes `verify-evidence` and says what `next-feature` and `verify-honest` now check; `skills/plan/SKILL.md`'s sentence on the commit guard mentions the evidence gate (proof: read)
+- [ ] `plugin.json` is 0.5.0 with a description that mentions evidence; `claude plugin validate plugins/keel` passes and `claude plugin test plugins/keel` is 53/53 (proof: command)
 Open: none
 
 ## Stages
 - [x] 1. Verify writes evidence — verify saves a per-check report, screenshots and output to `docs/evidence/stage-<n>/`
 - [x] 2. Stage and autopilot use it — reports link the evidence; autopilot's independent verifier writes there; archiving a plan moves its evidence alongside
-- [ ] 3. Evidence gate — the commit guard refuses to close a stage whose `report.md` is missing or doesn't cover its checks
+- [x] 3. Evidence gate — the commit guard refuses to close a stage whose `report.md` is missing or doesn't cover its checks
 - [ ] 4. Docs and release — both READMEs, eval list, version 0.5.0
 
 ## Decisions
@@ -37,6 +36,10 @@ Open: none
 - 2026-11-06 · Verify writes evidence whenever a plan stage is verified, including on a "just report" request, and stays in chat for ad-hoc fixes or repos with no plan — review found evidence would otherwise land under the wrong stage; the first wording of that rule led a run to write nothing on a report-only request, so it now says so outright.
 - 2026-11-06 · The plan context the hook injects now says verifying a stage means running keel:verify, which saves its evidence — in 1 of 2 traced runs, "verify stage 1 is still good" never loaded the skill and so wrote no evidence; with the rule, 3 of 3 did.
 - 2026-11-06 · Stage 1 proof: headless runs on both case scaffolds, graded by hand against the cases (verify-evidence 2/2, verify-honest 3/3 after the fixes); `claude plugin eval plugins/keel --case verify-evidence --case verify-honest --scaffold --runs 3` still to run off this machine.
+- 2026-11-06 · The evidence gate reads a stage's check count from the session, or from the plan at HEAD when the session never saw that stage; the ticked-checks gate uses the same HEAD fallback — review found that a stage closed in a later session otherwise passed with a 1-row report and skipped the ticked-checks gate.
+- 2026-11-06 · Secrets are scanned for every commit on a command line before any stage gate runs, and a report that can't be read counts as missing — review found a throw in the evidence check could otherwise skip the secret scan for a later commit on the same line.
+- 2026-11-06 · Deferred from stage 3's review, documented in stage 4 instead of fixed: `git -C` into another keel repo is checked against this one's evidence; a report changed rather than added falls back to the working-tree copy; a report that exists but isn't committed counts. All are rare, and none lets a stage close with nothing behind it in the repo it's working in.
+- 2026-11-06 · Hook behavior is proven live with plain headless sessions using the installed plugin (it reads the working tree), not `claude -p --plugin-dir`: with a second copy of keel loaded that way, the guard didn't block a commit in this setup. The cause wasn't investigated.
 
 ## Open questions
 - Committed screenshots get no secret scan (the guard skips binary files); stage 4's docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.

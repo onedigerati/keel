@@ -1,0 +1,4 @@
+$ claude -p "Run exactly: git commit -m 'close stage 3'"   # fresh headless session, installed keel from the working tree, scratch clone of this repo with the stage 3 tick staged
+# no report
+keel blocked this commit: it closes stage 3, but its evidence report `docs/evidence/stage-3/report.md` is neither in the commit nor in the working tree.
+Run keel:verify for stage 3, which writes the report; for a stage verified before keel 0.5.0, backfill the report in keel:verify's format from the evidence at hand. Then close the stage again.</tool_use_error>

@@ -107,16 +107,24 @@ const SEEN_MODE = { plugin: 'keel', key: 'seenMode' } as const
 const CLEARED = { plugin: 'keel', key: 'cleared' } as const
 const OPEN_CHECKS = { plugin: 'keel', key: 'openChecks' } as const
 const GOAL = { plugin: 'keel', key: 'goal' } as const
+const CHECK_COUNTS = { plugin: 'keel', key: 'checkCounts' } as const
 
 interface Session {
   armed: boolean
   cleared: string[]
   openChecks: Record<string, string[]>
+  /** For each stage number, how many checks `## Now` listed when last seen there. */
+  checkCounts: Record<string, number>
 }
 
 async function readSession($: EngineInterface): Promise<Session> {
-  const [armed, cleared, openChecks] = await Promise.all([$.state.get(ARMED), $.state.get(CLEARED), $.state.get(OPEN_CHECKS)])
-  return { armed: armed.value ?? false, cleared: cleared.value ?? [], openChecks: openChecks.value ?? {} }
+  const [armed, cleared, openChecks, checkCounts] = await Promise.all([
+    $.state.get(ARMED),
+    $.state.get(CLEARED),
+    $.state.get(OPEN_CHECKS),
+    $.state.get(CHECK_COUNTS),
+  ])
+  return { armed: armed.value ?? false, cleared: cleared.value ?? [], openChecks: openChecks.value ?? {}, checkCounts: checkCounts.value ?? {} }
 }
 
 /**
@@ -133,8 +141,10 @@ async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session
     if (seenGoal.value !== undefined && plan) {
       session.openChecks = {}
       session.cleared = []
+      session.checkCounts = {}
       await $.state.set(OPEN_CHECKS, {})
       await $.state.set(CLEARED, [])
+      await $.state.set(CHECK_COUNTS, {})
     }
     if (plan) await $.state.set(GOAL, goal)
   }
@@ -150,6 +160,10 @@ async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session
     if (JSON.stringify(session.openChecks[stage.number] ?? null) !== JSON.stringify(open)) {
       session.openChecks = { ...session.openChecks, [stage.number]: open }
       await $.state.set(OPEN_CHECKS, session.openChecks)
+    }
+    if (session.checkCounts[stage.number] !== stage.checks.length) {
+      session.checkCounts = { ...session.checkCounts, [stage.number]: stage.checks.length }
+      await $.state.set(CHECK_COUNTS, session.checkCounts)
     }
   }
   return session
@@ -288,7 +302,7 @@ async function pendingChanges($: EngineInterface, root: string, commands: Comman
       if (typeof text === 'string' && !text.includes('\u0000')) files.push({ path, text })
     }
   }
-  return { diff: diffs.join('\n'), files }
+  return { diff: diffs.join('\n'), files, dir }
 }
 
 /** Stage numbers whose `[ ]` turns to `[x]` in the plan file's part of a diff. */
@@ -332,6 +346,98 @@ function checksDenial(stage: string, open: string[]): string {
     ...open.slice(0, 8).map(c => `  - ${c}`),
     `Prove them (keel:verify). If they pass, put stage ${stage}'s checks back in \`## Now\` ticked, then close the stage again. If a check no longer applies, say why in the plan's decisions and drop it from \`## Now\` first.`,
   ].join('\n')
+}
+
+// ---- the evidence gate ----
+
+/**
+ * Where keel:verify writes stage n's report: `evidence/stage-<n>/report.md` beside the plan file, and under
+ * `docs/` for a plan at the repo root, since verify always writes to `docs/evidence/`. Every plan path keel
+ * reads (docs/PLAN.md, PLAN.md, docs/BUILD_PLAN.md) so resolves to `docs/evidence/stage-<n>/report.md`.
+ */
+export function evidencePath(planPath: string, stage: string): string {
+  const dir = planPath.includes('/') ? planPath.slice(0, planPath.lastIndexOf('/')) : 'docs'
+  return `${dir}/evidence/stage-${stage}/report.md`
+}
+
+const samePath = (file: string, path: string) => file === path || file.endsWith(`/${path}`)
+
+/** A file's text when the commit adds it whole: from a new file's hunk in the diff, or an untracked file a `git add` on the line takes. */
+function addedText(diff: string, files: { path: string; text: string }[], path: string): string | undefined {
+  const file = files.find(f => samePath(f.path, path))
+  if (file) return file.text
+  const lines = diff.split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const header = lines[i]?.match(/^\+\+\+ (?:b\/)?(.+)$/)
+    if (!header || !samePath(header[1] ?? '', path) || lines[i - 1] !== '--- /dev/null') continue
+    const body: string[] = []
+    for (let j = i + 1; j < lines.length && !lines[j]?.startsWith('diff --git '); j++) {
+      const line = lines[j] ?? ''
+      if (line.startsWith('+')) body.push(line.slice(1))
+    }
+    return body.join('\n')
+  }
+  return undefined
+}
+
+/** Cells of a markdown table row; an escaped `\|` stays inside its cell. Undefined for a line that isn't a row. */
+function tableCells(line: string): string[] | undefined {
+  const cells = line.trim().split(/(?<!\\)\|/)
+  if (cells.length < 2) return undefined
+  if (cells[0]?.trim() === '') cells.shift()
+  if (cells.at(-1)?.trim() === '') cells.pop()
+  return cells
+}
+
+/** Check rows in the report's first table: its rows after the header and the `---` separator. */
+export function reportRows(text: string): number {
+  const lines = text.split('\n')
+  const separator = (line: string) => !!tableCells(line)?.every(c => /^\s*:?-+:?\s*$/.test(c))
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (!tableCells(lines[i] ?? '') || !separator(lines[i + 1] ?? '')) continue
+    let rows = 0
+    for (let j = i + 2; j < lines.length && tableCells(lines[j] ?? ''); j++) rows++
+    return rows
+  }
+  return 0
+}
+
+/** Why stage n can't close for want of evidence, or undefined when its report is there with a row per check. */
+async function evidenceDenial(
+  $: EngineInterface,
+  planPath: string,
+  stage: string,
+  checks: number | undefined,
+  pending: { diff: string; files: { path: string; text: string }[] },
+): Promise<string | undefined> {
+  const path = evidencePath(planPath, stage)
+  // a report that can't be read (a directory, a permissions error) counts as missing, never as a pass or a reason to step aside
+  const onDisk = async () => ((await $.fs.exists(path)) ? await $.fs.read(path) : undefined)
+  const text = addedText(pending.diff, pending.files, path) ?? (await onDisk().catch(() => undefined))
+  const backfill = `Run keel:verify for stage ${stage}, which writes the report; for a stage verified before keel 0.5.0, backfill the report in keel:verify's format from the evidence at hand. Then close the stage again.`
+  if (typeof text !== 'string')
+    return [`keel blocked this commit: it closes stage ${stage}, but its evidence report \`${path}\` is neither in the commit nor in the working tree.`, backfill].join('\n')
+  const want = Math.max(checks ?? 0, 1)
+  const rows = reportRows(text)
+  if (rows >= want) return undefined
+  return [
+    `keel blocked this commit: it closes stage ${stage}, but \`${path}\` has ${rows} check row${rows === 1 ? '' : 's'} in its table and the stage has ${checks ? `${checks} check${checks === 1 ? '' : 's'} in \`## Now\`` : 'to have at least one'}.`,
+    `Give each check a row in the report's first table.`,
+    backfill,
+  ].join('\n')
+}
+
+/**
+ * Stage n's checks as the committed plan lists them, for a session that never saw stage n in `## Now`
+ * (a fresh session after `## Now` moved on): only when HEAD's plan still has stage n in `## Now`.
+ * Undefined when HEAD has no plan, its Now is another stage, or git can't say.
+ */
+async function committedChecks($: EngineInterface, planPath: string, stage: string, dir: string) {
+  const text = await git($, ['show', `HEAD:${planPath}`], dir).catch(() => undefined)
+  if (typeof text !== 'string') return undefined
+  const now = parsePlan(planPath, text).stage
+  if (now?.number !== stage || !now.checks.length) return undefined
+  return { count: now.checks.length, open: now.checks.filter(c => !c.done).map(c => c.text) }
 }
 
 export const register: Register = on => {
@@ -462,16 +568,25 @@ export const register: Register = on => {
     if (!commits.length) return next(e)
 
     const root = await $.session.cwd().catch(() => '.')
+    // every commit on the line is scanned for secrets before any stage gate runs, so nothing a gate does can skip a scan
+    const pendings = []
     for (const at of commits) {
-      const { diff, files } = await pendingChanges($, root, commands, at)
-      const found = findSecrets(diff, files)
+      const pending = await pendingChanges($, root, commands, at)
+      const found = findSecrets(pending.diff, pending.files)
       if (found.length) return { deny: secretDenial(found) }
-      if (plan)
-        for (const n of closedStages(diff, plan.path)) {
-          const open = s.openChecks[n]
-          if (open?.length) return { deny: checksDenial(n, open) }
-        }
+      pendings.push(pending)
     }
+    if (plan)
+      for (const pending of pendings)
+        for (const n of closedStages(pending.diff, plan.path)) {
+          // a session that never saw stage n in `## Now` asks the committed plan for its checks
+          const known = s.checkCounts[n] !== undefined || s.openChecks[n] !== undefined
+          const committed = known ? undefined : await committedChecks($, plan.path, n, pending.dir).catch(() => undefined)
+          const open = committed?.open ?? s.openChecks[n]
+          if (open?.length) return { deny: checksDenial(n, open) }
+          const missing = await evidenceDenial($, plan.path, n, committed?.count ?? s.checkCounts[n], pending)
+          if (missing) return { deny: missing }
+        }
     return next(e)
   }).catch(($, e, next) => {
     if (next.called) return next(e)

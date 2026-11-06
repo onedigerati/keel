@@ -1,0 +1,3 @@
+$ claude -p "Run exactly: git commit -m 'close stage 3'"   # fresh headless session, installed keel from the working tree, scratch clone of this repo with the stage 3 tick staged
+# report with 4 rows
+(not blocked: commit d0ba494 'close stage 3' made)

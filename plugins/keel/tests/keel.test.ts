@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
-import { closedStages, parsePlan } from '../hooks/register.ts'
+import { closedStages, evidencePath, parsePlan, reportRows } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
 
 // fake credentials are assembled at run time so this file never trips a secret scanner itself
@@ -91,13 +91,25 @@ function planWith(mode: string, tag = '') {
   ].join('\n')
 }
 
-/** Stands in for the engine under the autopilot: the plan on disk, the context gauge, and what the hooks send it. */
-function engine(on: On, plan: { text: string }, percent = 20, agents: { status: string }[] = []) {
+/** Stands in for the engine under the autopilot: the plan on disk (and any other files, by repo path), the context gauge, and what the hooks send it. */
+function engine(
+  on: On,
+  plan: { text: string; files?: Record<string, string>; untracked?: Record<string, string>; broken?: string[] },
+  percent = 20,
+  agents: { status: string }[] = [],
+) {
   const sent = { prompts: [] as string[], compactions: [] as (string | undefined)[], notes: [] as string[] }
   on('agent.list', () => ({ value: agents.map((a, i) => ({ id: `a${i}`, description: 'build', type: 'general-purpose', ...a })) as never }))
   on('session.cwd', () => ({ value: '/repo' }))
-  on('fs.exists', (_, e) => ({ value: e.path.endsWith('/docs/PLAN.md') }))
-  on('fs.read', () => ({ value: plan.text }))
+  // `untracked` files are read only as a `git add` lists them, never seen by an exists check
+  const find = (files: Record<string, string> | undefined, path: string) => Object.entries(files ?? {}).find(([p]) => path === p || path.endsWith(`/${p}`))?.[1]
+  on('fs.exists', (_, e) => ({ value: e.path.endsWith('/docs/PLAN.md') || find(plan.files, e.path) !== undefined || !!plan.broken?.some(p => e.path === p || e.path.endsWith(`/${p}`)) }))
+  // a `broken` path exists but its read throws, as a directory's would
+  const broken = (path: string) => !!plan.broken?.some(p => path === p || path.endsWith(`/${p}`))
+  on('fs.read', (_, e) => {
+    if (broken(e.path)) throw new Error(`EISDIR: illegal operation on a directory, read '${e.path}'`)
+    return { value: find(plan.files, e.path) ?? find(plan.untracked, e.path) ?? plan.text }
+  })
   on('session.usage', () => ({ value: { startedAt: 0, context: { window: 200_000, percent }, rateLimits: [] } }))
   on('session.compact', (_, e) => {
     sent.compactions.push(e.instructions)
@@ -396,8 +408,16 @@ test('a risky stage is held until the person speaks to it', async ($, on) => {
   expect((await $.tool.call({ ...edit, file_path: '/repo/src/login.ts' })).deny).toBeUndefined()
 })
 
+/** Stage 2 of 3 in `## Now` with `checks` under it. */
+const shareMode = (...checks: string[]) =>
+  ['## Now', 'Stage 2 of 3 · Share mode', 'Checks:', ...checks, '## Stages', '- [x] 1. Foundation', '- [ ] 2. Share mode', '- [ ] 3. Polish'].join('\n')
+
+/** A verify report whose table has `rows` check rows. */
+const reportWith = (rows: number) =>
+  ['# Stage 2 · Share mode — evidence', '', '| Check | Result | Evidence |', '|---|---|---|', ...Array.from({ length: rows }, (_, i) => `| check ${i + 1} | pass | out-${i + 1}.txt |`), '', 'Project checks: tests pass'].join('\n')
+
 test('closing a stage whose checks were never ticked is refused', async ($, on) => {
-  const plan = { text: ['## Now', 'Stage 2 of 3 · Share mode', 'Checks:', '- [x] link opens read-only', '- [ ] controls work on touch', '## Stages', '- [x] 1. Foundation', '- [ ] 2. Share mode', '- [ ] 3. Polish'].join('\n') }
+  const plan = { text: shareMode('- [x] link opens read-only', '- [ ] controls work on touch'), files: { 'docs/evidence/stage-2/report.md': reportWith(2) } }
   engine(on, plan)
   let staged = diffOf('docs/PLAN.md', '-- [ ] 2. Share mode', '+- [x] 2. Share mode')
   fakeGit(on, () => staged, false)
@@ -416,7 +436,7 @@ test('closing a stage whose checks were never ticked is refused', async ($, on) 
 test('a new Goal starts the per-stage records afresh', async ($, on) => {
   const planFor = (goal: string, check: string) =>
     ['## Goal', goal, '## Now', 'Stage 1 of 2 · Start', 'Checks:', check, '## Stages', '- [ ] 1. Start', '- [ ] 2. Finish'].join('\n')
-  const plan = { text: planFor('Feature one.', '- [ ] old check never ticked') }
+  const plan = { text: planFor('Feature one.', '- [ ] old check never ticked'), files: { 'docs/evidence/stage-1/report.md': reportWith(1) } }
   engine(on, plan)
   fakeGit(on, () => diffOf('docs/PLAN.md', '-- [ ] 1. Start', '+- [x] 1. Start'), false)
 
@@ -440,4 +460,202 @@ test('the status band is redrawn when a turn ends, so a stage closed mid-turn sh
   plan.text = planWith('Open: none').replace(/- \[ \]/g, '- [x]')
   await $.turn.complete(ended('t2'))
   expect(bands.at(-1)).toBe('keel · all 3 stages done · next feature: keel:plan')
+})
+
+// ---- the evidence gate ----
+
+const closeStage2 = diffOf('docs/PLAN.md', '-- [ ] 2. Share mode', '+- [x] 2. Share mode')
+const REPORT = 'docs/evidence/stage-2/report.md'
+/** A diff that adds `path` as a new file with `text`. */
+const newFile = (path: string, text: string) =>
+  [`diff --git a/${path} b/${path}`, 'new file mode 100644', '--- /dev/null', `+++ b/${path}`, '@@ -0,0 +1 @@', ...text.split('\n').map(l => `+${l}`)].join('\n')
+
+test('the report sits beside the plan, under docs/ for a plan at the root', () => {
+  expect(evidencePath('docs/PLAN.md', '3')).toBe('docs/evidence/stage-3/report.md')
+  expect(evidencePath('docs/BUILD_PLAN.md', '3')).toBe('docs/evidence/stage-3/report.md')
+  expect(evidencePath('PLAN.md', '3')).toBe('docs/evidence/stage-3/report.md')
+})
+
+test('counts the first table\'s rows past header and separator, an escaped pipe splitting nothing', () => {
+  expect(reportRows(reportWith(3))).toBe(3)
+  expect(reportRows('| Check | Result |\n| :-- | --: |\n| `a \\| b` works | pass |\n\n| Later | table |\n|---|---|\n| x | y |\n| z | w |')).toBe(1)
+  expect(reportRows('# no table\nnot \\| a row')).toBe(0)
+})
+
+test('counts rows in a CRLF report and in a table without leading pipes', () => {
+  expect(reportRows(reportWith(3).replace(/\n/g, '\r\n'))).toBe(3)
+  expect(reportRows('Check | Result\n--- | ---\nlink opens | pass\ntouch works | pass\n\nafter')).toBe(2)
+})
+
+test('closing a stage with no evidence report is refused, naming the path and keel:verify', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch') })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2: share mode"' })
+  expect(r.deny).toContain('closes stage 2')
+  expect(r.deny).toContain(REPORT)
+  expect(r.deny).toContain('keel:verify for stage 2')
+  expect(r.deny).toContain('before keel 0.5.0, backfill')
+})
+
+test('a report in the working tree with a row per check lets the stage close', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch'), files: { [REPORT]: reportWith(2) } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a report added in the same commit counts', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch') })
+  fakeGit(on, () => [closeStage2, newFile(REPORT, reportWith(2))].join('\n'), false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a report a git add on the same line takes counts', async ($, on) => {
+  const plan = { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch'), untracked: { [REPORT]: reportWith(1) } }
+  engine(on, plan)
+  fakeGit(on, argv => (argv.includes('--cached') ? closeStage2 : argv[1] === 'ls-files' ? `${REPORT}\n` : ''), false)
+  await $.turn.complete(ended('t1'))
+  const command = `git add ${REPORT} && git commit -m "Stage 2"`
+  expect((await $.tool.call({ tool: 'Bash', command })).deny).toContain('has 1 check row in its table')
+  plan.untracked = { [REPORT]: reportWith(2) }
+  expect((await $.tool.call({ tool: 'Bash', command })).deny).toBeUndefined()
+})
+
+test('a report with fewer rows than the stage has checks is refused', async ($, on) => {
+  const plan = { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch', '- [x] works offline'), files: { [REPORT]: reportWith(2) } }
+  engine(on, plan)
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain(`\`${REPORT}\` has 2 check rows`)
+  expect(r.deny).toContain('3 checks')
+  expect(r.deny).toContain('keel:verify for stage 2')
+})
+
+test('a row with an escaped pipe counts once against the checks', async ($, on) => {
+  const report = ['| Check | Result |', '|---|---|', '| `a \\| b` parses | pass |', '| exit code 0 | pass |'].join('\n')
+  engine(on, { text: shareMode('- [x] a or b parses', '- [x] exits clean'), files: { [REPORT]: report } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+  expect(reportRows(report)).toBe(2)
+})
+
+test('with no checks known for the stage, a report with one row is enough', async ($, on) => {
+  const plan = { text: shareMode('Open: none'), files: { [REPORT]: reportWith(0) } }
+  engine(on, plan)
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toContain('has 0 check rows')
+  plan.files = { [REPORT]: reportWith(1) }
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a secret in the commit is named before missing evidence', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only') })
+  fakeGit(on, () => [closeStage2, diffOf('src/client.ts', `+const token = "${GH}"`)].join('\n'), false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain('looks like a secret')
+  expect(r.deny).not.toContain(REPORT)
+})
+
+test('a commit that closes no stage needs no report', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only') })
+  fakeGit(on, () => diffOf('docs/PLAN.md', '-- [ ] link opens read-only', '+- [x] link opens read-only'), false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m wip' })).deny).toBeUndefined()
+})
+
+test('in a repo with no plan, a diff that looks like a stage closing needs no report', async ($, on) => {
+  on('fs.exists', () => ({ value: false }))
+  on('ui.status', () => ({ value: undefined }))
+  fakeGit(on, () => closeStage2)
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m wip' })).deny).toBeUndefined()
+})
+
+test('a guard that cannot read the repo still steps aside', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only') })
+  on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: 'not a git repository', isStdoutTruncated: false, isStderrTruncated: false } }))
+  on('tool.call', () => ({ result: { text: 'ran' } }))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a report that cannot be read counts as missing, not as a pass', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only'), broken: [REPORT] })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain('is neither in the commit nor in the working tree')
+  expect(r.deny).toContain(REPORT)
+})
+
+test('every commit on a line is scanned for secrets before any stage gate runs', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only'), broken: [REPORT] })
+  const key = diffOf('src/client.ts', `+const token = "${GH}"`)
+  // the first commit closes stage 2 from the index; the second, with -a, also takes a key from the working tree
+  fakeGit(on, argv => (argv.includes('--cached') ? closeStage2 : argv[1] === 'diff' ? key : ''), false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2" && git commit -a -m "client"' })
+  expect(r.deny).toContain('looks like a secret')
+  expect(r.deny).toContain('src/client.ts')
+  expect(r.deny).not.toContain(REPORT)
+})
+
+// ---- a fresh session after `## Now` moved on: the committed plan speaks for the closing stage ----
+
+/** The working plan: `## Now` already on stage 3, stage 2 still open in the list (the commit ticks it). */
+const onStage3 = ['## Now', 'Stage 3 of 3 · Polish', 'Checks:', '- [ ] it shines', '## Stages', '- [x] 1. Foundation', '- [ ] 2. Share mode', '- [ ] 3. Polish'].join('\n')
+const fourChecks = (last = '- [x] four') => shareMode('- [x] one', '- [x] two', '- [x] three', last)
+
+/** Git that answers `git show HEAD:docs/PLAN.md` with `head`, and every diff with stage 2 closing. */
+const gitWithHead = (on: On, head: () => string | undefined) => {
+  const ran: string[] = []
+  on('process.run', (_, e) => {
+    ran.push(e.argv.join(' '))
+    if (e.argv[1] === 'show') {
+      const text = head()
+      return { value: { exitCode: text === undefined ? 128 : 0, stdout: text ?? '', stderr: text === undefined ? 'fatal: path not in HEAD' : '', isStdoutTruncated: false, isStderrTruncated: false } }
+    }
+    return { value: { exitCode: 0, stdout: e.argv.includes('--cached') ? closeStage2 : '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('tool.call', () => ({ result: { text: 'ran' } }))
+  return ran
+}
+
+test('in a fresh session past the stage, the committed plan gives the count of checks the report must cover', async ($, on) => {
+  const plan = { text: onStage3, files: { [REPORT]: reportWith(1) } }
+  engine(on, plan)
+  const ran = gitWithHead(on, () => fourChecks())
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(ran).toContain('git show HEAD:docs/PLAN.md')
+  expect(r.deny).toContain('has 1 check row')
+  expect(r.deny).toContain('4 checks')
+  plan.files = { [REPORT]: reportWith(4) }
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('in a fresh session past the stage, an unticked check in the committed plan is refused', async ($, on) => {
+  engine(on, { text: onStage3, files: { [REPORT]: reportWith(4) } })
+  gitWithHead(on, () => fourChecks('- [ ] works offline'))
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain('these checks were never seen ticked')
+  expect(r.deny).toContain('works offline')
+})
+
+test('when HEAD has no plan or its Now is another stage, one row is enough', async ($, on) => {
+  const plan = { text: onStage3, files: { [REPORT]: reportWith(1) } }
+  engine(on, plan)
+  let head: string | undefined
+  gitWithHead(on, () => head)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+  head = onStage3.replace('- [ ] it shines', '- [ ] it shines\n- [ ] and sparkles')
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+  plan.files = { [REPORT]: reportWith(0) }
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toContain('has 0 check rows')
 })

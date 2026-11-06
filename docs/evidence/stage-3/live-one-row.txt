@@ -1,0 +1,5 @@
+$ claude -p "Run exactly: git commit -m 'close stage 3'"   # fresh headless session, installed keel from the working tree, scratch clone of this repo with the stage 3 tick staged
+# report with 1 row; stage has 4 checks
+keel blocked this commit: it closes stage 3, but `docs/evidence/stage-3/report.md` has 1 check row in its table and the stage has 4 checks in `## Now`.
+Give each check a row in the report's first table.
+Run keel:verify for stage 3, which writes the report; for a stage verified before keel 0.5.0, backfill the report in keel:verify's format from the evidence at hand. Then close the stage again.</tool_use_error>
