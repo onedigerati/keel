@@ -53,7 +53,7 @@ Open: <decision waiting on the user, or "none">
 - 2026-09-02 · <decision from an earlier plan that still binds> — <why> (from [<plan name>](plans/2026-09-30-<plan-slug>.md))
 
 ## Shipped
-- 2026-09-30 · <plan name>: <one line on what it delivered> — [plan](plans/2026-09-30-<plan-slug>.md)
+- 2026-09-30 · <plan name>: <one line on what it delivered> — [plan](plans/2026-09-30-<plan-slug>.md) · [evidence](plans/2026-09-30-<plan-slug>/evidence/)
 ```
 
 `## Standing decisions` and `## Shipped` appear once an earlier plan has been finished and archived (see "Starting the next plan").
@@ -64,7 +64,7 @@ The risk line is `UI only`, or a list of what the stage touches: user input, aut
 
 While `keel:autopilot` drives the plan, `## Now` also carries a mode line: `Mode: autopilot`, or `Mode: paused — <reason>` while it waits on the user. No mode line means the user steps through the stages themselves. The line records where a run stands; it doesn't authorize one. A session arms autopilot only when the user starts it there, so a line left from an earlier session waits for the user's go.
 
-Checks start unticked and are ticked (`- [x]`) as `keel:verify` proves them; the keel hook refuses a commit that closes a stage whose checks it never saw ticked.
+Checks start unticked and are ticked (`- [x]`) as `keel:verify` proves them, saving each stage's report and output to `docs/evidence/stage-<n>/`; the keel hook refuses a commit that closes a stage whose checks it never saw ticked.
 
 ## Rules that keep it useful
 
@@ -83,11 +83,11 @@ A plan covers one body of work with one Goal: a single feature, several features
 - **New work beyond the Goal while stages are still open:** ask the user whether to widen the Goal and add it here, or hold it for the next plan (note it under open questions).
 - **The Goal is met and the next work goes beyond it:** start a fresh plan rather than adding stages to the old one. If any stages are still open, ask first: finish them, drop them (logged as a decision), or carry them into the new plan.
 
-1. **Archive.** Move the finished plan unchanged to `docs/plans/<date finished>-<plan-slug>.md` (`git mv`, so its history follows it).
+1. **Archive.** Move the finished plan to `docs/plans/<date finished>-<plan-slug>.md` (`git mv`, so its history follows it). If `docs/evidence/` exists, move it beside the plan: `mkdir -p docs/plans/<date finished>-<plan-slug>` then `git mv docs/evidence docs/plans/<date finished>-<plan-slug>/evidence`. That moves the whole folder, its `.gitignore` and local (ignored) files included. The plan stays unchanged except for one line under its Goal, `Evidence: [<date finished>-<plan-slug>/evidence/](<date finished>-<plan-slug>/evidence/)`, and any links it had into `docs/evidence/` rewritten to the new place. The new plan starts with no `docs/evidence/`; `keel:verify` recreates it.
 2. **Carry forward only what binds.** Read the archived plan's decisions and the current `## Standing decisions`. Each one that still constrains the work (data formats, conventions, technology choices, product rules) goes into the new plan's `## Standing decisions`, word for word, with its original date and a link to the plan it came from. Leave out what only mattered to the finished work. Open questions that are still open carry into the new plan's `## Open questions`.
-3. **Record what shipped.** Add a line to `## Shipped`: date, the plan's name, what it delivered, link to the archive. Keep earlier lines.
+3. **Record what shipped.** Add a line to `## Shipped`: date, the plan's name, what it delivered, link to the archive, and link to its evidence folder if it has one. Keep earlier lines.
 4. **Plan the new work as usual** (Creating a plan above): new Goal, a survey of what it touches, a fresh `## Baseline` taken now (the last plan's work is part of the project now, failures included), and stages numbered from 1.
-5. **Commit the switch on its own** (archive, new plan), then suggest the user clear the conversation (`/clear`) or start a new session before building. Nothing is lost: the plan, the archive and git carry everything, and `keel:resume` picks it up from there.
+5. **Commit the switch on its own** (archive, evidence, new plan), then suggest the user clear the conversation (`/clear`) or start a new session before building. Nothing is lost: the plan, the archive and git carry everything, and `keel:resume` picks it up from there.
 
 ## Updating a plan
 

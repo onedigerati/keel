@@ -1,0 +1,5 @@
+$ claude plugin validate plugins/keel && claude plugin test plugins/keel
+✔ Validation passed
+ 34 pass
+ 0 fail
+Ran 34 tests across 1 file. [0.88s]

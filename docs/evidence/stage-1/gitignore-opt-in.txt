@@ -1,0 +1,4 @@
+$ git check-ignore (on the verify-evidence run's output)
+shot.png ignored by default: yes
+report.md committable: yes
+after removing image lines from docs/evidence/.gitignore: git add -n shot.png -> add 'docs/evidence/stage-1/shot.png'

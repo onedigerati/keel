@@ -33,13 +33,13 @@ Run `keel:review` when the stage's risk is anything beyond "UI only", when it cl
 ## 5. Close it
 
 - Update the plan in the same change: tick the stage, record decisions made along the way (dated, with the why), set `## Now` to the next stage with a one-line scope (its full checks get written when it starts).
-- Commit. One commit per stage, or a few if the stage has clearly separate parts. Stage files by name rather than `git add -A`. The message says what the stage delivers and anything a reviewer should know. The keel hook blocks a commit that carries a secret; if it fires, fix the cause, never work around it.
+- Commit. One commit per stage, or a few if the stage has clearly separate parts. Stage files by name rather than `git add -A`, including the stage's evidence: the files in `docs/evidence/stage-<n>/` and `docs/evidence/.gitignore`. Files git ignores (screenshots, traces, videos by default) stay local; never force-add them. The message says what the stage delivers and anything a reviewer should know. The keel hook blocks a commit that carries a secret; if it fires, fix the cause, never work around it.
 
 ## 6. Stop and report
 
 Tell the user, briefly:
 - what the stage delivers, in their terms;
-- how it was verified, with the evidence (screenshots, test counts, command output), including anything that failed and how it was fixed;
+- how it was verified, with the evidence (screenshots, test counts, command output) and a link to `docs/evidence/stage-<n>/report.md`, including anything that failed and how it was fixed;
 - what review found, fixed and deferred;
 - open decisions, and the next stage in one line.
 

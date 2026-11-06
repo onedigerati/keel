@@ -19,9 +19,9 @@ This is `keel:stage` with you delegating rather than building:
 
 1. **Scope.** Write `## Now` for the stage: scope, risk line, checks with proofs, open decisions. If the risk line names auth, money or personal data, or an open decision blocks the stage, pause (section 3) before building.
 2. **Build, by delegation.** Spawn builder agents with peer briefs as `keel:stage` describes, the stage's checks quoted from the plan. Foundation first, by one builder in the main tree; independent leaves in parallel after, each with `isolation: "worktree"` so they can't collide, and merge each builder's branch back once you've checked it. Each reports what it changed and how it checked it.
-3. **Prove it independently.** A builder's "done" is a claim. Run `keel:verify`, or hand it to a fresh agent that built nothing and have it return the evidence for each check; spot-check that evidence, and tick each proven check in `## Now`. Failures go back to a builder with the failing output.
+3. **Prove it independently.** A builder's "done" is a claim. Run `keel:verify`, or hand it to a fresh agent that built nothing and have it run `keel:verify`. Either way the stage's evidence is written to `docs/evidence/stage-<n>/`. Spot-check `report.md` against the files it links, and tick each proven check in `## Now`. Failures go back to a builder with the failing output.
 4. **Review.** Run `keel:review` when `keel:stage` would. Fixes go to a builder; re-verify what they touch.
-5. **Close.** Update the plan and commit as `keel:stage` step 5 says, then go straight on to the next stage. No stop-and-report in between; keep a line per stage for the final report.
+5. **Close.** Update the plan and commit as `keel:stage` step 5 says, the stage's evidence included, then go straight on to the next stage. No stop-and-report in between; keep a line per stage for the final report.
 
 Small decisions inside the plan's intent are yours: make them, log them dated with the why, and list them at the end.
 
@@ -46,7 +46,7 @@ When the user answers, record the decision, set `Mode: autopilot` and carry on. 
 
 When the last stage closes, remove the `Mode:` line, set `## Now` to "All stages done", and give one report:
 - what the project delivers against the plan's goal;
-- a line per stage: what it delivers, how it was verified, what review fixed;
+- a line per stage: what it delivers, how it was verified (linking its `docs/evidence/stage-<n>/report.md`), what review fixed;
 - what was deferred (the plan's open questions), and the decisions you made along the way;
 - anything you'd check yourself before shipping.
 

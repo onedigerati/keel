@@ -1,6 +1,6 @@
 schema_version: "1.0"
 name: next-feature
-description: With the plan finished, the next large feature archives the old plan, carries forward only binding decisions, and starts a fresh plan.
+description: With the plan finished, the next large feature archives the old plan and its evidence, carries forward only binding decisions, and starts a fresh plan.
 tags: [outcome]
 context:
   scaffold_script: scaffold.sh
@@ -21,6 +21,22 @@ graders:
     name: archives-old-plan
     path: "docs/plans/*.md"
     arm: with-only
+  - type: file_exists
+    name: archives-evidence
+    path: "docs/plans/*/evidence/stage-1/report.md"
+    arm: with-only
+  - type: file_exists
+    name: no-evidence-left
+    path: "docs/evidence/stage-*/*"
+    exists: false
+    arm: with-only
+  - type: llm
+    name: links-archived-evidence
+    focus: trace
+    criteria: >-
+      The agent moved docs/evidence/ (stage-1's report.md, its tests.txt and the .gitignore) to
+      docs/plans/<date>-<slug>/evidence/, and either the archived plan in docs/plans/ or the new plan's Shipped line
+      links that evidence folder at its new path (not at docs/evidence/).
   - type: llm
     name: fresh-plan-carries-what-binds
     focus: { source: file, path: docs/PLAN.md }

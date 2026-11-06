@@ -7,18 +7,19 @@ Keep the evidence from verification after the session ends. Right now `keel:veri
 2026-11-06 · tests: 34 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 2 of 4 · Stage and autopilot use it
+Stage 3 of 4 · Evidence gate
 Mode: autopilot
-Risk: skill text and an eval only
+Risk: commit guard (hook code that can block every commit, or let a stage close with nothing behind it)
 Checks:
-- [ ] `keel:stage` commits the stage's `docs/evidence/stage-<n>/` files (by name, with the stage) and its stop-and-report links `report.md`; `keel:autopilot` has its independent verifier write evidence there and its final report links each stage's report (proof: read the skills)
-- [ ] `keel:plan`'s "Starting the next plan" moves `docs/evidence/` to `docs/plans/<date>-<slug>/evidence/` with `git mv`, and the archived plan and its `## Shipped` line link that folder (proof: read the skill)
-- [ ] The `next-feature` case, with a `docs/evidence/stage-1/report.md` added to its scaffold, ends with the report under `docs/plans/<date>-<slug>/evidence/stage-1/` and no stage folders left in `docs/evidence/` (proof: headless run graded against the case; `claude plugin eval plugins/keel --case next-feature --scaffold --runs 3` still to run off this machine)
+- [ ] A commit that closes stage n is refused when `docs/evidence/stage-<n>/report.md` is neither in the commit nor in the working tree, and the denial names the path and how to write or backfill it with keel:verify (proof: test)
+- [ ] A report whose table has fewer check rows than the stage's checks in `## Now` is refused; one with a row per check passes, whether it's already in the tree or added in the same commit (proof: test)
+- [ ] Commits that close no stage, repos with no plan, and the guard's existing behavior are unchanged: the 34 existing tests still pass, and a guard error still steps aside (proof: test)
+- [ ] This repo's own stage 3 commit, made with the new hook loaded, passes the gate with `docs/evidence/stage-3/report.md` (proof: run the product)
 Open: none
 
 ## Stages
 - [x] 1. Verify writes evidence — verify saves a per-check report, screenshots and output to `docs/evidence/stage-<n>/`
-- [ ] 2. Stage and autopilot use it — reports link the evidence; autopilot's independent verifier writes there; archiving a plan moves its evidence alongside
+- [x] 2. Stage and autopilot use it — reports link the evidence; autopilot's independent verifier writes there; archiving a plan moves its evidence alongside
 - [ ] 3. Evidence gate — the commit guard refuses to close a stage whose `report.md` is missing or doesn't cover its checks
 - [ ] 4. Docs and release — both READMEs, eval list, version 0.5.0
 

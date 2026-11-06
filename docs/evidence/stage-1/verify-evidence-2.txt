@@ -1,0 +1,27 @@
+$ claude -p "<case prompt>" --plugin-dir plugins/keel   # on a fresh build of evals/verify-evidence/scaffold.sh
+## evidence files
+docs/evidence/.gitignore
+docs/evidence/stage-1/audit.txt
+docs/evidence/stage-1/cli-bad-input.txt
+docs/evidence/stage-1/cli-sample.txt
+docs/evidence/stage-1/report.md
+docs/evidence/stage-1/tests-mutation.txt
+docs/evidence/stage-1/tests.txt
+## report.md
+# Stage 1 · Core and CLI — evidence
+Verified 2026-11-06 on 00536d6, plus uncommitted changes (test/tally.test.js: added a drifting case to `sums amounts in cents`)
+
+| Check | Result | Evidence |
+|---|---|---|
+| `total()` sums amounts in integer cents, so 0.29 + 1.10 is 139 (proof: test `sums amounts in cents`) | pass | [tests.txt](tests.txt): `sums amounts in cents` passes; [tests-mutation.txt](tests-mutation.txt): with `Math.round` removed it fails, expected 330, got 330.00000000000006 |
+| `node src/cli.js sample.csv` prints `13.89` (proof: run the CLI) | pass | [cli-sample.txt](cli-sample.txt); wrong input: [cli-bad-input.txt](cli-bad-input.txt) |
+
+Project checks: type check none · lint none · tests 2/2 ([tests.txt](tests.txt)) · build none
+Audit: `npm audit --omit=dev` can't run, since there's no lockfile and no dependencies ([audit.txt](audit.txt))
+
+Not a check, noted: `node src/cli.js missing.csv` exits 1 with a raw Node ENOENT stack trace instead of a clean message ([cli-bad-input.txt](cli-bad-input.txt)). With no args it prints usage and exits 2.
+
+## History
+- 2026-11-06 · `total()` in integer cents: the test passed even with `Math.round` removed, because 0.29*100 + 1.1*100 is exactly 139 in floats, so it proved nothing. Fixed: added `total([1.1, 2.2]) === 330` to the test; it fails against the float version.
+## test files changed
+ M test/tally.test.js

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # A project whose plan is finished: all stages done, one decision that still binds
-# (integer cents) and one that only mattered to the finished feature.
+# (integer cents) and one that only mattered to the finished feature, plus stage 1's
+# committed evidence in docs/evidence/.
 set -euo pipefail
-mkdir -p docs src test
+mkdir -p docs/evidence/stage-1 src test
 cat > package.json <<'JSON'
 { "name": "tally", "version": "1.0.0", "type": "module", "scripts": { "test": "node --test" } }
 JSON
@@ -43,6 +44,36 @@ All stages done
 
 ## Open questions
 - Should negative amounts (refunds) be allowed? — the user, blocks nothing yet
+MD
+cat > docs/evidence/.gitignore <<'TXT'
+# Screenshots, traces and videos stay local. Delete the image lines to commit screenshots.
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.zip
+*.webm
+*.mp4
+*.trace
+*.har
+TXT
+cat > docs/evidence/stage-1/tests.txt <<'TXT'
+$ npm test
+# tests 1
+# pass 1
+# fail 0
+TXT
+cat > docs/evidence/stage-1/report.md <<'MD'
+# Stage 1 · Core — evidence
+Verified 2026-10-02 on 3f2a9c1
+
+| Check | Result | Evidence |
+|---|---|---|
+| total() of 0.29 and 1.10 is 139 cents | pass | `sums amounts in cents` in [tests.txt](tests.txt) |
+
+Project checks: tests 1/1 ([tests.txt](tests.txt))
+Audit: no dependencies
 MD
 git init -q
 git add -A

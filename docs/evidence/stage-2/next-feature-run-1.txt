@@ -1,0 +1,9 @@
+$ claude -p "<next-feature prompt>" --plugin-dir plugins/keel   # on a fresh build of evals/next-feature/scaffold.sh
+## files under docs/ afterwards
+docs/PLAN.md
+docs/plans/2026-11-06-tally-total.md
+docs/plans/2026-11-06-tally-total/evidence/.gitignore
+docs/plans/2026-11-06-tally-total/evidence/stage-1/report.md
+docs/plans/2026-11-06-tally-total/evidence/stage-1/tests.txt
+## docs/evidence present?
+ls: cannot access 'docs/evidence': No such file or directory
