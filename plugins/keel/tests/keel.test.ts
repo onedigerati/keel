@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
-import { closedStages, evidencePath, parsePlan, reportRows } from '../hooks/register.ts'
+import { closedStages, evidencePath, parsePlan, reportRows, samePath } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
 
 // fake credentials are assembled at run time so this file never trips a secret scanner itself
@@ -301,6 +301,14 @@ test('sees a stage ticked in the plan part of a diff', () => {
     diffOf('src/a.ts', '+- [x] 3. not the plan'),
   ].join('\n')
   expect(closedStages(diff, 'docs/PLAN.md')).toEqual(['2'])
+})
+
+test('matches the plan file whatever its case, as a case-insensitive filesystem does', () => {
+  const diff = diffOf('docs/Plan.md', '-- [ ] 2. Share mode', '+- [x] 2. Share mode')
+  expect(closedStages(diff, 'docs/PLAN.md')).toEqual(['2'])
+  expect(samePath('app/docs/plan.md', 'docs/PLAN.md')).toBe(true)
+  expect(samePath('docs/PLAN.md.bak', 'docs/PLAN.md')).toBe(false)
+  expect(samePath('mydocs/PLAN.md', 'docs/PLAN.md')).toBe(false)
 })
 
 // ---- the guard, scope ----

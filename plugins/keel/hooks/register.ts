@@ -305,6 +305,16 @@ async function pendingChanges($: EngineInterface, root: string, commands: Comman
   return { diff: diffs.join('\n'), files, dir }
 }
 
+/**
+ * Whether a path git reports (repo-relative, maybe from a subdirectory) is `path`. Case is ignored, since on a
+ * case-insensitive filesystem (macOS by default) keel reads `docs/PLAN.md` from a file git calls `docs/Plan.md`.
+ */
+export function samePath(file: string, path: string): boolean {
+  const f = file.toLowerCase()
+  const p = path.toLowerCase()
+  return f === p || f.endsWith(`/${p}`)
+}
+
 /** Stage numbers whose `[ ]` turns to `[x]` in the plan file's part of a diff. */
 export function closedStages(diff: string, planPath: string): string[] {
   const ticked = new Set<string>()
@@ -314,7 +324,7 @@ export function closedStages(diff: string, planPath: string): string[] {
     const header = raw.match(/^\+\+\+ (?:b\/)?(.+)$/)
     if (header) {
       const file = header[1] ?? ''
-      inPlan = file === planPath || file.endsWith(`/${planPath}`)
+      inPlan = samePath(file, planPath)
       continue
     }
     if (!inPlan) continue
@@ -360,7 +370,6 @@ export function evidencePath(planPath: string, stage: string): string {
   return `${dir}/evidence/stage-${stage}/report.md`
 }
 
-const samePath = (file: string, path: string) => file === path || file.endsWith(`/${path}`)
 
 /** A file's text when the commit adds it whole: from a new file's hunk in the diff, or an untracked file a `git add` on the line takes. */
 function addedText(diff: string, files: { path: string; text: string }[], path: string): string | undefined {
@@ -539,7 +548,7 @@ export const register: Register = on => {
     const plan = await loadPlan($)
     if (!plan || !held(plan, await sync($, plan))) return next(e)
     const target = 'file_path' in e ? String(e.file_path) : 'notebook_path' in e ? String(e.notebook_path) : ''
-    if (target && (target === plan.path || target.endsWith(`/${plan.path}`))) return next(e)
+    if (target && samePath(target, plan.path)) return next(e)
     return {
       deny: `keel autopilot is holding ${plan.stage?.key}: its risk line names ${plan.stage?.risky.join(', ')}, so it isn't built without the user's word. Commit what's finished, set the Mode line to \`paused — <reason>\`, and ask the user.`,
     }

@@ -50,4 +50,5 @@ JS
 git init -q
 git add -A
 git -c user.name=eval -c user.email=eval@example.com commit -qm "Stage 1: core total() in cents"
-sed -i 's/Math.round(r.amount \* 100)/Math.floor(r.amount * 100)/' src/tally.js
+# portable in-place edit: GNU and BSD (macOS) sed disagree on -i
+sed 's/Math.round(r.amount \* 100)/Math.floor(r.amount * 100)/' src/tally.js > src/tally.js.tmp && mv src/tally.js.tmp src/tally.js
