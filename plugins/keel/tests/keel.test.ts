@@ -428,3 +428,16 @@ test('a new Goal starts the per-stage records afresh', async ($, on) => {
   await $.turn.complete(ended('t2'))
   expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m two' })).deny).toBeUndefined()
 })
+
+test('the status band is redrawn when a turn ends, so a stage closed mid-turn shows at once', async ($, on) => {
+  const plan = { text: planWith('Mode: autopilot') }
+  engine(on, plan)
+  const bands: (string | undefined)[] = []
+  on('ui.status', (_, e) => (bands.push(e.text), { value: undefined }))
+  await $.turn.complete(ended('t1'))
+  expect(bands.at(-1)).toBe('keel · autopilot (not armed) · 1/3 done · next: 2. Share mode')
+
+  plan.text = planWith('Open: none').replace(/- \[ \]/g, '- [x]')
+  await $.turn.complete(ended('t2'))
+  expect(bands.at(-1)).toBe('keel · all 3 stages done · next feature: keel:plan')
+})

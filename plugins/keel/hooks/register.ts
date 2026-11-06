@@ -379,6 +379,8 @@ export const register: Register = on => {
     if (e.agentId || e.reason !== 'answer') return result
     const plan = await loadPlan($).catch(() => undefined)
     const s = await sync($, plan)
+    // redraw the band too: a stage closed mid-turn would otherwise show stale progress until the next prompt
+    $.ui.status(plan ? statusLine(plan, s) : undefined)
     const mode = plan?.mode?.kind
     const was = lastMode
     lastMode = mode
