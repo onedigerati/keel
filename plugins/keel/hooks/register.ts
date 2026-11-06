@@ -180,7 +180,7 @@ function statusLine(plan: Plan, s: Session): string {
 
 function workingRules(plan: Plan, s: Session): string {
   const base =
-    'Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review;'
+    'Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review;'
   const skills = 'The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.'
   if (plan.mode?.kind === 'autopilot' && !s.armed)
     return `${base} commit per stage. The plan's Mode line says autopilot, but that was set in an earlier session and autopilot is not armed in this one: do not carry on by yourself. Tell the user where the run stands and ask whether to resume; on their yes, run keel:autopilot. ${skills}`
