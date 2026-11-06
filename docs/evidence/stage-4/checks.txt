@@ -1,0 +1,9 @@
+$ claude plugin validate plugins/keel && claude plugin test plugins/keel
+✔ Validation passed
+ 53 pass
+ 0 fail
+Ran 53 tests across 1 file. [1.44s]
+
+$ grep version/description plugins/keel/.claude-plugin/plugin.json
+3:  "version": "0.5.0",
+4:  "description": "Lightweight project discipline: one plan file, staged work, an autopilot project manager, verification against the running product with evidence kept in the repo, fresh-eyes review, and a secret guard on commits.",

@@ -7,20 +7,13 @@ Keep the evidence from verification after the session ends. Right now `keel:veri
 2026-11-06 · tests: 34 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 4 of 4 · Docs and release
-Mode: autopilot
-Risk: docs and version only
-Checks:
-- [ ] `plugins/keel/README.md` describes evidence: where verify writes it, what's committed and how a repo opts in to screenshots, how archiving moves it, and the evidence gate with its limits (a plan edited on the same command line as the commit isn't seen; committed images get no secret scan; `git -C` into another repo is checked against this one; a report that exists but isn't committed counts) (proof: read the README)
-- [ ] The root `README.md` mentions evidence in "What it does"; the plugin README's eval list includes `verify-evidence` and says what `next-feature` and `verify-honest` now check; `skills/plan/SKILL.md`'s sentence on the commit guard mentions the evidence gate (proof: read)
-- [ ] `plugin.json` is 0.5.0 with a description that mentions evidence; `claude plugin validate plugins/keel` passes and `claude plugin test plugins/keel` is 53/53 (proof: command)
-Open: none
+All stages done
 
 ## Stages
 - [x] 1. Verify writes evidence — verify saves a per-check report, screenshots and output to `docs/evidence/stage-<n>/`
 - [x] 2. Stage and autopilot use it — reports link the evidence; autopilot's independent verifier writes there; archiving a plan moves its evidence alongside
 - [x] 3. Evidence gate — the commit guard refuses to close a stage whose `report.md` is missing or doesn't cover its checks
-- [ ] 4. Docs and release — both READMEs, eval list, version 0.5.0
+- [x] 4. Docs and release — both READMEs, eval list, version 0.5.0
 
 ## Decisions
 - 2026-11-06 · Evidence lives in `docs/evidence/stage-<n>/` for the current plan — beside the plan file, and stage numbers restart with each plan, so a per-plan folder never collides.

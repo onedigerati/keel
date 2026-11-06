@@ -64,7 +64,7 @@ The risk line is `UI only`, or a list of what the stage touches: user input, aut
 
 While `keel:autopilot` drives the plan, `## Now` also carries a mode line: `Mode: autopilot`, or `Mode: paused — <reason>` while it waits on the user. No mode line means the user steps through the stages themselves. The line records where a run stands; it doesn't authorize one. A session arms autopilot only when the user starts it there, so a line left from an earlier session waits for the user's go.
 
-Checks start unticked and are ticked (`- [x]`) as `keel:verify` proves them, saving each stage's report and output to `docs/evidence/stage-<n>/`; the keel hook refuses a commit that closes a stage whose checks it never saw ticked.
+Checks start unticked and are ticked (`- [x]`) as `keel:verify` proves them, saving each stage's report and output to `docs/evidence/stage-<n>/`; the keel hook refuses a commit that closes a stage whose checks it never saw ticked, or one without the stage's evidence report.
 
 ## Rules that keep it useful
 

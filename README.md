@@ -18,6 +18,7 @@ Long work with Claude drifts in similar ways. Context gets summarized and the cu
 - **One plan file plus git** hold all the state. The current stage rides in Claude's context, so it survives long sessions and compaction.
 - **Staged work.** Each stage is verified against the running product, reviewed when risky, and committed.
 - **Autopilot** runs an approved plan stage after stage. It pauses, enforced by hooks, before risky stages and anything outward-facing.
+- **Evidence.** Verifying a stage saves a per-check report and the output behind it to `docs/evidence/`, committed with the stage. A stage can't be closed without its report.
 - **Secret guard:** commits that would carry a secret are blocked.
 
 ## Install
