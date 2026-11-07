@@ -78,6 +78,15 @@ test('reads the autopilot mode, and a pause with its reason', () => {
   expect(parsePlan('PLAN.md', planWith('Open: none')).mode).toBeUndefined()
 })
 
+test('finds the stage line when the Mode line sits above it', () => {
+  const text = ['## Now', 'Mode: paused — stage 3 touches auth', 'Stage 2 of 3 · Share mode', '- [x] controls work', '## Stages', '- [ ] 2. Share mode'].join('\n')
+  const plan = parsePlan('PLAN.md', text)
+  expect(plan.stage?.number).toBe('2')
+  expect(plan.stage?.key).toBe('Stage 2 of 3 · Share mode')
+  expect(plan.stage?.checks).toEqual([{ text: 'controls work', done: true }])
+  expect(plan.mode).toEqual({ kind: 'paused', reason: 'stage 3 touches auth' })
+})
+
 /** A plan two stages from done, its `## Now` led by `mode`; `tag` makes two plans differ. */
 function planWith(mode: string, tag = '') {
   return [

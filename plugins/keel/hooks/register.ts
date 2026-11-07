@@ -76,7 +76,10 @@ export function parsePlan(path: string, text: string): Plan {
 
   let stage: Stage | undefined
   if (now && nowLines) {
-    const key = now.split('\n')[0]?.trim() ?? ''
+    // the stage line is the first line of `## Now` that isn't the Mode line, which may sit above it
+    // (a pause reason can itself name a stage, so Mode lines never count)
+    const lines = now.split('\n').map(l => l.trim()).filter(l => l && !/^Mode:/i.test(l))
+    const key = lines.find(l => /\bstage\s+\d+/i.test(l) && !/^[-*]\s+\[/.test(l)) ?? lines[0] ?? ''
     const risk = nowLines.map(l => l.match(/^Risk:\s*(.*)$/i)?.[1]).find(r => r !== undefined) ?? ''
     const risky = [...new Set([...risk.matchAll(RISKY)].map(m => (m[1] ?? '').toLowerCase()))]
     const checks = nowLines
