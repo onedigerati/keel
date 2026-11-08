@@ -35,7 +35,7 @@ One paragraph: what this is, who it's for, and what done looks like.
 Stage 2 of 5 · <name>
 Risk: UI only
 Checks:
-- [ ] <observable outcome> (proof: test | run the product | command)
+- [ ] <observable outcome> (proof: test | run the product or a command, <why a test can't>)
 - [ ] <observable outcome> (proof: …)
 Open: <decision waiting on the user, or "none">
 
@@ -69,7 +69,7 @@ Checks start unticked and are ticked (`- [x]`) as `keel:verify` proves them, sav
 ## Rules that keep it useful
 
 - **Readable in two minutes.** It's a map, not a spec. Detail belongs in code, tests and commit messages.
-- **Acceptance checks are observable.** "The listing page shows the verified badge for 14 Alder Lane" is checkable; "badge works" is not. Each names its proof. Logic that can be quietly wrong (money, dates, parsing, permissions) is proven by an automated test.
+- **Acceptance checks are observable.** "The listing page shows the verified badge for 14 Alder Lane" is checkable; "badge works" is not. Each names its proof, and the proof is `test` wherever a test can cover it: the suite reruns on every later verify. A check not proven by a test (running the product, a command) gives the reason a test can't, in a few words (`proof: screenshot, a test can't judge the layout`); `keel:verify` re-runs those once, when the plan's last stage is verified. Logic that can be quietly wrong (money, dates, parsing, permissions) is always proven by an automated test.
 - **Risk is decided per stage.** Anything beyond "UI only" means the stage gets the security pass in `keel:review`. When unsure, mark it: a review costs minutes, a breach doesn't.
 - **Decisions are dated and give the why.** Never delete one within a plan; when a decision is replaced, strike it through (`~~old~~`) and add the new one with its reason. When a plan is finished they're kept whole in the archived plan, and only the ones that still bind carry forward. Convert relative dates ("next week") to absolute ones.
 - **`## Now` always matches reality.** Update it in the same change as the work it describes, not later.

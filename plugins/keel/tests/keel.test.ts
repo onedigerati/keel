@@ -551,6 +551,26 @@ test('a report with fewer rows than the stage has checks is refused', async ($, 
   expect(r.deny).toContain('keel:verify for stage 2')
 })
 
+test('re-run rows from earlier stages, past the row per check, still let the stage close', async ($, on) => {
+  const report = reportWith(2).replace('| check 2 | pass | out-2.txt |', '| check 2 | pass | out-2.txt |\n| Re-run of stage 1: cli prints 13.89 | fail | rerun-1.txt |')
+  engine(on, { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch'), files: { [REPORT]: report } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  expect(reportRows(report)).toBe(2)
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a re-run row does not stand in for a missing check row', async ($, on) => {
+  const report = reportWith(1).replace('| check 1 | pass | out-1.txt |', '| check 1 | pass | out-1.txt |\n| Re-run of stage 1: cli prints 13.89 | pass | rerun-1.txt |')
+  engine(on, { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch'), files: { [REPORT]: report } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  expect(reportRows(report)).toBe(1)
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain(`\`${REPORT}\` has 1 check row`)
+  expect(r.deny).toContain('2 checks')
+})
+
 test('a row with an escaped pipe counts once against the checks', async ($, on) => {
   const report = ['| Check | Result |', '|---|---|', '| `a \\| b` parses | pass |', '| exit code 0 | pass |'].join('\n')
   engine(on, { text: shareMode('- [x] a or b parses', '- [x] exits clean'), files: { [REPORT]: report } })

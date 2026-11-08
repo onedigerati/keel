@@ -7,17 +7,18 @@ Close the two gaps in how Keel proves the code it helps build, without making it
 2026-11-07 · tests: 55 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 1 of 3 · Regression proof
+Stage 2 of 3 · Security proof
+Mode: autopilot
 Risk: UI only
 Checks:
-- [ ] The plan skill says to name `test` as a check's proof whenever a test can cover it, and to give the reason when a check is proven by running the product (proof: command, grep of `plan/SKILL.md`)
-- [ ] When the last stage of a plan is verified, verify re-runs every earlier stage's check that was proven by running the product, and records each as its own row in that stage's report (proof: headless run on the new eval scaffold, graded by hand)
-- [ ] An earlier stage's hand-proven check that a later stage broke is reported as fail at the end-of-plan verify, not as pass (proof: new eval case `regression-caught`, run headless and graded by hand)
+- [ ] `stage/SKILL.md` says to compare the risk line with what the diff actually touches before deciding on review, and to correct the line in the plan when it's wrong (proof: command, grep; a test can't judge skill wording)
+- [ ] `autopilot/SKILL.md` says the same, and pauses when the corrected line names auth, money or personal data (proof: command, grep; a test can't judge skill wording)
+- [ ] A "UI only" stage whose code builds a SQL query from user input gets its risk line corrected, a review, and the injection fixed with a parameterized query and a test (proof: new eval case `security-caught`, run headless and graded by hand, since Bash evals can't run here)
 - [ ] Plugin tests and validate still pass (proof: `claude plugin test plugins/keel`, `claude plugin validate plugins/keel`)
 Open: none
 
 ## Stages
-- [ ] 1. Regression proof — plans prefer tests as proof; verify re-runs hand-proven checks once at the end of a plan; eval `regression-caught`
+- [x] 1. Regression proof — plans prefer tests as proof; verify re-runs hand-proven checks once at the end of a plan; eval `regression-caught`
 - [ ] 2. Security proof — stage and autopilot recheck the risk line against the diff before deciding on review; eval where review catches a planted SQL injection
 - [ ] 3. Docs and release — both READMEs, eval list, version 0.6.0
 
@@ -25,6 +26,9 @@ Open: none
 - 2026-11-07 · Acceptance checks name `test` as their proof wherever a test can cover them, and hand-proven checks give the reason — a test protects against regressions on every later verify for free, while hand-proven checks are only repeated once, at the end of the plan.
 - 2026-11-07 · Hand-proven checks from earlier stages are re-run once, when the plan's last stage is verified, not per stage or "when a stage touches the same area" — repeating them every stage adds cost with each stage, and "the same area" is a judgment agents would apply unevenly.
 - 2026-11-07 · Before deciding whether to review, stage and autopilot compare the risk line with what the diff touches (user input, auth, money, personal data, secrets, external services) and correct the line in the plan when it's wrong — the line is set at plan time, and a stage that drifted past "UI only" otherwise skips the security pass.
+- 2026-11-07 · The evidence gate doesn't count `Re-run of stage <k>` rows toward a stage's check rows — the stage 1 verifier found re-run rows could otherwise stand in for a missing check row.
+- 2026-11-07 · Stage 1's eval `regression-caught` covers one shape: one earlier stage, one failing re-run. A passing re-run, several earlier stages and the `## Stages` fallback for a stage with no report aren't covered — accepted at n=1, as the plan's method for eval proof allows. `claude plugin eval plugins/keel --case regression-caught --scaffold` still to run off this machine.
+- 2026-11-07 · Stage 2 is built in a worktree in parallel with stage 1's review fixes, and merged after stage 1 is committed — the two touch different files, and the user asked for more parallelism.
 - 2026-11-07 · Not doing: mandatory test-first for every feature (tests first stays the rule for bug fixes and untested code, and tests travel with risky logic), a required static analysis tool in verify, or secure-coding rules at build time — each adds weight for little gain over what the suite, the linter the project already has, and the fresh-eyes security pass catch; projects that want strict TDD can say so in `CLAUDE.md`.
 
 ## Open questions

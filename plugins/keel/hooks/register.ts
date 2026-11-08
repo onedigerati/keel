@@ -401,14 +401,21 @@ function tableCells(line: string): string[] | undefined {
   return cells
 }
 
-/** Check rows in the report's first table: its rows after the header and the `---` separator. */
+/**
+ * Check rows in the report's first table: its rows after the header and the `---` separator.
+ * A re-run of an earlier stage's check (Check cell `Re-run of stage <k>: …`) isn't one of this stage's checks, so it doesn't count.
+ */
 export function reportRows(text: string): number {
   const lines = text.split('\n')
   const separator = (line: string) => !!tableCells(line)?.every(c => /^\s*:?-+:?\s*$/.test(c))
   for (let i = 0; i + 1 < lines.length; i++) {
     if (!tableCells(lines[i] ?? '') || !separator(lines[i + 1] ?? '')) continue
     let rows = 0
-    for (let j = i + 2; j < lines.length && tableCells(lines[j] ?? ''); j++) rows++
+    for (let j = i + 2; j < lines.length; j++) {
+      const cells = tableCells(lines[j] ?? '')
+      if (!cells) break
+      if (!cells[0]?.trim().startsWith('Re-run of stage')) rows++
+    }
     return rows
   }
   return 0

@@ -30,6 +30,8 @@ For each check in the plan's `## Now`, use the proof it names:
 - **CLI**: run it with realistic arguments and with a wrong one.
 - **Library or logic**: the tests are the proof; confirm a test covers the check, and that it fails when the behavior is broken (break it briefly if in doubt).
 
+**At the plan's last stage, re-run the earlier stages' hand-proven checks.** When the stage being verified is the last one in `## Stages`, also re-run every earlier stage's check that wasn't proven by a test (a CLI run, a request, a screenshot, a command); the suite run in step 1 already covered the tests. `## Now` holds only the current stage, so find them in each earlier stage's `docs/evidence/stage-<k>/report.md`: its rows, and the files they link, show what was run. For a stage with no report, use its line in `## Stages`. Run each the way it was proven then. One that passed then and fails now is a regression: report it as fail, never drop it or put it down to an earlier stage.
+
 Keep throwaway scripts in the scratchpad. When verifying a plan stage, everything that proves a check goes in the repo (step 4).
 
 ## 4. Evidence
@@ -83,9 +85,10 @@ Audit: `npm audit --omit=dev`: 0 high, 0 critical
 ```
 
 - One row per check in `## Now` (for an earlier stage, per thing its line in `## Stages` promises). A failing check is a fail row with its output saved and linked, never dropped.
+- At the plan's last stage, each re-run check gets its own row after those, in the same table: `Re-run of stage <k>: <check, as written in its report>`, pass or fail, with its evidence like any row.
 - Escape a `|` inside a check's text as `\|` so the row keeps three columns.
 - Evidence is a relative link to a file in the folder, or a test name and the command that ran it. Every link points to a file that exists.
 - Link every file you saved. Mark each one git ignores as `(local)`: `git check-ignore -q <file>` succeeds for those.
 - Re-verifying a stage overwrites its report and output files. Keep earlier failures and their fixes as one line each under History; leave History out if nothing ever failed.
 
-Then, if the stage verified is the one in `## Now`, tick each check there that passed (`- [x]`). In the reply, give the table, the project checks and audit in one line each, the report's path, and the evidence files written, including a newly created `.gitignore`. If anything failed, fix it, re-verify the affected checks, and report both the failure and the fix. Only when everything passes is the stage verified.
+Then, if the stage verified is the one in `## Now`, tick each check there that passed (`- [x]`). In the reply, give the table, the project checks and audit in one line each, the report's path, and the evidence files written, including a newly created `.gitignore`. If anything failed, fix it, re-verify the affected checks, and report both the failure and the fix, unless the user asked only for a report: then report the failure and leave it. Only when everything passes, re-runs included, is the stage verified.

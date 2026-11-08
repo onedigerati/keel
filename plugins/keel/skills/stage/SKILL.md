@@ -24,7 +24,7 @@ A stage is done when its checks pass against the running product, the suite is g
 
 ## 3. Verify it
 
-Run `keel:verify`, and tick each check in `## Now` as it's proven, in its own edit before the stage closes. Fix what fails and re-verify the affected checks. Never call the stage done on red: the keel hook refuses a commit that ticks a stage whose checks it never saw ticked.
+Run `keel:verify`, and tick each check in `## Now` as it's proven, in its own edit before the stage closes. At the plan's last stage, verify also re-runs the earlier stages' hand-proven checks; one that fails is a regression, fixed like any failing check. Fix what fails and re-verify the affected checks. Never call the stage done on red: the keel hook refuses a commit that ticks a stage whose checks it never saw ticked.
 
 ## 4. Review it
 
