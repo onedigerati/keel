@@ -46,4 +46,6 @@ Tell the user, briefly:
 
 When that was the plan's last stage, say the plan's goal is met and offer `keel:plan` for what comes next: it archives this plan and starts fresh.
 
+With a roadmap (`docs/ROADMAP.md`), a stage never closes a milestone itself. Say which requirement IDs the plan's passing rows cover and whether that leaves the milestone covered; `keel:plan` fills the ledger at archive and runs the milestone close (full suite, coverage check, a fresh agent's evidence-fit sample, milestone review) before ticking it.
+
 Then wait for their go. Don't start the next stage on your own unless the user said to run several in a row; to hand the whole plan over, use `keel:autopilot`.

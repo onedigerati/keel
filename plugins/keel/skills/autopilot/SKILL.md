@@ -37,6 +37,7 @@ Pause when:
 - a check still fails after three fix rounds, or a builder's report and the evidence disagree and you can't settle it;
 - the work shows the plan is wrong: a finished stage needs redoing, the scope must grow, a decision no longer holds;
 - the next step is outward-facing or hard to undo: push, deploy, publish, send to an external service, migrate or delete real data, spend money.
+- a milestone close fails: a coverage gap, a red suite, a requirement the fit sample finds undelivered, or a fix-now finding from the milestone review.
 
 To pause: commit what's finished and verified (never half a stage), set `Mode: paused — <reason>` in `## Now`, and tell the user in a few lines what you need: the question, the options with your recommendation, and where the run stands. The hook sees the pause, stops prompting, and notifies the user.
 
@@ -51,3 +52,5 @@ When the last stage closes, remove the `Mode:` line, set `## Now` to "All stages
 - anything you'd check yourself before shipping.
 
 Then offer the next step in one line: when the user has more work beyond this plan's goal, `keel:plan` archives this plan and starts a fresh one.
+
+With a roadmap, a milestone close is the line between plans. When the last stage leaves the current milestone covered and the plan's Goal reaches past it (names the next milestone, or the roadmap through a later one), the user's approval covers going on: run `keel:plan`'s archive and milestone close, cut the next plan from the new current milestone, set `Mode: autopilot` in its `## Now` and carry on, keeping a line per plan for the final report. Otherwise finish as above; the report says whether the milestone is now covered, and the close is `keel:plan`'s when the user moves on.

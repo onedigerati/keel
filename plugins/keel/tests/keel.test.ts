@@ -662,6 +662,81 @@ test('every commit on a line is scanned for secrets before any stage gate runs',
   expect(r.deny).not.toContain(REPORT)
 })
 
+// ---- requirement tags: a check may end in `(req: ID)` or `(req: ID, ID)`, and nothing in the gates reads it ----
+
+test('a tagged check is read like an untagged one, its tag kept in its text', () => {
+  const plan = parsePlan('docs/PLAN.md', shareMode('- [x] link opens read-only (req: SHR-01)', '- [ ] controls work on touch (req: SHR-02, SHR-03)'))
+  expect(plan.stage?.number).toBe('2')
+  expect(plan.stage?.checks).toEqual([
+    { text: 'link opens read-only (req: SHR-01)', done: true },
+    { text: 'controls work on touch (req: SHR-02, SHR-03)', done: false },
+  ])
+})
+
+test('a tag naming a risky area does not make the stage risky; only the risk line does', () => {
+  const plan = parsePlan('docs/PLAN.md', shareMode('Risk: UI only', '- [ ] login page renders (req: AUTH-01, PAY-02)'))
+  expect(plan.stage?.risky).toEqual([])
+})
+
+test('a tagged check with a leading number is still read as that stage, as an untagged one is', () => {
+  const tagged = diffOf('docs/PLAN.md', '-  - [ ] 3 exports open in Excel (req: EXP-01)', '+  - [x] 3 exports open in Excel (req: EXP-01)')
+  const untagged = diffOf('docs/PLAN.md', '-  - [ ] 3 exports open in Excel', '+  - [x] 3 exports open in Excel')
+  expect(closedStages(tagged, 'docs/PLAN.md')).toEqual(['3'])
+  expect(closedStages(untagged, 'docs/PLAN.md')).toEqual(['3'])
+  // a tag with numbers in it is never a stage number
+  expect(closedStages(diffOf('docs/PLAN.md', '-- [ ] link opens (req: 4, 5)', '+- [x] link opens (req: 4, 5)'), 'docs/PLAN.md')).toEqual([])
+})
+
+test('tagged report rows count toward the check rows, and a tagged re-run row still does not', () => {
+  const report = [
+    '| Check | Result | Evidence |',
+    '|---|---|---|',
+    '| link opens read-only (req: SHR-01) | pass | open.txt |',
+    '| controls work on touch (req: SHR-02, SHR-03) | pass | touch.txt |',
+    '| Re-run of stage 1: cli prints 13.89 (req: CLI-01) | pass | rerun-1.txt |',
+  ].join('\n')
+  expect(reportRows(report)).toBe(2)
+  // a row whose tag names a re-run is still a row of this stage's own
+  expect(reportRows(['| Check | Result |', '|---|---|', '| link opens (req: Re-run of stage 1) | pass |'].join('\n'))).toBe(1)
+})
+
+test('a stage with tagged checks closes on a tagged report with a row per check', async ($, on) => {
+  const plan = {
+    text: shareMode('- [x] link opens read-only (req: SHR-01)', '- [x] controls work on touch (req: SHR-02, SHR-03)'),
+    files: { [REPORT]: ['| Check | Result | Evidence |', '|---|---|---|', '| link opens read-only (req: SHR-01) | pass | open.txt |'].join('\n') },
+  }
+  engine(on, plan)
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain('has 1 check row')
+  expect(r.deny).toContain('2 checks')
+  plan.files[REPORT] += '\n| controls work on touch (req: SHR-02, SHR-03) | pass | touch.txt |'
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a tagged re-run row does not stand in for a missing tagged check row', async ($, on) => {
+  const report = [
+    '| Check | Result | Evidence |',
+    '|---|---|---|',
+    '| link opens read-only (req: SHR-01) | pass | open.txt |',
+    '| Re-run of stage 1: cli prints 13.89 (req: CLI-01) | pass | rerun-1.txt |',
+  ].join('\n')
+  engine(on, { text: shareMode('- [x] link opens read-only (req: SHR-01)', '- [x] controls work on touch (req: SHR-02)'), files: { [REPORT]: report } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toContain('has 1 check row')
+})
+
+test('an unticked tagged check is named, tag and all, when the stage closes', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only (req: SHR-01)', '- [ ] controls work on touch (req: SHR-02, SHR-03)'), files: { [REPORT]: reportWith(2) } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain('controls work on touch (req: SHR-02, SHR-03)')
+  expect(r.deny).not.toContain('link opens read-only')
+})
+
 // ---- a fresh session after `## Now` moved on: the committed plan speaks for the closing stage ----
 
 /** The working plan: `## Now` already on stage 3, stage 2 still open in the list (the commit ticks it). */

@@ -94,3 +94,13 @@ Audit: `npm audit --omit=dev`: 0 high, 0 critical
 - Re-verifying a stage overwrites its report and output files. Keep earlier failures and their fixes as one line each under History; leave History out if nothing ever failed.
 
 Then, if the stage verified is the one in `## Now`, tick each check there that passed (`- [x]`). In the reply, give the table, the project checks and audit in one line each, the report's path, and the evidence files written, including a newly created `.gitignore`. If anything failed, fix it, re-verify the affected checks, and report both the failure and the fix, unless the user asked only for a report: then report the failure and leave it. Only when everything passes, re-runs included, is the stage verified.
+
+## Closing a milestone
+
+When `keel:plan` closes a roadmap milestone, verify proves three things and saves them as `milestone-<ID>.md` in the evidence folder of the archived plan that covered it last (`docs/plans/<date>-<slug>/evidence/`):
+
+1. **The full suite**: steps 1 and 2, on the archived state. Any new failure keeps the milestone open.
+2. **Coverage**: a row per requirement of the milestone that isn't dropped, `| ID | Covered by | Evidence row | Result |`. It passes only when `Covered by` links an archived plan that exists and that plan's reports hold a `pass` row tagged with the ID.
+3. **Evidence fit**, judged by a fresh agent that built nothing, under every Agents level (under `lean`, the only one running): sample five requirements, or all if fewer, favouring hand-proven rows and anything the risk lines named. Brief it with each requirement as the ledger states it and the evidence rows and files its plan links, not your view; ask whether the evidence shows the requirement delivered as written, and what's missing where it doesn't. Its answer per ID goes in the report.
+
+The milestone passes only when all three do.
