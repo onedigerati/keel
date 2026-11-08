@@ -3,6 +3,7 @@ import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
 import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, parseRoadmap, reportRows, samePath, stampOf } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
+import { parseProjectRules, projectOutward, projectRisky } from '../hooks/project.ts'
 
 // fake credentials are assembled at run time so this file never trips a secret scanner itself
 const AWS = 'AKIA' + 'Q'.repeat(16)
@@ -109,7 +110,7 @@ function engine(
     untracked?: Record<string, string>
     broken?: string[]
     /** What a stat of the path answers instead of a regular file of its text's size. */
-    stats?: Record<string, { kind: 'file' | 'dir' | 'other'; size: number } | 'throws'>
+    stats?: Record<string, { kind: 'file' | 'dir' | 'other'; size: number; realPath?: string } | 'throws'>
     /** Paths whose exists check throws. */
     unsure?: string[]
   },
@@ -130,11 +131,15 @@ function engine(
   const broken = (path: string) => listed(plan.broken, path)
   // a file stats as a regular file of its text's size, a `broken` one as an empty file; a missing one rejects, as the engine's does
   on('fs.stat', (_, e) => {
+    // the working directory is /repo; asked to resolve, a repo file lands under it by its repo path, unless `stats` says otherwise
+    const key = [...Object.keys(plan.files ?? {}), ...(plan.broken ?? [])].find(p => e.path === p || e.path.endsWith(`/${p}`))
+    const realPath = !e.resolve ? undefined : e.path === '/repo' ? '/repo' : key ? `/repo/${key}` : undefined
+    if (e.path === '/repo') return { value: { kind: 'dir' as const, size: 4096, mtimeMs: 0, isLink: false, ...(realPath ? { realPath } : {}) } }
     const text = find(plan.files, e.path)
     const own = find(plan.stats, e.path)
     if (own === 'throws') throw new Error(`EACCES: permission denied, stat '${e.path}'`)
     if (own === undefined && text === undefined && !broken(e.path)) throw new Error(`ENOENT: no such file or directory, stat '${e.path}'`)
-    return { value: { kind: 'file' as const, size: new TextEncoder().encode(text ?? '').length, mtimeMs: 0, isLink: false, ...own } }
+    return { value: { kind: 'file' as const, size: new TextEncoder().encode(text ?? '').length, mtimeMs: 0, isLink: false, ...(realPath ? { realPath } : {}), ...own } }
   })
   on('fs.read', (_, e) => {
     if (broken(e.path)) throw new Error(`EISDIR: illegal operation on a directory, read '${e.path}'`)
@@ -1527,4 +1532,347 @@ test('a line past 2,000 characters is cut before it is read', () => {
 test('a dropped cell in emphasis is still dropped', () => {
   const rows = [...LEDGER, ['old', '9', '**dropped** 2026-11-05', ''], ['older', '9', '_Dropped_ 2026-11-06', 'p']]
   expect(parseRoadmap(roadmapWith(MILESTONES, rows))).toMatchObject({ covered: 1, total: 3 })
+})
+
+// ---- project risk rules ----
+
+/**
+ * Runs a held stage the way the risky-stage test does, its risk line `risk`, with `files` beside the plan, and checks
+ * every place the hold shows (the notice, the band, the working rules, an Edit's denial) names `word`, then that the
+ * person's word clears it. Called for `auth` with no CLAUDE.md and for a project word, so both are held alike.
+ */
+async function expectHeldLikeAuth($: Engine, on: On, word: string, risk: string, files?: Record<string, string>) {
+  const clock = mock.clock(on)
+  const plan = { text: planWith(`Mode: autopilot\nRisk: ${risk}`, ' h'), files }
+  const sent = engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await arm($, plan)
+  await $.turn.complete(ended('t1'))
+  await clock.advance(1000)
+  expect(sent.prompts).toEqual([])
+  expect(sent.notes).toEqual([`Autopilot is holding before Stage 2 of 3 · Share mode h: it touches ${word}.`])
+  const edit = { tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/card.ts' } as const
+  expect((await $.tool.call(edit)).deny).toBe(
+    `keel autopilot is holding Stage 2 of 3 · Share mode h: its risk line names ${word}, so it isn't built without the user's word. Commit what's finished, set the Mode line to \`paused — <reason>\`, and ask the user.`,
+  )
+  expect((await $.tool.call({ ...edit, file_path: '/repo/docs/PLAN.md' })).deny).toBeUndefined()
+  const held = await compose()
+  expect(held.band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+  expect(held.text).toContain(`Autopilot is on, and the current stage is held: its risk line names ${word}. Building it`)
+  await $.prompt.submit({ text: 'go ahead with that', origin: { kind: 'composer' } })
+  expect((await $.tool.call(edit)).deny).toBeUndefined()
+  expect((await compose()).band).toBe('keel · autopilot · 1/3 done · next: 2. Share mode')
+}
+
+test('a stage whose risk line names auth is held, and the person clears it (the pattern project words follow)', async ($, on) => {
+  await expectHeldLikeAuth($, on, 'auth', 'auth, user input')
+})
+
+test('a Keel risk line in CLAUDE.md adds hold words, held exactly like auth', async ($, on) => {
+  await expectHeldLikeAuth($, on, 'pci', 'PCI scope, user input', { 'CLAUDE.md': '# Project\n\nkeel RISK: PCI , card data\n' })
+})
+
+test('a Keel risk line in .claude/CLAUDE.md adds hold words too', async ($, on) => {
+  await expectHeldLikeAuth($, on, 'card data', 'card data export', { '.claude/CLAUDE.md': 'Keel risk: card data' })
+})
+
+test('reads Keel risk and outward lines in any case at line start, trimmed, each entry once', () => {
+  const rules = parseProjectRules(
+    ['# Notes', 'KEEL Risk: PCI, Card  Data, pci', '  keel outward: make release, ./scripts/ship.sh prod , make release', 'see Keel risk: ignored mid-line'].join('\n'),
+  )
+  expect(rules.risk).toEqual(['pci', 'card data'])
+  expect(rules.outward.map(r => r.words)).toEqual([['make', 'release'], ['./scripts/ship.sh', 'prod']])
+})
+
+test('project words match whole words only, literally, and come after the built-in ones', () => {
+  expect(projectRisky('PCI, user input', ['pci'])).toEqual(['pci'])
+  expect(projectRisky('pcie lanes, epci', ['pci'])).toEqual([])
+  expect(projectRisky('card data, card-data', ['card data'])).toEqual(['card data'])
+  // nothing in a word is a pattern: dots and pluses are themselves
+  expect(projectRisky('the c++ core', ['c++', 'a.b'])).toEqual(['c++'])
+  expect(projectRisky('axb', ['a.b'])).toEqual([])
+  expect(parsePlan('PLAN.md', planWith('Mode: autopilot\nRisk: auth, pci')).stage?.risky).toEqual(['auth'])
+})
+
+test('a held stage names the built-in words first, then the project ones', async ($, on) => {
+  const plan = { text: planWith('Mode: autopilot\nRisk: pci and auth', ' b'), files: { 'CLAUDE.md': 'Keel risk: auth, pci' } }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  await arm($, plan)
+  const deny = (await $.tool.call({ tool: 'Write', content: 'x', file_path: '/repo/src/a.ts' })).deny
+  expect(deny).toContain('its risk line names auth, pci, so')
+})
+
+test('a project word the risk line does not name holds nothing', async ($, on) => {
+  const plan = { text: planWith('Mode: autopilot\nRisk: UI only', ' n'), files: { 'CLAUDE.md': 'Keel risk: pci' } }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  await arm($, plan)
+  expect((await $.tool.call({ tool: 'Write', content: 'x', file_path: '/repo/src/a.ts' })).deny).toBeUndefined()
+})
+
+const RULES = '# Project\n\nKeel outward: make release, ./scripts/ship.sh, rsync-prod\n'
+
+/** Autopilot driving the stage, with `files` beside the plan; returns a Bash runner answering the denial or undefined. */
+async function drivingBash($: Engine, on: On, files: Record<string, string> | undefined) {
+  const plan: Parameters<typeof engine>[1] = { text: planWith('Mode: autopilot', ' o'), files }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ran' } }))
+  await arm($, plan)
+  return { plan, bash: async (command: string) => (await $.tool.call({ tool: 'Bash', command })).deny }
+}
+
+test('a Keel outward line holds matching commands under autopilot, naming the project rule', async ($, on) => {
+  const { bash } = await drivingBash($, on, { 'CLAUDE.md': RULES })
+  const rule =
+    "keel autopilot holds outward-facing steps for the user (make release, a `Keel outward:` rule in CLAUDE.md). Commit what's finished, set the Mode line to `paused — <what you want to run and why>`, and ask the user."
+  expect(await bash('make release')).toBe(rule)
+  expect(await bash('make release VERSION=2')).toBe(rule)
+  // the same prefix stripping as the built-in check
+  expect(await bash('sudo env STAGE=prod make release')).toBe(rule)
+  expect(await bash('FOO=1 command make release')).toBe(rule)
+  // any part of a compound command, whether or not the line passes the built-in prefilter
+  expect(await bash('npm test && make release')).toBe(rule)
+  expect(await bash('echo ready; make release | tee out.log')).toBe(rule)
+  expect(await bash('cd sub && (make release)')).toBe(rule)
+  // the command's head by its bare name, as the built-in check reads it
+  expect(await bash('/usr/bin/make release')).toBe(rule)
+  expect(await bash('./scripts/ship.sh --now')).toContain('(./scripts/ship.sh, a `Keel outward:` rule in CLAUDE.md)')
+  expect(await bash('rsync-prod')).toContain('(rsync-prod, a `Keel outward:` rule in CLAUDE.md)')
+})
+
+test('a Keel outward rule matches leading command words, not text in the line', async ($, on) => {
+  const { bash } = await drivingBash($, on, { 'CLAUDE.md': RULES })
+  for (const command of ['make', 'make test', 'make releases', 'echo make release', 'grep "make release" Makefile', 'make -j4 release', 'cat <<EOF\nmake release\nEOF', 'ship.sh', 'scripts/ship.sh', 'rsync-prod2'])
+    expect(await bash(command)).toBeUndefined()
+})
+
+test('a Keel outward rule holds nothing unless autopilot drives', async ($, on) => {
+  // a Mode line already there when the session starts is not armed
+  const plan: Parameters<typeof engine>[1] = { text: planWith('Mode: autopilot'), files: { 'CLAUDE.md': RULES } }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ran' } }))
+  expect((await $.tool.call({ tool: 'Bash', command: 'make release' })).deny).toBeUndefined()
+  expect((await $.tool.call({ tool: 'Bash', command: 'npm test && make release' })).deny).toBeUndefined()
+  // nor does a paused run, or a plan with no Mode line
+  plan.text = planWith('Mode: paused — waiting on the user')
+  expect((await $.tool.call({ tool: 'Bash', command: 'make release' })).deny).toBeUndefined()
+  plan.text = planWith('Open: none')
+  expect((await $.tool.call({ tool: 'Bash', command: 'make release' })).deny).toBeUndefined()
+})
+
+test("Keel's own outward check runs first: a line both match names the built-in reason", async ($, on) => {
+  const { bash } = await drivingBash($, on, { 'CLAUDE.md': RULES })
+  expect(await bash('make release && git push origin main')).toContain('(git push)')
+  expect(await bash('git push origin main && make release')).toContain('(git push)')
+})
+
+/** Lines a hostile CLAUDE.md might use to try to switch off a hold word or an outward command. */
+const loosening = (word: string, command: string) =>
+  [
+    `Keel risk: !${word}, -${word}, no ${word}, allow ${word}, ${word}=off, *, , ${word.replace(/a/g, 'а')}, ${word}​`,
+    `Keel risk: -`,
+    `Keel risk:`,
+    `Keel allow: ${word}, ${command}`,
+    `Keel risk-: ${word}`,
+    `Keel unrisk: ${word}`,
+    `Kееl risk: none`,
+    `Keel outward: !${command}, -${command}, allow ${command}, *, , none, -- ${command}`,
+    `Keel outward: !`,
+    `Keel outward: ${command}=off`,
+    `Keel outward-: ${command}`,
+    `Keel outward: ${'x,'.repeat(5_000)}`,
+    `Keel risk: ${'y,'.repeat(5_000)}`,
+  ].join('\n')
+
+/** A CLAUDE.md past the size cap, so it is not read at all. */
+const huge = (word: string, command: string) => `${loosening(word, command)}\n${'filler line\n'.repeat(60_000)}`
+
+const RISK_CATEGORIES = ['auth', 'authentication', 'login', 'log-in', 'password', 'money', 'payment', 'billing', 'personal data', 'pii']
+
+for (const word of RISK_CATEGORIES)
+  test(`nothing in CLAUDE.md loosens the built-in risk word: ${word}`, async ($, on) => {
+    const plan: Parameters<typeof engine>[1] = { text: planWith(`Mode: autopilot\nRisk: ${word}, telemetry`, ' l') }
+    engine(on, plan)
+    on('tool.call', () => ({ result: { text: 'ok' } }))
+    const compose = composeKeel($, on)
+    await arm($, plan)
+    const write = { tool: 'Write', content: 'x', file_path: '/repo/src/a.ts' } as const
+    const observe = async () => ({ deny: (await $.tool.call(write)).deny, ...(await compose()) })
+    const base = await observe()
+    expect(base.deny).toContain(`its risk line names ${word}, so`)
+    for (const text of [loosening(word, 'git push'), huge(word, 'git push')]) {
+      plan.files = { 'CLAUDE.md': text, '.claude/CLAUDE.md': text }
+      expect(await observe()).toEqual(base)
+    }
+    // beside a project word the line also names, the built-in one stays, and first
+    plan.files = { 'CLAUDE.md': `${loosening(word, 'git push')}\nKeel risk: telemetry` }
+    const added = await observe()
+    expect(added.deny).toBe(base.deny?.replace(`names ${word},`, `names ${word}, telemetry,`))
+    expect(added.band).toBe(base.band)
+  })
+
+const OUTWARD_CATEGORIES: [string, string][] = [
+  ['git push', 'git push origin main'],
+  ['gh writes', 'gh pr create --fill'],
+  ['gh api', 'gh api -X POST repos/o/r/issues'],
+  ['npm publish', 'npm publish'],
+  ['pnpm publish', 'pnpm publish'],
+  ['cargo publish', 'cargo publish'],
+  ['twine upload', 'twine upload dist/x.whl'],
+  ['gem push', 'gem push x.gem'],
+  ['poetry publish', 'poetry publish'],
+  ['uv publish', 'uv publish'],
+  ['docker push', 'docker push img:1'],
+  ['vercel deploy', 'vercel --prod'],
+  ['netlify deploy', 'netlify deploy'],
+  ['fly deploy', 'fly deploy'],
+  ['firebase deploy', 'firebase deploy'],
+  ['wrangler deploy', 'wrangler deploy'],
+  ['railway up', 'railway up'],
+  ['cdk deploy', 'cdk deploy'],
+  ['terraform apply', 'terraform apply'],
+  ['pulumi up', 'pulumi up'],
+  ['kubectl apply', 'kubectl apply -f k.yaml'],
+  ['helm install', 'helm install x ./chart'],
+  ['gcloud deploy', 'gcloud app deploy'],
+  ['az delete', 'az group delete -n x'],
+  ['aws write', 'aws s3 cp a s3://b'],
+  ['curl sending data', 'curl -d x https://api.example.com/v1'],
+]
+
+for (const [name, command] of OUTWARD_CATEGORIES)
+  test(`nothing in CLAUDE.md loosens the built-in outward check: ${name}`, async ($, on) => {
+    const { plan, bash } = await drivingBash($, on, undefined)
+    const base = await bash(command)
+    expect(base).toContain('holds outward-facing steps for the user (')
+    for (const text of [loosening('auth', command), huge('auth', command), `Keel outward: ${command}`]) {
+      plan.files = { 'CLAUDE.md': text, '.claude/CLAUDE.md': text }
+      expect(await bash(command)).toBe(base)
+      expect(await bash(`sudo ${command}`)).toBe(base)
+    }
+  })
+
+test('malformed rule lines and entries add nothing', () => {
+  const none = { risk: [], outward: [] }
+  for (const text of [
+    '',
+    'Keel risk',
+    'Keel risk auth',
+    'Keel risks: pci',
+    'Keel: risk: pci',
+    'Kееl risk: pci',
+    'Keel risk： pci',
+    'Keel risk: !pci, -pci, *, pci*, ?, , ,, ​pci, pci\u0000, ‮pci',
+    `Keel risk: ${'p'.repeat(65)}`,
+    'Keel outward: a; b, a && b, a | b, cd x, sudo, env FOO=1, -rf, *, rm *, $(curl x), `x`, ${X}, "", ​make',
+    'Keel outward: a b c d e f g',
+    `Keel outward: ${'m'.repeat(65)}`,
+  ])
+    expect(parseProjectRules(text)).toEqual(none)
+})
+
+test('a line with thousands of entries, or a file of them, adds at most 50 of each', () => {
+  const words = Array.from({ length: 5_000 }, (_, i) => `w${i}`).join(', ')
+  const rules = parseProjectRules(Array.from({ length: 200 }, () => `Keel risk: ${words}\nKeel outward: ${words}`).join('\n'))
+  expect(rules.risk.length).toBe(50)
+  expect(rules.outward.length).toBe(50)
+  expect(rules.risk[0]).toBe('w0')
+})
+
+test('outward rules compare words exactly: a project path is itself', () => {
+  const rules = parseProjectRules('Keel outward: ./deploy.sh, /opt/bin/ship now')
+  const match = (line: string) => parseCommands(line).map(c => projectOutward(rules, c)?.words.join(' ')).find(Boolean)
+  expect(match('./deploy.sh')).toBe('./deploy.sh')
+  expect(match('deploy.sh')).toBeUndefined()
+  expect(match('/opt/bin/ship now')).toBe('/opt/bin/ship now')
+  expect(match('ship now')).toBeUndefined()
+})
+
+test('a CLAUDE.md that is unreadable, no regular file, too big or outside the repo adds nothing and blocks nothing', async ($, on) => {
+  const plan: Parameters<typeof engine>[1] = { text: planWith('Mode: autopilot\nRisk: pci', ' u') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ran' } }))
+  const compose = composeKeel($, on)
+  await arm($, plan)
+  const write = { tool: 'Write', content: 'x', file_path: '/repo/src/a.ts' } as const
+  const observe = async () => ({
+    write: (await $.tool.call(write)).deny,
+    bash: (await $.tool.call({ tool: 'Bash', command: 'make release' })).deny,
+    ...(await compose()),
+  })
+  const base = await observe()
+  expect(base).toMatchObject({ write: undefined, bash: undefined })
+  const rules = 'Keel risk: pci\nKeel outward: make release'
+  const files = { 'CLAUDE.md': rules }
+  const cases: Partial<Parameters<typeof engine>[1]>[] = [
+    { files, broken: ['CLAUDE.md'] },
+    { files, unsure: ['CLAUDE.md'] },
+    { files, stats: { 'CLAUDE.md': 'throws' } },
+    { files, stats: { 'CLAUDE.md': { kind: 'dir', size: 4096 } } },
+    { files, stats: { 'CLAUDE.md': { kind: 'other', size: 0 } } },
+    { files, stats: { 'CLAUDE.md': { kind: 'file', size: 512 * 1024 + 1 } } },
+    { files, stats: { 'CLAUDE.md': { kind: 'file', size: rules.length, realPath: '/home/someone/CLAUDE.md' } } },
+    { files, stats: { 'CLAUDE.md': { kind: 'file', size: rules.length, realPath: '/repository/CLAUDE.md' } } },
+  ]
+  for (const c of cases) {
+    Object.assign(plan, { files: undefined, broken: undefined, unsure: undefined, stats: undefined }, c)
+    expect(await observe()).toEqual(base)
+  }
+  // the same file, readable and inside the repo, holds both
+  Object.assign(plan, { files, broken: undefined, unsure: undefined, stats: undefined })
+  const ruled = await observe()
+  expect(ruled.write).toContain('its risk line names pci')
+  expect(ruled.bash).toContain('make release, a `Keel outward:` rule in CLAUDE.md')
+})
+
+test('without Keel lines in CLAUDE.md, context, band, holds and denials are byte-identical', async ($, on) => {
+  const plan: Parameters<typeof engine>[1] = { text: planWith('Open: none') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ran' } }))
+  const compose = composeKeel($, on)
+  const notes = '# Project\n\nUse pnpm. Never deploy on Fridays: make release, fly deploy.\nkeel is our plugin; risk: auth\n'
+  expect(await compose()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+  plan.files = { 'CLAUDE.md': notes }
+  expect(await compose()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+  // rules that add, with no Mode line, add nothing either
+  plan.files = { 'CLAUDE.md': `${notes}Keel risk: pci, auth\nKeel outward: make release` }
+  expect(await compose()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+
+  // under autopilot, a held stage and a denied push read the same with or without the file
+  plan.files = undefined
+  plan.text = planWith('Mode: autopilot\nRisk: auth, pci', ' i')
+  await arm($, plan)
+  const write = { tool: 'Write', content: 'x', file_path: '/repo/src/a.ts' } as const
+  const observe = async () => ({
+    write: (await $.tool.call(write)).deny,
+    push: (await $.tool.call({ tool: 'Bash', command: 'git push && make release' })).deny,
+    local: (await $.tool.call({ tool: 'Bash', command: 'make release' })).deny,
+    ...(await compose()),
+  })
+  const base = await observe()
+  expect(base.write).toContain('its risk line names auth, so')
+  expect(base.local).toBeUndefined()
+  plan.files = { 'CLAUDE.md': notes }
+  expect(await observe()).toEqual(base)
+})
+
+test('a pathological CLAUDE.md and risk line are read in well under 100 ms', () => {
+  // one line at the character cap of entries, lines of blanks after the keyword, entries a shell parser must walk, the line cap
+  const entries = `Keel risk: ${'a,'.repeat(130_000)}`
+  const blanks = Array.from({ length: 125 }, () => 'Keel' + ' '.repeat(1_990) + 'x').join('\n')
+  const quotes = `Keel outward: ${`"'`.repeat(1_000)}, ${'$('.repeat(900)}, ${'\\'.repeat(1_990)}`
+  const lines = Array.from({ length: 20_000 }, (_, i) => `keel risk: ${'b'.repeat(60)}${i}`).join('\n')
+  // words that almost match at every position of a long risk line
+  const words = Array.from({ length: 50 }, (_, i) => 'a'.repeat(60) + String(i).padStart(2, '0') + 'b')
+  const times = {
+    entries: timed(() => expect(parseProjectRules(entries).risk).toEqual(['a'])),
+    blanks: timed(() => expect(parseProjectRules(blanks).risk).toEqual([])),
+    quotes: timed(() => expect(parseProjectRules(quotes).outward).toEqual([])),
+    lines: timed(() => expect(parseProjectRules(lines).risk.length).toBe(50)),
+    risky: timed(() => expect(projectRisky('a'.repeat(100_000), words)).toEqual([])),
+  }
+  console.log(`project rule timings (ms): ${JSON.stringify(times)}`)
+  for (const ms of Object.values(times)) expect(ms).toBeLessThan(100)
 })

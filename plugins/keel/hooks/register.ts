@@ -1,4 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
+import { loadProjectRules, NO_RULES, projectOutward, projectRisky, type ProjectRules } from './project.ts'
 import { findSecrets, type Finding } from './secrets.ts'
 import { addScope, commitScope, gitCall, joinPath, outwardReason, parseCommands, type Command } from './shell.ts'
 
@@ -35,6 +36,8 @@ interface Stage {
   number: string | undefined
   /** What the risk line names that holds autopilot, e.g. `auth, personal data`; empty when nothing does. */
   risky: string[]
+  /** The risk line's text after `Risk:`, for the project's own hold words; empty without one. */
+  riskLine: string
   checks: { text: string; done: boolean }[]
 }
 
@@ -59,9 +62,22 @@ interface Plan {
 async function loadPlan($: EngineInterface): Promise<Plan | undefined> {
   for (const path of PLAN_PATHS) {
     if (!(await $.fs.exists(path))) continue
-    return parsePlan(path, await $.fs.read(path))
+    return withProjectRisk(parsePlan(path, await $.fs.read(path)), $)
   }
   return undefined
+}
+
+/**
+ * The plan with the project's own hold words (`Keel risk:` in `CLAUDE.md`) added after the built-in ones its risk line
+ * names: the built-in `RISKY` match stays as parsed, so the project can only add. Read only when it could matter, a
+ * Mode line and a non-empty risk line, so a plan without them never touches `CLAUDE.md`.
+ */
+async function withProjectRisk(plan: Plan, $: EngineInterface): Promise<Plan> {
+  const stage = plan.stage
+  if (!plan.mode || !stage?.riskLine.trim()) return plan
+  const rules = await loadProjectRules($).catch(() => NO_RULES)
+  const added = projectRisky(stage.riskLine, rules.risk).filter(w => !stage.risky.includes(w))
+  return added.length ? { ...plan, stage: { ...stage, risky: [...stage.risky, ...added] } } : plan
 }
 
 /**
@@ -123,7 +139,7 @@ export function parsePlan(path: string, text: string): Plan {
       .map(l => l.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/))
       .filter(m => m !== null)
       .map(m => ({ text: (m[2] ?? '').trim(), done: m[1] !== ' ' }))
-    stage = { key, number: key.match(/\bstage\s+(\d+)/i)?.[1], risky, checks }
+    stage = { key, number: key.match(/\bstage\s+(\d+)/i)?.[1], risky, riskLine: risk, checks }
   }
 
   const stageKey = [...sections.keys()].find(k => k.includes('stage'))
@@ -772,6 +788,32 @@ async function committedChecks($: EngineInterface, planPath: string, stage: stri
   return { count: now.checks.length, open: now.checks.filter(c => !c.done).map(c => c.text) }
 }
 
+const outwardDenial = (reason: string) =>
+  `keel autopilot holds outward-facing steps for the user (${reason}). Commit what's finished, set the Mode line to \`paused — <what you want to run and why>\`, and ask the user.`
+
+/** Why a project rule holds one of these commands, naming the rule and its file, or undefined. */
+function projectReason(rules: ProjectRules, commands: Command[]): string | undefined {
+  if (!rules.outward.length) return undefined
+  for (const cmd of commands) {
+    const rule = projectOutward(rules, cmd)
+    if (rule) return `${rule.words.join(' ')}, a \`Keel outward:\` rule in ${rule.file}`
+  }
+  return undefined
+}
+
+/**
+ * The denial for a command the built-in prefilter let through, when it matches a project outward rule while autopilot
+ * drives. `CLAUDE.md` is read first and the plan only on a match, so a project without rules costs two exists checks.
+ */
+async function projectOutwardDenial($: EngineInterface, line: string): Promise<string | undefined> {
+  const rules = await loadProjectRules($).catch(() => NO_RULES)
+  if (!rules.outward.length) return undefined
+  const reason = projectReason(rules, parseCommands(line))
+  if (!reason) return undefined
+  const plan = await loadPlan($).catch(() => undefined)
+  return driving(plan, await sync($, plan)) ? outwardDenial(reason) : undefined
+}
+
 export const register: Register = on => {
   // the plan's current position rides in the system prompt, so it survives compaction and long runs
   on('prompt.compose', async ($, e, next) => {
@@ -915,19 +957,22 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (!/\bgit\b|\b(gh|npm|pnpm|yarn|bun|cargo|twine|gem|poetry|uv|docker|podman|vercel|netlify|fly|flyctl|firebase|serverless|sls|wrangler|railway|cdk|terraform|tofu|pulumi|kubectl|helm|gcloud|az|aws|curl)\b/.test(e.command))
-      return next(e)
+    if (!/\bgit\b|\b(gh|npm|pnpm|yarn|bun|cargo|twine|gem|poetry|uv|docker|podman|vercel|netlify|fly|flyctl|firebase|serverless|sls|wrangler|railway|cdk|terraform|tofu|pulumi|kubectl|helm|gcloud|az|aws|curl)\b/.test(e.command)) {
+      // past the built-in prefilter: only a project's own outward command (`Keel outward:` in CLAUDE.md) can still be held
+      const denial = await projectOutwardDenial($, e.command).catch(() => undefined)
+      return denial ? { deny: denial } : next(e)
+    }
     const commands = parseCommands(e.command)
     const plan = await loadPlan($).catch(() => undefined)
     const s = await sync($, plan)
 
-    // while autopilot drives, outward-facing steps wait for the person
+    // while autopilot drives, outward-facing steps wait for the person: Keel's own check first, the project's only when it found nothing
     if (driving(plan, s)) {
       const reason = commands.map(outwardReason).find(Boolean)
-      if (reason)
-        return {
-          deny: `keel autopilot holds outward-facing steps for the user (${reason}). Commit what's finished, set the Mode line to \`paused — <what you want to run and why>\`, and ask the user.`,
-        }
+      if (reason) return { deny: outwardDenial(reason) }
+      const rules = await loadProjectRules($).catch(() => NO_RULES)
+      const project = projectReason(rules, commands)
+      if (project) return { deny: outwardDenial(project) }
     }
 
     const commits = commands.flatMap((c, i) => {
