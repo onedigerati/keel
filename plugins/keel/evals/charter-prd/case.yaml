@@ -1,0 +1,90 @@
+schema_version: "1.0"
+name: charter-prd
+description: keel:charter turns a synthetic PRD into docs/ROADMAP.md in the fixed layout, matching a known answer key, and its locked decisions into CLAUDE.md rather than the plan.
+tags: [charter, outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    docs/PRD.md is the whole product and it's too big for one plan. Chart it. Assume sensible defaults rather than
+    asking me, and don't start building.
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill]
+# The answer key is answer-key.ts beside this file (also parsed by keel.test.ts with the hook's parseRoadmap).
+graders:
+  - type: tool_used
+    name: loads-charter
+    tool: Skill
+    input_match: "charter"
+    min: 1
+    arm: with-only
+  - type: file_exists
+    name: writes-roadmap
+    path: docs/ROADMAP.md
+  - type: llm
+    name: roadmap-layout
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      The file follows this layout, in this order: a `# <Project> roadmap` title; a `Source:` line naming docs/PRD.md
+      and a date; `## Milestones` as a checklist of unticked lines of the form `- [ ] M1. <Name> — <scope>`, with
+      dependencies written `(needs: M1)` at the end of the line; `## Requirements` as a markdown table whose header
+      is exactly `| ID | Requirement | PRD § | Milestone | Covered by |`; then `## Out of scope` and
+      `## Open questions`. Every table row has exactly five cells: in particular PLT-02's text, which contains the
+      statuses free, booked and overdue separated by pipes, writes each pipe escaped as `\|` (or avoids the pipe
+      character altogether), never as a bare `|` that would add cells. Each row is on one line.
+  - type: llm
+    name: every-requirement-once
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      The requirements table has exactly 20 rows, one for each of these IDs, each appearing exactly once and
+      spelled as in the PRD: ACC-01, ACC-02, ACC-03, ACC-04, PLT-01, PLT-02, PLT-03, PLT-04, PLT-05, PLT-06, PLT-07,
+      HRV-01, HRV-02, HRV-03, HRV-04, TL-01, TL-02, TL-03, TL-04, TL-05. No requirement is invented, merged or
+      renumbered. Each row's PRD § cell points to its source section: 5.1 for ACC, 5.2 for PLT, 5.3 for HRV, 5.4 for
+      TL (a section heading or `§5.2` form is fine).
+  - type: llm
+    name: milestones-match-releases
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      There are exactly two milestones, matching the PRD's two releases: M1 is Release 1.0 (plots) and M2 is
+      Release 1.1 (harvest and tools), and M2's line says it needs M1 (`(needs: M1)`); M1 needs nothing. The
+      Milestone cells put ACC-01 to ACC-04 and PLT-01 to PLT-06 in M1, and PLT-07 (the waiting list, which the PRD's
+      release list moves to 1.1 even though it is written under 5.2 Plots), HRV-01 to HRV-04 and TL-01 to TL-05 in
+      M2. No milestone is ticked.
+  - type: llm
+    name: covered-by-blank
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      Every row's Covered by cell (the last column) is empty: it holds nothing, not "TBD", "n/a", "none", "-", "—",
+      a status word or a plan name. Nothing has been built yet.
+  - type: llm
+    name: scope-and-questions-carried
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      `## Out of scope` lists the PRD's three exclusions: paying fees online, native mobile apps, and more than one
+      garden. `## Open questions` carries the PRD's question about whether a member on the waiting list can ask for
+      a particular plot or only take the next free one, and says who decides (the garden committee) or that it
+      affects PLT-07. Neither section adds requirements that are in the PRD's requirement list.
+  - type: file_exists
+    name: keeps-claude-md
+    path: CLAUDE.md
+  - type: llm
+    name: locked-decisions-in-claude-md
+    focus: { source: file, path: CLAUDE.md }
+    criteria: >-
+      CLAUDE.md still has its original lines (the flask run command and pytest), and under a heading of its own
+      (for example "Locked decisions") it lists the PRD's three locked decisions: Python 3.12 with Flask and SQLite,
+      server-rendered with no JavaScript framework; dates stored as ISO 8601 in UTC and weights in integer grams;
+      and a member may hold at most two plots at a time. It doesn't list ordinary requirements as locked decisions.
+  - type: llm
+    name: locked-decisions-not-in-plan
+    focus: trace
+    criteria: >-
+      The agent wrote the locked decisions to CLAUDE.md and not into docs/PLAN.md: either it created no
+      docs/PLAN.md, or the plan it wrote does not restate the stack, the date/weight formats or the two-plot rule
+      as its own decisions (a one-line pointer to CLAUDE.md is fine). It ends by offering keel:plan to cut the
+      first plan from the first milestone (M1), and doesn't start building.
+  - type: regex
+    name: no-source-changes
+    target: files
+    pattern: "\\.py"
+    match: not_contains

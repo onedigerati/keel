@@ -3,6 +3,7 @@ import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
 import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, parseRoadmap, reportRows, samePath, stampOf } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
+import { PLOTLINE_ROADMAP } from '../evals/charter-prd/answer-key.ts'
 
 // fake credentials are assembled at run time so this file never trips a secret scanner itself
 const AWS = 'AKIA' + 'Q'.repeat(16)
@@ -1522,6 +1523,21 @@ test('a line past 2,000 characters is cut before it is read', () => {
   // the cut takes this row's later cells, so it no longer has the header's cell count
   expect(parseRoadmap(roadmapWith(MILESTONES, [['x'.repeat(2_000), '1', 'M1', 'plan-x'], ...LEDGER]))).toMatchObject({ covered: 1, total: 3 })
   expect(parseRoadmap(roadmapWith(MILESTONES, [['x'.repeat(1_900), '1', 'M1', 'plan-x'], ...LEDGER]))).toMatchObject({ covered: 2, total: 4 })
+})
+
+test('the charter-prd answer key parses: M1 is current, 20 requirements, none covered', () => {
+  expect(parseRoadmap(PLOTLINE_ROADMAP)).toEqual({ id: 'M1', name: 'Plots', covered: 0, total: 20 })
+  // PLT-02's escaped pipes keep its row: written bare, the row gains cells and drops out of the count
+  expect(parseRoadmap(PLOTLINE_ROADMAP.replaceAll('\\|', '|'))).toMatchObject({ total: 19 })
+})
+
+test('the charter-prd answer key re-charted: a dropped row leaves the total, a new row joins it, coverage is kept', () => {
+  const recharted = PLOTLINE_ROADMAP.replace(/^(\| ACC-0[1-4] \|.*\| M1 \|) \|$/gm, '$1 2026-11-20-accounts |')
+    .replace('| 5.3 | M2 | |\n| HRV-04', '| 5.3 | dropped 2026-12-01 | |\n| HRV-04')
+    .replace('\n\n## Out of scope', '\n| TL-06 | A member reserves a tool up to seven days ahead | 5.4 | M2 | |\n\n## Out of scope')
+  expect(parseRoadmap(recharted)).toEqual({ id: 'M1', name: 'Plots', covered: 4, total: 20 })
+  // once M1 closes, M2 is current
+  expect(parseRoadmap(recharted.replace('- [ ] M1.', '- [x] M1.'))).toMatchObject({ id: 'M2', name: 'Harvest and tools' })
 })
 
 test('a dropped cell in emphasis is still dropped', () => {
