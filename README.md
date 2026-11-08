@@ -10,7 +10,7 @@ Long work with Claude drifts in similar ways. Context gets summarized and the cu
 
 - **Laid first.** Work starts with a plan: a goal, stages with acceptance checks you can observe, a risk line for each stage, and dated decisions. Everything after that is built along it.
 - **Holds the course.** The plan's current position rides in Claude's context, so it survives long sessions and compaction. New work either fits the plan's goal or waits for the next plan, and Claude asks which instead of quietly growing the scope.
-- **Keeps it steady.** Each stage is verified against the running product, reviewed by fresh eyes when it's risky, and committed. Checks are proven by tests where they can be, and the rest are re-run at the end of the plan, so a later stage can't quietly break an earlier one. Autopilot stops before risky and outward-facing steps, and those stops are enforced by hooks rather than left to good intentions.
+- **Keeps it steady.** Each stage is verified against the running product, reviewed by fresh eyes when it's risky, and committed. Checks are proven by tests where they can be, and the rest are re-run at the end of the plan, so a later stage can't break an earlier one without it showing by the end of the plan. Autopilot stops before risky and outward-facing steps, and those stops are enforced by hooks rather than left to good intentions.
 - **Stays below the waterline.** The state is one plan file plus git. There's no separate codebase map, no tracker and no ceremony to maintain, so the structure doesn't get in the way of the work.
 
 ## What it does

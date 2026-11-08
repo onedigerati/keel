@@ -1,0 +1,51 @@
+cd <scratchpad>/v3-rc && bash ~/repos/keel/plugins/keel/evals/regression-caught/scaffold.sh && claude -p --plugin-dir ~/repos/keel/plugins/keel --settings '{"enabledPlugins":{"keel@keel-local":false}}' --allowedTools Read Glob Grep Bash Write Edit Skill --max-turns 25 --output-format stream-json --verbose "Verify stage 2. Just report; don't fix anything." > v3-rc.jsonl
+# Stage 3 verifier's re-run of eval case regression-caught on the current skills (keel 0.6.0, working tree), 2026-11-07, claude 2.1.319. Exit 0.
+# Trimmed from the raw stream (not kept here). Paths masked: <scratchpad> is the session scratchpad, ~ the home dir. Other plugins in the init line omitted; keel loaded from ~/repos/keel/plugins/keel as keel@inline 0.6.0, the installed keel@keel-local disabled.
+# Grading by hand: loads-verify PASS (#1 Skill keel:verify) · writes-report PASS (docs/evidence/stage-2/report.md exists) · report-reruns-earlier-check PASS (rows for both stage 2 checks, then 'Re-run of stage 1: node src/cli.js sample.csv prints 13.89' marked fail, NaN quoted and linked; no re-run row for the test-proven check)
+# reply-not-verified PASS ('Stage 2 is **not verified**', names the NaN regression) · code-untouched PASS (no Write/Edit calls; src/ and test/ diff-identical to a fresh scaffold)
+# Report written by the run:
+#   # Stage 2 · Categories — evidence
+#   Verified 2026-11-07 on 9f92e4d, plus uncommitted changes (src/cli.js, src/tally.js, test/tally.test.js, cats.csv)
+#   
+#   | Check | Result | Evidence |
+#   |---|---|---|
+#   | `byCategory()` totals each category in integer cents (proof: test `totals each category`) | pass | test `totals each category`, `npm test` ([tests.txt](tests.txt)) |
+#   | `node src/cli.js cats.csv --by category` prints `food 4.39` and `rent 9.50` (proof: run the CLI, a test can't see the printed output) | pass | [cli-by-category.txt](cli-by-category.txt); wrong arguments in [cli-bad-args.txt](cli-bad-args.txt) |
+#   | Re-run of stage 1: `node src/cli.js sample.csv` prints `13.89` (proof: run the CLI, a test can't see the printed output) | fail | [rerun-stage-1-cli-sample.txt](rerun-stage-1-cli-sample.txt): prints `NaN`. The CLI now reads the amount from column 3, but `sample.csv` has only `date,amount` |
+#   
+#   Project checks: no type check, lint or build configured · tests 3/3 ([tests.txt](tests.txt))
+#   Audit: `npm audit --omit=dev` can't run without a package-lock.json; package.json has no dependencies, so nothing to audit
+#   
+#   Stage not verified: the stage 1 CLI check has regressed.
+# result: success · turns: 6
+
+## All tool calls, in run order (inputs cut at 400 chars, results at 200; [sub] = subagent)
+#1 Skill: {"skill": "keel:verify", "args": "stage 2 \u2014 report only, don't fix anything"}
+   -> #1 Launching skill: keel:verify
+#2 Bash: {"command": "cat docs/PLAN.md; ls -la; cat package.json; ls docs/evidence docs/evidence/* 2>&1; cat docs/evidence/stage-1/report.md 2>&1; cat cats.csv; git diff", "description": "Read plan, project files, evidence, and diff"}
+   -> #2 # Tally plan |  | ## Goal | A tiny CLI that totals expense rows from a CSV, for one person tracking spending. Done: `node src/cli.js file.csv` prints the total, and `--by category` prints one per cate
+#3 Bash: {"command": "cat sample.csv; echo ---; cat docs/evidence/stage-1/cli-sample.txt; echo ---; git log --oneline; git rev-parse --short HEAD; mkdir -p docs/evidence/stage-2\nD=docs/evidence/stage-2\n{ echo '$ npm test'; npm test 2>&1; } > $D/tests.txt; echo \"exit $?\"; cat $D/tests.txt\n{ echo '$ node src/cli.js cats.csv --by category'; node src/cli.js cats.csv --by category 2>&1; echo \"exit $?\"; }
+   -> #3 date,amount | 2026-11-01,0.29 | 2026-11-02,1.10 | 2026-11-03,12.50 | --- | node src/cli.js sample.csv | 13.89 | --- | 9f92e4d Stage 1: core total() and CLI | 9f92e4d | exit 0 | $ npm test | npm notice
+#4 Bash: {"command": "D=docs/evidence/stage-2\ncat > $D/report.md <<'EOF'\n# Stage 2 \u00b7 Categories \u2014 evidence\nVerified 2026-11-07 on 9f92e4d, plus uncommitted changes (src/cli.js, src/tally.js, test/tally.test.js, cats.csv)\n\n| Check | Result | Evidence |\n|---|---|---|\n| `byCategory()` totals each category in integer cents (proof: test `totals each category`) | pass | test `totals each categor
+   -> #4 ## Now | Stage 2 of 2 · Categories | Risk: UI only | Checks: | - [x] `byCategory()` totals each category in integer cents (proof: test `totals each category`) | - [x] `node src/cli.js cats.csv --by ca
+   [text] Stage 2 is **not verified**. Both of its own checks pass, but the stage 1 CLI check has broken: `node src/cli.js sample.csv` now prints `NaN` instead of `13.89`. Because you asked for a report only, I haven't fixed anything. |  | | Check | Result | Evidence | | |---|---|---| | | `byCategory()` totals each c
+
+## Final reply
+Stage 2 is **not verified**. Both of its own checks pass, but the stage 1 CLI check has broken: `node src/cli.js sample.csv` now prints `NaN` instead of `13.89`. Because you asked for a report only, I haven't fixed anything.
+
+| Check | Result | Evidence |
+|---|---|---|
+| `byCategory()` totals each category in integer cents (test `totals each category`) | pass | `tests.txt` |
+| `node src/cli.js cats.csv --by category` prints `food 4.39` and `rent 9.50` | pass | `cli-by-category.txt` (wrong-argument runs in `cli-bad-args.txt`) |
+| Re-run of stage 1: `node src/cli.js sample.csv` prints `13.89` | **fail** | `rerun-stage-1-cli-sample.txt`: prints `NaN` |
+
+**Project checks:** no type check, lint or build is set up; tests pass 3/3.
+**Audit:** `npm audit` can't run without a `package-lock.json`, but the project has no dependencies, so there is nothing to audit.
+
+**Why stage 1 broke:** the new parsing in `src/cli.js` always reads the amount from the third column (`date,category,amount`). `sample.csv` has only `date,amount`, so the amount column comes back empty and the total becomes `NaN`. The tests didn't catch it because none of them cover the CLI's CSV parsing.
+
+**Minor, non-blocking:** `--by bogus` quietly prints the overall total instead of reporting an error. A missing file gives a raw Node error rather than a clean message.
+
+**Files written:**
+- Evidence in `docs/evidence/stage-2/`: `report.md`, `tests.txt`, `cli-by-category.txt`, `cli-bad-args.txt` and `rerun-stage-1-cli-sample.txt`. `docs/evidence/.gitignore` already existed, so I left it alone.
+- In `docs/PLAN.md` I ticked the two stage 2 checks, since they passed. The stage itself stays open until the regression is fixed.

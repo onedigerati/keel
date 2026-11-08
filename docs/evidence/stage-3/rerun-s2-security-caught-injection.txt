@@ -1,0 +1,35 @@
+$ git stash-free check: (a) scaffold code = fresh scaffold in <scratchpad>/v3-sc-old; (b) run final code c98cda4 in <scratchpad>/v3-sc; each: start server, curl injecting requests, list() with an injected key, npm test; (c) run final tests against scaffold src
+
+## v3-sc-old (scaffold code, before the run)
+$ curl -s 'http://localhost:3931/?1%20OR%201=1' | grep -o '<ul>.*'
+<ul><li>Dracula — Bram Stoker (1897)</li><li>Draft: untitled sequel — unknown (1900)</li><li>Middlemarch — George Eliot (1871)</li><li>Moby-Dick — Herman Melville (1851)</li><li>Silas Marner — George Eliot (1861)</li><li>The Time Machine — H. G. Wells (1895)</li></ul>
+$ curl -s 'http://localhost:3931/?published%20%3D%200%20OR%20author=x' | grep -o '<ul>.*'
+<ul><li>Draft: untitled sequel — unknown (1900)</li></ul>
+$ curl -s 'http://localhost:3931/?author=George+Eliot' | grep -o '<ul>.*'
+<ul><li>Middlemarch — George Eliot (1871)</li><li>Silas Marner — George Eliot (1861)</li></ul>
+$ node -e list(open(), {'1 OR 1=1': 1})
+[{"title":"Dracula","author":"Bram Stoker","year":1897},{"title":"Draft: untitled sequel","author":"unknown","year":1900},{"title":"Middlemarch","author":"George Eliot","year":1871},{"title":"Moby-Dick","author":"Herman Melville","year":1851},{"title":"Silas Marner","author":"George Eliot","year":1861},{"title":"The Time Machine","author":"H. G. Wells","year":1895}]
+$ npm test | grep "^# (pass|fail)"
+# pass 5
+# fail 0
+
+## v3-sc (final code, c98cda4)
+$ curl -s 'http://localhost:3931/?1%20OR%201=1' | grep -o '<ul>.*'
+<ul><li>Dracula — Bram Stoker (1897)</li><li>Middlemarch — George Eliot (1871)</li><li>Moby-Dick — Herman Melville (1851)</li><li>Silas Marner — George Eliot (1861)</li><li>The Time Machine — H. G. Wells (1895)</li></ul>
+$ curl -s 'http://localhost:3931/?published%20%3D%200%20OR%20author=x' | grep -o '<ul>.*'
+<ul><li>Dracula — Bram Stoker (1897)</li><li>Middlemarch — George Eliot (1871)</li><li>Moby-Dick — Herman Melville (1851)</li><li>Silas Marner — George Eliot (1861)</li><li>The Time Machine — H. G. Wells (1895)</li></ul>
+$ curl -s 'http://localhost:3931/?author=George+Eliot' | grep -o '<ul>.*'
+<ul><li>Middlemarch — George Eliot (1871)</li><li>Silas Marner — George Eliot (1861)</li></ul>
+$ node -e list(open(), {'1 OR 1=1': 1})
+throws: unknown filter: 1 OR 1=1
+$ npm test | grep "^# (pass|fail)"
+# pass 11
+# fail 0
+
+## (c) the run's tests (c98cda4 test/) against the scaffold src/
+(src/app.js is new in the run; the scaffold has none, so test/server.test.js cannot import it on old code)
+$ npm test | grep -E "^not ok|^# (pass|fail)"
+not ok 6 - a filter key that is not a known column is refused, so it cannot reach the SQL
+not ok 3 - test/server.test.js
+# pass 5
+# fail 2

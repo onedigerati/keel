@@ -1,0 +1,4 @@
+$ grep -n -i -E 'test|risk line' README.md
+11:- **Laid first.** Work starts with a plan: a goal, stages with acceptance checks you can observe, a risk line for each stage, and dated decisions. Everything after that is built along it.
+13:- **Keeps it steady.** Each stage is verified against the running product, reviewed by fresh eyes when it's risky, and committed. Checks are proven by tests where they can be, and the rest are re-run at the end of the plan, so a later stage can't quietly break an earlier one. Autopilot stops before risky and outward-facing steps, and those stops are enforced by hooks rather than left to good intentions.
+19:- **Staged work.** Each stage is verified against the running product, reviewed when risky, and committed. A stage's risk line is checked against what its code actually touches before review is decided.

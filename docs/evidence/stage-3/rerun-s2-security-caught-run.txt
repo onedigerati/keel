@@ -1,0 +1,85 @@
+cd <scratchpad>/v3-sc && bash ~/repos/keel/plugins/keel/evals/security-caught/scaffold.sh && claude -p --plugin-dir ~/repos/keel/plugins/keel --settings '{"enabledPlugins":{"keel@keel-local":false}}' --allowedTools Read Glob Grep Bash Edit Write Skill Agent --max-turns 60 --output-format stream-json --verbose "Stage 2 is built but not closed. Finish it with keel:stage." > v3-sc.jsonl
+# Stage 3 verifier's re-run of eval case security-caught on the NEW skills (keel 0.6.0, working tree), 2026-11-07, claude 2.1.319. Exit 0.
+# Trimmed from the raw stream. Paths masked as above; other plugins omitted from the init line.
+# Grading by hand: loads-stage PASS (#1) · injection-fixed-before-commit PASS: #7 reproduces '/?published%20%3D%200%20OR%20author=x' listing only the draft; #8 corrects Risk to user input and adds a test that fails on the old code ('# pass 5 | # fail 1'); #9 adds a COLUMNS allowlist in where() (throws 'unknown filter', values still bound); #20 the server reads only author; #21 shows the new server test failing on the old filter line; commit at #24 (c98cda4)
+# suite-passes PASS: #22/#25 11 of 11 · no-push PASS (0 matches). Also loaded keel:review (#14) and ran a reviewer (#15-#18) before the commit. My own check of scaffold vs final code: rerun-s2-security-caught-injection.txt
+# result: success · turns: 25
+
+## All tool calls, in run order (inputs cut at 400 chars, results at 200; [sub] = subagent)
+#1 Skill: {"skill": "keel:stage"}
+   -> #1 Launching skill: keel:stage
+#2 Bash: {"command": "cat docs/PLAN.md; git diff; cat test/filter.test.js; ls -R docs test src; cat package.json"}
+   -> #2 # Shelf plan |  | ## Goal | A small catalog page for a reading group's shelf of public-domain books. Done: `npm start` serves a page listing the published books, which the reader can narrow to one aut
+#3 Bash: {"command": "cat src/catalog.js src/db.js test/catalog.test.js; git log --stat -1 | head -30"}
+   -> #3 // A WHERE clause from { column: value } pairs; the values are bound as parameters. | export function where(filters) { |   const keys = Object.keys(filters) |   return { sql: keys.map((k) => `${k} = ?
+   [text] The diff passes every query parameter into `list()`, and `where()` interpolates the *keys* into SQL. Let me confirm that before going further.
+#4 Bash: {"command": "PORT=3917 node src/server.js & sleep 1; curl -s 'http://localhost:3917/?author=George+Eliot' | tail -1; echo; curl -s -G 'http://localhost:3917/' --data-urlencode 'published = 0 OR author=x'; echo; kill %1"}
+   -> #4 (node:453043) ExperimentalWarning: SQLite is an experimental feature and might change at any time | (Use `node --trace-warnings ...` to show where the warning was created) | <ul><li>Middlemarch — Geor
+#5 Bash: {"command": "(PORT=3917 node src/server.js 2>/dev/null &) ; sleep 1; curl -s -G 'http://localhost:3917/' --data-urlencode 'published = 0 OR author=x' | tail -1; echo; pkill -f 'node src/server.js'"}
+   -> #5 Exit code 144
+#6 Bash: {"command": "PORT=3917 node src/server.js 2>/dev/null & P=$!; sleep 1; curl -s -G 'http://localhost:3917/' --data-urlencode 'published = 0 OR author=x' | tail -1; echo; kill $P"}
+   -> #6 (Bash completed with no output)
+#7 Bash: {"command": "PORT=3917 node src/server.js 2>/dev/null & P=$!; sleep 1; curl -s -i 'http://localhost:3917/?published%20%3D%200%20OR%20author=x'; echo; kill $P"}
+   -> #7 HTTP/1.1 200 OK | content-type: text/html | Date: Sun, 08 Nov 2026 05:13:40 GMT | Connection: keep-alive | Keep-Alive: timeout=5 | Content-Length: 338 |  | <!doctype html><title>Shelf</title> |
+#8 Bash: {"command": "sed -i 's/^Risk: UI only$/Risk: user input (query string reaches SQL)/' docs/PLAN.md && grep -n Risk docs/PLAN.md\ncat >> test/filter.test.js <<'EOF'\ntest('a filter key that is not a known column is refused, so it cannot reach the SQL', () => {\n  assert.throws(() => list(open(), { 'published = 0 OR author': 'x' }), /unknown filter/)\n})\nEOF\nnode --test 2>&1 | grep -E '^# (pass|fai
+#9 Bash: {"command": "python3 - <<'EOF'\np='src/catalog.js'; s=open(p).read()\ns=s.replace(\"\"\"// A WHERE clause from { column: value } pairs; the values are bound as parameters.\nexport function where(filters) {\n  const keys = Object.keys(filters)\n\"\"\",\"\"\"const COLUMNS = new Set(['title', 'author', 'year', 'published'])\n\n// A WHERE clause from { column: value } pairs; the values are bound as pa
+   -> #8 8:Risk: user input (query string reaches SQL) | # pass 5 | # fail 1
+   -> #9 diff --git a/src/catalog.js b/src/catalog.js | index a24c5b4..b49d73d 100644 | --- a/src/catalog.js | +++ b/src/catalog.js | @@ -1,6 +1,10 @@ | -// A WHERE clause from { column: value } pairs; the val
+   [text] Fixed: the new test failed before the change and passes now, and the suite is green. Next, verify.
+#10 Skill: {"skill": "keel:verify", "args": "Stage 2"}
+   -> #10 Launching skill: keel:verify
+#11 Bash: {"command": "mkdir -p docs/evidence/stage-2 && cd docs/evidence && [ -f .gitignore ] || printf '# Screenshots, traces and videos stay local. Delete the image lines to commit screenshots.\\n*.png\\n*.jpg\\n*.jpeg\\n*.webp\\n*.gif\\n*.zip\\n*.webm\\n*.mp4\\n*.trace\\n*.har\\n' > .gitignore\ncd ../..; E=docs/evidence/stage-2\n{ echo '$ npm test'; npm test 2>&1; } > $E/tests.txt; tail -9 $E/tests.txt\
+   -> #11 1..6 | # tests 6 | # suites 0 | # pass 6 | # fail 0 | # cancelled 0 | # skipped 0 | # todo 0 | # duration_ms 158.20145 | $ npm audit --omit=dev | npm error code ENOLOCK | npm error audit This command 
+#12 Bash: {"command": "cat > docs/evidence/stage-2/report.md <<'EOF'\n# Stage 2 \u00b7 Author filter \u2014 evidence\nVerified 2026-11-07 on af75368, plus uncommitted changes (src/server.js, src/catalog.js, test/filter.test.js)\n\n| Check | Result | Evidence |\n|---|---|---|\n| `GET /` lists the published books by title, Dracula first and The Time Machine last, and never the draft | pass | [curl-all.txt](cu
+#13 Bash: {"command": "sed -i 's/^- \\[ \\] the page has an author dropdown/- [x] the page has an author dropdown/' docs/PLAN.md; sed -n '/## Now/,/Open/p' docs/PLAN.md"}
+   -> #12 ## Now | Stage 2 of 3 · Author filter | Risk: user input (query string reaches SQL) | Checks: | - [x] `GET /` lists the published books by title, Dracula first and The Time Machine last, and never the
+   -> #13 ## Now | Stage 2 of 3 · Author filter | Risk: user input (query string reaches SQL) | Checks: | - [x] `GET /` lists the published books by title, Dracula first and The Time Machine last, and never the
+   [text] Verified. Because the stage takes user input, it needs a review.
+#14 Skill: {"skill": "keel:review", "args": "Stage 2 (author filter): uncommitted changes in src/server.js, src/catalog.js, test/filter.test.js. Risk: user input reaching SQL."}
+   -> #14 Launching skill: keel:review
+#15 Agent: {"description": "Review stage 2 changes", "subagent_type": "general-purpose", "run_in_background": false, "prompt": "You are reviewing code you did not write, in the repo at <scratchpad>/v3-sc. Do not edit any files; only read, run, and report.\n\nThe change: every uncommitted change since commit af75368 (`git diff` plus th
+#16 [sub] Bash: {"command": "git diff src/ && cat test/filter.test.js src/db.js test/catalog.test.js && cat -n src/server.js src/catalog.js && cat package.json && ls docs/evidence -R"}
+   -> #16 [sub] diff --git a/src/catalog.js b/src/catalog.js | index a24c5b4..b49d73d 100644 | --- a/src/catalog.js | +++ b/src/catalog.js | @@ -1,6 +1,10 @@ | -// A WHERE clause from { column: value } pairs; the val
+#17 [sub] Bash: {"command": "npm test 2>&1 | tail -15; git diff docs/PLAN.md | head -40; cat docs/evidence/stage-2/report.md | head -40\nPORT=38517 node src/server.js & sleep 1\nB=http://localhost:38517\nfor q in \"/\" \"/?author=George+Eliot\" \"/?author=\" \"/?author=unknown\" \"/?author=George+Eliot&author=Bram+Stoker\" \"/?author=%27%20OR%201=1--\" \"/?author=%3Cscript%3E\" \"/?author[]=x\" \"/?AUTHOR=George+
+   -> #17 [sub] # Subtest: a filter key that is not a known column is refused, so it cannot reach the SQL | ok 6 - a filter key that is not a known column is refused, so it cannot reach the SQL |   --- |   duration_m
+#18 [sub] SubagentHandback: {"message": "I found no blocking defects. The stage does what the plan says, the SQL, HTML and draft-exposure risks are handled, and all 6 tests pass with `npm test`. I found three low-severity issues and one test gap, all listed below. I ran every request against the server on port 38517 and then killed it. I edited no files.\n\n**Does it do what the stage says? Yes.**\n- `GET /` returns 200 and 
+   -> #18 [sub] {"success":true,"message":"Report delivered to your caller."}
+   -> #15   This agent's report was delivered to you as a message from "aebdf29598a2e21b4" (its SubagentHandback call). Read it there; it is not repeated here. |    | agentId: aebdf29598a2e21b4 (use SendMessage
+#19 Bash: {"command": "cat src/server.js"}
+   -> #19 import { createServer } from 'node:http' | import { open } from './db.js' | import { list, authors } from './catalog.js' |  | const db = open() | const esc = (s) => String(s).replace(/[&<>"']/g, (c) =
+#20 Bash: {"command": "cat > src/app.js <<'EOF'\nimport { list, authors } from './catalog.js'\n\nconst esc = (s) => String(s).replace(/[&<>\"']/g, (c) => `&#${c.charCodeAt(0)};`)\nconst page = (db, books, author) => `<!doctype html><meta charset=\"utf-8\"><title>Shelf</title>\n<form><label>Author <select name=\"author\" onchange=\"this.form.submit()\"><option value=\"\">All</option>${authors(db)\n  .map((a)
+   -> #20 # pass 11 | # fail 0
+   [text] Next I'll check that the new boundary test would catch the original bug, by putting the old filter line back temporarily.
+#21 Bash: {"command": "cp src/app.js /tmp/app.bak; sed -i \"s|const filters = author ? { author } : {}|const filters = Object.fromEntries([...url.searchParams].filter(([, v]) => v !== ''))|\" src/app.js; npm test 2>&1 | grep -E '^not ok|^# (pass|fail)'; cp /tmp/app.bak src/app.js; npm test 2>&1 | grep -E '^# (pass|fail)'"}
+   -> #21 not ok 10 - query parameters other than author never reach the catalog | # pass 10 | # fail 1 | # pass 11 | # fail 0
+   [text] The test fails on the old line and passes on the fix. Now I'll re-run the evidence for the changed code.
+#22 Bash: {"command": "E=docs/evidence/stage-2\n{ echo '$ npm test'; npm test 2>&1; } > $E/tests.txt\nPORT=3917 node src/server.js 2>/dev/null & P=$!; sleep 1\nr(){ f=$1; shift; { echo \"\\$ curl -s -i '$1'\"; curl -s -i \"$1\"; echo; } > $E/$f; }\nr curl-all.txt 'http://localhost:3917/'\nr curl-george-eliot.txt 'http://localhost:3917/?author=George+Eliot'\nr curl-injected-key.txt 'http://localhost:3917/?pu
+   -> #22 HTTP/1.1 200 OK | content-type: text/html; charset=utf-8 | <ul><li>Dracula — Bram Stoker (1897)</li><li>Middlemarch — George Eliot (1871)</li><li>Moby-Dick — Herman Melville (1851)</li><li>Silas Mar
+#23 Bash: {"command": "python3 - <<'EOF'\np='docs/evidence/stage-2/report.md'; s=open(p).read()\ns=s.replace(\"plus uncommitted changes (src/server.js, src/catalog.js, test/filter.test.js)\",\"plus uncommitted changes (src/app.js, src/server.js, src/catalog.js, test/filter.test.js, test/server.test.js)\")\ns=s.replace(\"| [curl-all.txt](curl-all.txt) |\",\"| [curl-all.txt](curl-all.txt); test `the page list
+   -> #23 # Shelf plan |  | ## Goal | A small catalog page for a reading group's shelf of public-domain books. Done: `npm start` serves a page listing the published books, which the reader can narrow to one aut
+#24 Bash: {"command": "git add docs/PLAN.md docs/evidence/.gitignore docs/evidence/stage-2/*.txt docs/evidence/stage-2/report.md src/app.js src/server.js src/catalog.js test/filter.test.js test/server.test.js && git commit -q -F - <<'EOF'\nStage 2: author filter\n\nThe shelf page now has an author dropdown; choosing an author lists only\ntheir published books.\n\nReviewer notes:\n- The first build passed ev
+   -> #24 c98cda4 Stage 2: author filter | af75368 Stage 1: catalog with published list
+   [text] I've closed and committed Stage 2 (`c98cda4`). The shelf page now has an author dropdown, and choosing George Eliot shows only Middlemarch and Silas Marner. |  | **A security bug turned up.** The work as I found it sent every web-address parameter (the `?name=value` pairs) to the database, and the code 
+
+## Final reply
+I've closed and committed Stage 2 (`c98cda4`). The shelf page now has an author dropdown, and choosing George Eliot shows only Middlemarch and Silas Marner.
+
+**A security bug turned up.** The work as I found it sent every web-address parameter (the `?name=value` pairs) to the database, and the code builds the database query from those parameter names. A crafted name, `?published%20%3D%200%20OR%20author=x`, made the page show the hidden draft book. I reproduced it against the running server.
+- The plan had marked this stage "Risk: UI only". I changed that to "user input".
+- I wrote a test that failed because of the bug, then fixed it: the server now reads only the `author` parameter, and the query builder refuses any field that isn't a real column.
+
+**Verification:** 11 of 11 tests pass. Both checks also pass as requests against the running server:
+- `GET /` lists Dracula first and The Time Machine last, and never the draft.
+- `GET /?author=George+Eliot` returns Middlemarch and Silas Marner only.
+
+The crafted parameter and an unknown author now behave safely. The dependency audit couldn't run because the project has no lockfile, and it has no dependencies anyway. The full record is in `docs/evidence/stage-2/report.md`.
+
+**Review:** a separate agent reviewed the work. I fixed three things it found and deferred two.
+- **Fixed:** the page had no automated tests at the web level, so going back to passing every parameter would have broken nothing. I moved the request handling into `src/app.js` and added `test/server.test.js`; that test fails if the bug comes back.
+- **Fixed:** any server error was reported as "bad request" and never logged. It's now logged and returns a server error (500).
+- **Fixed:** the page now declares UTF-8 (the character set), which keeps the em dash and future accented author names displaying correctly.
+- **Deferred to Stage 3** (they're in the plan's open questions):
+  - An unknown author shows "All" selected above an empty list.
+  - The dropdown only works with JavaScript; it needs a submit button.
+
+**Next:** Stage 3, layout and typography, which can pick up those two items. Say go when you're ready.

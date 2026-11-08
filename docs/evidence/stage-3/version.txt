@@ -1,0 +1,7 @@
+$ grep -n '"version"' plugins/keel/.claude-plugin/plugin.json; git show HEAD:plugins/keel/.claude-plugin/plugin.json | grep -n '"version"'; git show 17c851b^:plugins/keel/.claude-plugin/plugin.json | grep -n '"version"'
+# working tree:
+3:  "version": "0.6.0",
+# HEAD:
+3:  "version": "0.6.0",
+# before 17c851b:
+3:  "version": "0.5.2",

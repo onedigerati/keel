@@ -1,0 +1,9 @@
+grep -n 'by its test or in the running product\|showing by the end of the plan\|takes the line as the plan has it\|every case except' plugins/keel/README.md README.md
+README.md:13:- **Keeps it steady.** Each stage is verified against the running product, reviewed by fresh eyes when it's risky, and committed. Checks are proven by tests where they can be, and the rest are re-run at the end of the plan, so a later stage can't break an earlier one without it showing by the end of the plan. Autopilot stops before risky and outward-facing steps, and those stops are enforced by hooks rather than left to good intentions.
+plugins/keel/README.md:12:| `/keel:verify` | Type check, lint, tests, build and a dependency audit, then each acceptance check proven by its test or in the running product. At the plan's last stage, it also re-runs the earlier stages' checks that weren't proven by a test, so a later stage can't break one without it showing by the end of the plan. On a request only for a report, it reports failures and leaves them. For a plan stage, it saves a per-check report and the output behind it to `docs/evidence/stage-<n>/` (see [Evidence](#evidence)). |
+plugins/keel/README.md:13:| `/keel:review` | A fresh-eyes review by an agent that didn't write the code, with a security pass for risky stages. Run from `/keel:stage` or autopilot, the risk line has already been checked against the diff; run on its own, review takes the line as the plan has it. Findings are verified and sorted into fix, defer or reject. |
+plugins/keel/README.md:97:Cases that use Bash run in a sandbox that refuses to start if a credential store such as `~/.docker` contains symlinks (common with Docker Desktop on WSL). In that case, run them on another machine or in CI. That is every case except `trigger-plan`.
+
+for d in plugins/keel/evals/*/; do grep -q Bash $d/case.yaml || basename $d; done
+fixtures
+trigger-plan

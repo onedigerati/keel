@@ -7,20 +7,12 @@ Close the two gaps in how Keel proves the code it helps build, without making it
 2026-11-07 · tests: 55 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 3 of 3 · Docs and release
-Mode: autopilot
-Risk: UI only
-Checks:
-- [ ] `plugins/keel/README.md` describes the end-of-plan re-run, the risk-line recheck and the gate skipping re-run rows, and lists `regression-caught`, `risk-recheck` and `security-caught` in the eval list and in the cases that can't run under WSL (proof: command, grep; a test can't judge prose)
-- [ ] The root `README.md` mentions tests as preferred proof and the risk-line recheck (proof: command, grep; a test can't judge prose)
-- [ ] `plugin.json` is version 0.6.0 (proof: command)
-- [ ] Plugin tests and validate pass (proof: `claude plugin test plugins/keel`, `claude plugin validate plugins/keel`)
-Open: none
+All stages done
 
 ## Stages
 - [x] 1. Regression proof — plans prefer tests as proof; verify re-runs hand-proven checks once at the end of a plan; eval `regression-caught`
 - [x] 2. Security proof — stage and autopilot recheck the risk line against the diff before deciding on review; eval `risk-recheck` proves the recheck; `security-caught` checks an injection is fixed before commit
-- [ ] 3. Docs and release — both READMEs, eval list, version 0.6.0
+- [x] 3. Docs and release — both READMEs, eval list, version 0.6.0
 
 ## Decisions
 - 2026-11-07 · Acceptance checks name `test` as their proof wherever a test can cover them, and hand-proven checks give the reason — a test protects against regressions on every later verify for free, while hand-proven checks are only repeated once, at the end of the plan.
@@ -30,7 +22,8 @@ Open: none
 - 2026-11-07 · Stage 1's eval `regression-caught` covers one shape: one earlier stage, one failing re-run. A passing re-run, several earlier stages and the `## Stages` fallback for a stage with no report aren't covered — accepted at n=1, as the plan's method for eval proof allows. `claude plugin eval plugins/keel --case regression-caught --scaffold` still to run off this machine.
 - 2026-11-07 · Stage 2 is built in a worktree in parallel with stage 1's review fixes, and merged after stage 1 is committed — the two touch different files, and the user asked for more parallelism.
 - 2026-11-07 · Stage 2's eval proves the risk recheck (`risk-recheck`: a safe user-input stage labelled "UI only" is relabelled and reviewed under the new skills, not the old), and `security-caught` stays as a plain safety check that an injection is fixed before commit, with no claim review found it — in 6 runs over 3 injection designs, the author found and fixed the injection on first reading the diff under both the new and the pre-stage-2 skills, so no small eval can show review catching it. Decided by the user, following the recommendation.
-- 2026-11-07 · `risk-recheck` reliably separates the versions on the risk line (corrected in `## Now` under the new skills; left "UI only" with only a dated decision under the old, 2 of 2 runs), but not always on review: the old skills skipped review in 1 of 2 runs and ran it in the other. So the stage proves the risk is now recorded where review and the hook read it, and that review runs under the new skills; it doesn't prove review would otherwise have been skipped every time.
+- 2026-11-07 · `risk-recheck` reliably separates the versions on the risk line (corrected in `## Now` under the new skills; left "UI only" with only a dated decision under the old, 3 of 3 runs), but not always on review: the old skills skipped review in 2 of 3 runs and ran it in the other. So the stage proves the risk is now recorded where review and the hook read it, and that review runs under the new skills; it doesn't prove review would otherwise have been skipped every time.
+- 2026-11-07 · Stage 3 was the first last-stage verify under the new rule: it re-ran stages 1 and 2's seven checks not proven by a test (greps and four headless eval runs), all passing. `claude plugin eval plugins/keel --case regression-caught --case risk-recheck --case security-caught --scaffold` still to run off this machine.
 - 2026-11-07 · Not doing: mandatory test-first for every feature (tests first stays the rule for bug fixes and untested code, and tests travel with risky logic), a required static analysis tool in verify, or secure-coding rules at build time — each adds weight for little gain over what the suite, the linter the project already has, and the fresh-eyes security pass catch; projects that want strict TDD can say so in `CLAUDE.md`.
 
 ## Open questions
