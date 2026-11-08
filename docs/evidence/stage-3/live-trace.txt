@@ -1,0 +1,89 @@
+===== Run 1: two Agent calls in one message
+$ cd <scratch>/live && claude -p "In ONE message, make two Agent tool calls in parallel, both with run_in_background true: agent A runs the Bash command 'sleep 20' and then replies 'A done'; agent B runs 'sleep 20' and then replies 'B done'. Do not do the sleeping yourself. After the calls return, tell me exactly what each Agent call returned, including any error or denial text verbatim." --output-format stream-json --verbose --allowedTools "Agent Bash"
+(installed plugin keel@keel-local, read from <repo>/plugins/keel; no --plugin-dir. The repo's docs/PLAN.md ## Now has 'Agents: lean'. Trimmed: only status line, init, tool calls/results, task events and assistant text; session ids and uuids dropped.)
+
+[8] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[9] init: plugins=['keel', 'tokeneconomizer', 'cc-plugin-agents-md', 'cc-plugin-telemetry', 'cc-plugin-privacy', 'cc-plugin-plugin-authoring']
+[13] main tool_use Agent id=…BHwU9f input={"description": "Agent A sleeps 20s", "prompt": "Run the Bash command 'sleep 20' (use a timeout of at least 30000 ms). When it finishes, reply with exactly: A done", "subagent_type": "general-purpose", "run_in_background
+[14] main tool_use Agent id=…NyVWVg input={"description": "Agent B sleeps 20s", "prompt": "Run the Bash command 'sleep 20' (use a timeout of at least 30000 ms). When it finishes, reply with exactly: B done", "subagent_type": "general-purpose", "run_in_background
+[15] main tool_result id=…NyVWVg is_error=True: <tool_use_error>keel: the plan's Agents line is lean, which allows one agent at a time, and one is still running. Wait for it to finish (its report starts the next turn), or ask the user to change the Agents line.</tool_use_error>
+[17] task_started: Agent A sleeps 20s  owned_by_subagent=False
+[19] main tool_result id=…BHwU9f is_error=False: Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)
+agentId: [masked] (internal ID - do not mention to user. Use SendMessage with to: 'a10f993e1e1b6c38c', summary: '<5-10 word recap>' to continue this agent.)
+The agent is working in the background. You will be notified auto
+[20] subagent tool_use Bash id=…HFmTUu input={"command": "sleep 20", "description": "Wait 20 seconds", "timeout": 30000}
+[23] task_started: Wait 20 seconds  owned_by_subagent=True
+[26] main text: I made both Agent calls in one message. They returned different results:
+
+**Agent A:** started in the background. The call confirmed the launch and said I'd be notified when A finishes. A is still running, so I don't have its "A done" reply yet. (I've left out the internal ID and file path the confirmation contained, because those aren't meant to be shared.)
+
+**Agent B:** was refused and never started. The exact error text was:
+
+```
+keel: the plan's Agents line is lean, which allows one agent at a time, and one is still running. Wait for it to finish (its report starts the next turn), or ask t
+[27] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[28] task_notification:  completed owned_by_subagent=False
+[29] subagent tool_result id=…HFmTUu is_error=False: (Bash completed with no output)
+[30] subagent tool_use SubagentHandback id=…QKcxiP input={"message": "A done"}
+[33] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[34] subagent tool_result id=…QKcxiP is_error=False: {"success":true,"message":"Report delivered to your caller."}
+[35] task_updated:  {'status': 'completed', 'end_time': 1794160565438} owned_by_subagent=False
+[36] task_notification:  completed owned_by_subagent=False
+[38] init: plugins=['keel', 'tokeneconomizer', 'cc-plugin-agents-md', 'cc-plugin-telemetry', 'cc-plugin-privacy', 'cc-plugin-plugin-authoring']
+[39] main text: Agent A has finished. Its exact reply was:
+
+```
+A done
+```
+
+Agent B never ran because the keel guard refused it, with the error text I quoted earlier. The check "Two agents each sleep 20 seconds and report" still isn't met.
+
+I can run B now that A is free, but that would only show two agents running one after the other, not two at the same time. To test them in parallel, change `Agents: lean` in `docs/PLAN.md` to a setting that allows parallel agents and I'll rerun both.
+[40] result: success num_turns=3
+[41] result: success num_turns=1
+[42] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[43] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[44] init: plugins=['keel', 'tokeneconomizer', 'cc-plugin-agents-md', 'cc-plugin-telemetry', 'cc-plugin-privacy', 'cc-plugin-plugin-authoring']
+[45] result: success num_turns=0
+
+===== Run 2: second Agent call in a later message while the first agent runs
+$ cd <scratch>/live && claude -p "Step 1: make ONE Agent tool call with run_in_background true: agent A runs the Bash command 'sleep 40' and then replies 'A done'. Wait for that call to return (it returns at once, A keeps running). Step 2: then, in a separate later message, make a second Agent call with run_in_background true: agent B runs 'sleep 5' and replies 'B done'. Do not sleep yourself. Report verbatim what each Agent call returned, including any error or denial text." --output-format stream-json --verbose --allowedTools "Agent Bash"
+(installed plugin keel@keel-local, read from <repo>/plugins/keel; no --plugin-dir. The repo's docs/PLAN.md ## Now has 'Agents: lean'. Trimmed: only status line, init, tool calls/results, task events and assistant text; session ids and uuids dropped.)
+
+[8] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[9] init: plugins=['keel', 'tokeneconomizer', 'cc-plugin-agents-md', 'cc-plugin-telemetry', 'cc-plugin-privacy', 'cc-plugin-plugin-authoring']
+[10] main tool_use Agent id=…BKMdDn input={"description": "Agent A sleeps 40s", "prompt": "Run the Bash command 'sleep 40' (use a timeout of at least 60000 ms). After it finishes, reply exactly: 'A done'. Do nothing else.", "subagent_type": "general-purpose", "r
+[12] task_started: Agent A sleeps 40s  owned_by_subagent=False
+[14] main tool_result id=…BKMdDn is_error=False: Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)
+agentId: [masked] (internal ID - do not mention to user. Use SendMessage with to: 'ab749ca0d95abc407', summary: '<5-10 word recap>' to continue this agent.)
+The agent is working in the background. You will be notified auto
+[15] subagent tool_use Bash id=…SdLFVq input={"command": "sleep 40", "description": "Sleep for 40 seconds", "timeout": 60000}
+[17] subagent tool_result id=…SdLFVq is_error=True: <tool_use_error>Blocked: standalone sleep 40. To wait for a condition, use Monitor with an until-loop (e.g. `until <check>; do sleep 2; done`). To wait for a command you started, use run_in_background: true. Do not chain shorter sleeps to work around this block.</tool_use_error>
+[23] subagent text: The foreground sleep was blocked, so I'll run the same command in the background as the block message suggests.
+[24] main tool_use Agent id=…n7Mghv input={"description": "Agent B sleeps 5s", "prompt": "Run the Bash command 'sleep 5'. After it finishes, reply exactly: 'B done'. Do nothing else.", "subagent_type": "general-purpose", "run_in_background": true}
+[25] main tool_result id=…n7Mghv is_error=True: <tool_use_error>keel: the plan's Agents line is lean, which allows one agent at a time, and one is still running. Wait for it to finish (its report starts the next turn), or ask the user to change the Agents line.</tool_use_error>
+[26] subagent tool_use Bash id=…NQVsoc input={"command": "sleep 40", "description": "Sleep for 40 seconds", "timeout": 60000, "run_in_background": true}
+[29] task_started: Sleep for 40 seconds  owned_by_subagent=True
+[30] subagent tool_result id=…NQVsoc is_error=False: Command running in background with ID: bv41cwxkc. Output is being written to: /tmp/claude-1000/-tmp-claude-1000--home-[masked]-repos-keel-6c8ff99a-e8d0-49c6-a21b-0591a66d3bfa-scratchpad-live/0109c2eb-2938-445d-b07f-a5f4c61d8d8c/tasks/bv41cwxkc.output. You will be notified when it completes. To check interim output, use Read on that file path.
+[33] subagent tool_use ToolSearch id=…KFCuuG input={"query": "select:Monitor", "max_results": 1}
+[36] subagent tool_result id=…KFCuuG is_error=False: 
+[38] subagent text: I'll wait for the background sleep to finish before handing back.
+[39] task_updated:  {'status': 'completed', 'end_time': 1794160603609} owned_by_subagent=False
+[40] task_notification:  completed owned_by_subagent=False
+[44] main text: Agent A started, but the keel plugin blocked agent B because A was still running.
+
+**Agent call A** (sleep 40, background) started. Its return text, with the internal agent ID and output-file path removed because the harness says not to repeat them:
+
+> Async agent launched successfully. … The agent is working in the background. You will be notified automatically when it completes. You know nothing about its results until that notification arrives — do not report, assume, or predict them; continue other work or respond to the user in the meantime.
+> Do not duplicate this agent's work — avoid wo
+[45] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[46] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[47] init: plugins=['keel', 'tokeneconomizer', 'cc-plugin-agents-md', 'cc-plugin-telemetry', 'cc-plugin-privacy', 'cc-plugin-plugin-authoring']
+[49] main text: Agent A has stopped for now, but it hasn't finished or replied "A done" yet. It is waiting on background work of its own, probably because it ran `sleep 40` in the background. The notification says it "has not reported yet: it is waiting on its own background work and will deliver its report through SubagentHandback when that finishes." So this update may not be the last one.
+
+I haven't relaunched agent B. The "Agents: lean" setting in `docs/PLAN.md` would likely block it again while A counts as running. When A gives its final report I'll pass it on, and I can launch B then if you want.
+[50] result: success num_turns=3
+[51] result: success num_turns=1
+[52] ui_status: keel · lean · 0/1 done · next: 1. Sleep
+[53] task_updated:  {'status': 'killed', 'end_time': 1794160613471} owned_by_subagent=False
+[54] task_notification:  stopped owned_by_subagent=False

@@ -8,12 +8,12 @@ Let the user choose how widely Keel fans work out to subagents, trading tokens f
 
 ## Now
 Mode: autopilot
-Stage 3 of 4 · Lean cap — the hook refuses an `Agent` call under `lean` while another agent the main loop started is still running (built and merged; checks written when it's verified)
+Stage 4 of 4 · Docs and release — both READMEs, eval list, version 0.7.0 (built in a worktree; checks written when it's verified)
 
 ## Stages
 - [x] 1. Agents line — parse the level, inject it into the working rules, show it in the status line, distrust an earlier session's `wide`
 - [x] 2. Skills follow it — plan sets and records the level; stage, autopilot, review and verify say what each level does; evals `agents-lean` and `agents-wide`
-- [ ] 3. Lean cap — the hook refuses an `Agent` call under `lean` while another agent the main loop started is still running
+- [x] 3. Lean cap — the hook refuses an `Agent` call under `lean` while another agent the main loop started is still running
 - [ ] 4. Docs and release — both READMEs, eval list, version 0.7.0
 
 ## Decisions
@@ -32,6 +32,8 @@ Stage 3 of 4 · Lean cap — the hook refuses an `Agent` call under `lean` while
 - 2026-11-08 · A stamp confirms `wide` only if it carries a time inside the session (from the first read of the plan to now): a date-only stamp, a planted past stamp however reformatted, or a future one never confirms — stage 2 review found a planted `confirmed 2026-11-01 10:00` rewritten without its time read as a new stamp. This tightens stage 1's rule after its commit.
 - 2026-11-08 · Under `wide`, the correctness and security reviewers run in parallel only when the security lens applies (the risk line names more than UI), as `keel:review` says; the hook's rule first said so unconditionally.
 - 2026-11-08 · On an unconfirmed `wide`, keel:stage asks before building and autopilot asks and carries on at balanced; the stamp's time comes from a `date` call, the hook's offered stamp only when there's no shell — the stage 2 re-review found stage, the hook rule and the safety eval disagreeing on building while waiting, and a grader that might not see the hook's stamp.
+- 2026-11-08 · Under `lean`, the hook counts main-loop `Agent` calls still in flight as well as running agents, so parallel calls in one message can't all pass — stage 3 review found each call checked the agent list before any spawn registered.
+- 2026-11-08 · Stage 4 (docs and release) started in its own worktree while stage 3 was being verified — it touches only the READMEs and the version, and the behaviour it documents was settled.
 
 ## Open questions
 - Committed screenshots get no secret scan (the guard skips binary files); the docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.
@@ -39,7 +41,7 @@ Stage 3 of 4 · Lean cap — the hook refuses an `Agent` call under `lean` while
 - A `wide` (or `Mode: autopilot`) line that arrives mid-session from git — a checkout or pull of someone else's branch, or a plan that couldn't be read at the session's first look — counts as a change and is honoured without asking; the Mode line already behaves this way. Closing it (move the baseline when the line matches the plan at HEAD, or count only edits made in the user's turn) is a design change for the user to weigh — found in stage 1 review.
 - With two Agents lines in `## Now`, only the first is read, so restamping the second does nothing (fails safe, but confusing); and an Agents line past `## Now`'s 40-line cap is parsed but not shown to Claude. Both minor — stage 1 review.
 
-- The `lean` cap counts only `pending`, `running` and `waiting` agents: an `idle` teammate isn't counted (a message can wake it beside a second agent), nor are a SendMessage that resumes a finished agent or a Workflow's fan-out; and agents another plugin spawned, or a dead teammate pane still marked running, count as busy and can stall a `lean` session. The `agent.spawn` event may be a sturdier place for the cap — stage 3 review, deferred.
+- The `lean` cap counts only `pending`, `running` and `waiting` agents: an `idle` teammate isn't counted (a message can wake it beside a second agent), nor are a SendMessage that resumes a finished agent or a Workflow's fan-out; and agents another plugin spawned, or a dead teammate pane still marked running, count as busy and can stall a `lean` session. The `agent.spawn` event may be a sturdier place for the cap — stage 3 review, deferred. Also deferred from its re-review: when two parallel calls are both refused (the second because the first held the slot, the first further down), the second's "one is still running" is untrue — harmless, Claude can retry.
 
 - `agents-lean` has no balanced control: if a balanced run on the same three-exporter scaffold also builds inline, the eval can't show `lean` caused it (run it once with no Agents line; if so, give it bigger leaves) — stage 2 re-review, deferred.
 - A planted stamp the hook reads as date-only (`confirmed 2026-11-08 at 23:59`) could be confirmed by a rewrite that drops the `at`, if the session runs past that minute; it needs a reformat the skills forbid — stage 2 re-review, deferred.

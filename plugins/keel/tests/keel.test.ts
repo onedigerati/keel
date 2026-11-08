@@ -1017,7 +1017,7 @@ async function agentCall($: Engine, on: On, line: string, agents: { status: stri
 test('under lean, an Agent call is refused while an agent the main loop started is running', async ($, on) => {
   const deny = await agentCall($, on, 'Agents: lean', [{ status: 'running' }])
   expect(deny).toContain('lean, which allows one agent at a time')
-  expect(deny).toContain('its report starts the next turn')
+  expect(deny).toContain("Wait for it to finish (a background agent's report starts the next turn)")
   expect(deny).toContain('ask the user to change the Agents line')
 })
 
@@ -1089,4 +1089,123 @@ test('an unconfirmed wide line is not capped either', async ($, on) => {
   const compose = composeKeel($, on)
   expect((await compose()).text).toContain('set before this session')
   expect((await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2' } as never)).deny).toBeUndefined()
+})
+
+const AGENT_CALL = { tool: 'Agent', description: 'build', prompt: 'build stage 2' } as never
+
+/** The plan carries `line`; the Agent tool beneath the hook starts an agent the main loop's list then shows as running. */
+function spawning(on: On, line: string) {
+  const agents: { status: string; parentId?: string }[] = []
+  engine(on, { text: planWith(line) }, 20, agents)
+  on('tool.call', async () => {
+    agents.push({ status: 'running' })
+    return { result: { text: 'started' } }
+  })
+  return agents
+}
+
+test('under lean, parallel Agent calls in one message let only one through', async ($, on) => {
+  const agents = spawning(on, 'Agents: lean')
+  const denies = (await Promise.all([$.tool.call(AGENT_CALL), $.tool.call(AGENT_CALL)])).map(r => r.deny)
+  expect(denies.filter(d => d === undefined)).toHaveLength(1)
+  expect(denies.find(d => d !== undefined)).toContain('lean, which allows one agent at a time, and one is still running')
+  expect(agents).toHaveLength(1)
+})
+
+test('under balanced, parallel Agent calls all go through', async ($, on) => {
+  const agents = spawning(on, 'Agents: balanced')
+  const denies = (await Promise.all([$.tool.call(AGENT_CALL), $.tool.call(AGENT_CALL)])).map(r => r.deny)
+  expect(denies).toEqual([undefined, undefined])
+  expect(agents).toHaveLength(2)
+})
+
+test('under lean, the next Agent call goes through once the first has settled and its agent finished', async ($, on) => {
+  const agents = spawning(on, 'Agents: lean')
+  expect((await $.tool.call(AGENT_CALL)).deny).toBeUndefined()
+  expect((await $.tool.call(AGENT_CALL)).deny).toContain('one is still running')
+  agents[0]!.status = 'completed'
+  expect((await $.tool.call(AGENT_CALL)).deny).toBeUndefined()
+  expect(agents).toHaveLength(2)
+})
+
+test('under lean, an Agent call that throws does not hold the next one back', async ($, on) => {
+  engine(on, { text: planWith('Agents: lean') })
+  let calls = 0
+  on('tool.call', () => {
+    if (calls++ === 0) throw new Error('spawn failed')
+    return { result: { text: 'started' } }
+  })
+  await $.tool.call(AGENT_CALL).catch(() => undefined)
+  expect((await $.tool.call(AGENT_CALL)).deny).toBeUndefined()
+})
+
+/** A promise and the function that resolves it. */
+function deferred<T = void>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(r => (resolve = r))
+  return { promise, resolve }
+}
+
+test('under lean, an Agent call holds its slot while the tool beneath is still starting the agent', async ($, on) => {
+  const agents: { status: string }[] = []
+  engine(on, { text: planWith('Agents: lean') }, 20, agents)
+  const entered = deferred()
+  const started = deferred()
+  let calls = 0
+  on('tool.call', async () => {
+    // only the first call waits, so a second call let through returns at once and the test fails rather than hangs
+    if (calls++ === 0) {
+      entered.resolve()
+      await started.promise
+    }
+    agents.push({ status: 'running' })
+    return { result: { text: 'started' } }
+  })
+  const a = $.tool.call(AGENT_CALL)
+  await entered.promise
+  // A is inside next(e) and its agent isn't listed yet: only the held slot says it is starting
+  const b = await $.tool.call(AGENT_CALL)
+  started.resolve()
+  expect(b.deny).toContain('one is still running')
+  expect((await a).deny).toBeUndefined()
+  expect(calls).toBe(1)
+})
+
+test('under lean, a foreground agent holds its slot for as long as it runs', async ($, on) => {
+  engine(on, { text: planWith('Agents: lean') })
+  const entered = deferred()
+  // a foreground run whose agent never shows in the background list, and doesn't finish within the test
+  let calls = 0
+  on('tool.call', () => (calls++ === 0 ? (entered.resolve(), new Promise<never>(() => {})) : { result: { text: 'started' } }))
+  void $.tool.call(AGENT_CALL).catch(() => undefined)
+  await entered.promise
+  expect((await $.tool.call(AGENT_CALL)).deny).toContain('one is still running')
+})
+
+test('an Agent call goes through when the lean check itself fails', async ($, on) => {
+  // the plan reads as lean once (the hold gate's look), then comes back as something that isn't text, so parsing
+  // it throws inside the lean check and that hook's catch decides; an agent is running, so a catch that refused
+  // would refuse this call
+  let reads = 0
+  const plan = {
+    get text() {
+      return (reads++ === 0 ? planWith('Agents: lean') : 42) as string
+    },
+  }
+  engine(on, plan, 20, [{ status: 'running' }])
+  on('tool.call', () => ({ result: { text: 'started' } }))
+  const r = await $.tool.call(AGENT_CALL)
+  expect(r.deny).toBeUndefined()
+  expect(r.result).toEqual({ text: 'started' })
+})
+
+test('under lean, an agent list that cannot be read lets the Agent call through', async ($, on) => {
+  const unreadable = {
+    map: () => {
+      throw new Error('agent list unavailable')
+    },
+  }
+  engine(on, { text: planWith('Agents: lean') }, 20, unreadable as never)
+  on('tool.call', () => ({ result: { text: 'started' } }))
+  expect((await $.tool.call(AGENT_CALL)).deny).toBeUndefined()
 })

@@ -377,6 +377,8 @@ let lastMode: Mode['kind'] | undefined
 let lastPromptFromUser = false
 /** The held stage the person was last told about, so they hear it once. */
 let heldNoticeFor: string | undefined
+/** Agent calls from the main loop that have reached the lean cap and not yet settled (allowed, denied or thrown). */
+let agentCallsInFlight = 0
 
 /** Background agents the main loop started that are still working: their notifications will start the next turn. */
 async function backgroundBusy($: EngineInterface): Promise<boolean> {
@@ -704,14 +706,35 @@ export const register: Register = on => {
 
   // lean runs one agent at a time: the main loop starts no agent while one it started is still working, and an agent starts none of its own
   on('tool.call', { tool: 'Agent' }, async ($, e, next) => {
-    const plan = await loadPlan($)
-    if (effectiveAgents(plan, undefined) !== 'lean') return next(e)
-    // a subagent starting a child would make two running agents
-    if (e.agentId)
+    if (e.agentId) {
+      const plan = await loadPlan($)
+      if (effectiveAgents(plan, undefined) !== 'lean') return next(e)
+      // a subagent starting a child would make two running agents
       return { deny: "keel: the plan's Agents line is lean, which allows one agent at a time, and you are that agent: do this work yourself rather than starting another." }
-    if (!(await backgroundBusy($))) return next(e)
-    return {
-      deny: "keel: the plan's Agents line is lean, which allows one agent at a time, and one is still running. Wait for it to finish (its report starts the next turn), or ask the user to change the Agents line.",
+    }
+    // counted before the first await: parallel calls in one message all find the agent list empty, so the count
+    // of calls already in flight is what tells the second one that the first is starting
+    const before = agentCallsInFlight++
+    // released once: when the call settles, or when its dispatch is abandoned (an interrupt, a hook above settling
+    // first), so a next(e) that never settles can't hold the slot and refuse every later call
+    let held = true
+    const release = () => {
+      if (!held) return
+      held = false
+      agentCallsInFlight--
+      next.signal.removeEventListener('abort', release)
+    }
+    next.signal.addEventListener('abort', release)
+    if (next.signal.aborted) release()
+    try {
+      const plan = await loadPlan($)
+      if (effectiveAgents(plan, undefined) !== 'lean') return await next(e)
+      if (before === 0 && !(await backgroundBusy($))) return await next(e)
+      return {
+        deny: "keel: the plan's Agents line is lean, which allows one agent at a time, and one is still running. Wait for it to finish (a background agent's report starts the next turn), or ask the user to change the Agents line.",
+      }
+    } finally {
+      release()
     }
   }).catch(($, e, next) => next(e))
 

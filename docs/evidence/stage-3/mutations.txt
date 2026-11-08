@@ -1,0 +1,112 @@
+$ python3 -I mutations.py <scratch>  # each mutation applied alone to a scratch copy of plugins/keel/hooks/register.ts (working tree incl. uncommitted fix), then: claude plugin test <copy>
+Unmutated copy: 112 pass / 0 fail
+
+## M1 drop the in-flight counter (parallel calls rely on agent list only)
+replace: 'if (before === 0 && !(await backgroundBusy($)))'
+with:    'if (!(await backgroundBusy($)))'
+result: 111 pass / 1 fail
+  (fail) under lean, parallel Agent calls in one message let only one through
+
+## M2 drop 'pending' from busy statuses
+replace: "a.status === 'pending' || "
+with:    ''
+result: 111 pass / 1 fail
+  (fail) under lean, a pending agent holds the next one back
+
+## M3 drop 'waiting' from busy statuses
+replace: " || a.status === 'waiting'"
+with:    ''
+result: 111 pass / 1 fail
+  (fail) under lean, a waiting agent holds the next one back
+
+## M4 count nested agents (ignore parentId)
+replace: '!a.parentId && ('
+with:    '('
+result: 111 pass / 1 fail
+  (fail) under lean, agents a subagent started do not count
+
+## M5 count finished agents too (any status is busy)
+replace: "(a.status === 'pending' || a.status === 'running' || a.status === 'waiting')"
+with:    'true'
+result: 109 pass / 3 fail
+  (fail) under lean, finished agents do not count
+  (fail) under lean, agents a subagent started do not count
+  (fail) under lean, the next Agent call goes through once the first has settled and its agent finished
+
+## M6 cap every level in the main loop (drop the lean check)
+replace: "      if (effectiveAgents(plan, undefined) !== 'lean') return await next(e)\n"
+with:    ''
+result: 107 pass / 5 fail
+  (fail) balanced never caps the agents
+  (fail) a confirmed wide never caps the agents
+  (fail) with no Agents line the agents are never capped
+  (fail) an unconfirmed wide line is not capped either
+  (fail) under balanced, parallel Agent calls all go through
+
+## M7 cap every level for subagents (drop the lean check in the subagent branch)
+replace: "if (e.agentId) {\n      const plan = await loadPlan($)\n      if (effectiveAgents(plan, undefined) !== 'lean') return next(e)\n"
+with:    'if (e.agentId) {\n      const plan = await loadPlan($)\n'
+result: 108 pass / 4 fail
+  (fail) under balanced, a subagent's own Agent call is left alone
+  (fail) under a confirmed wide, a subagent's own Agent call is left alone
+  (fail) with no Agents line, a subagent's own Agent call is left alone
+  (fail) under an unconfirmed wide, a subagent's own Agent call is left alone
+
+## M8 drop the subagent refusal (nested calls take the main-loop path)
+replace: 'if (e.agentId) {'
+with:    'if (false && e.agentId) {'
+result: 111 pass / 1 fail
+  (fail) under lean, a subagent's own Agent call is refused: it is the one agent
+
+## M9 fail closed when agent.list errors (treat as busy)
+replace: '$.agent.list().catch(() => [])'
+with:    "$.agent.list().catch(() => [{ status: 'running' }] as any)"
+result: 111 pass / 1 fail
+  (fail) under lean, an agent list that cannot be read lets the Agent call through
+
+## M10 fail closed when the hook throws (outer catch denies)
+replace: "    }\n  }).catch(($, e, next) => next(e))\n\n  on('tool.call', { tool: 'Bash' }"
+with:    "    }\n  }).catch(($, e, next) => ({ deny: 'keel: lean, which allows one agent at a time, and one is still running' }))\n\n  on('tool.call', { tool: 'Bash' }"
+result: 112 pass / 0 fail
+  SURVIVED: no test failed
+
+## M11 never decrement the counter (finally dropped)
+replace: '    } finally {\n      agentCallsInFlight--\n    }'
+with:    '    } finally {\n    }'
+result: 110 pass / 2 fail
+  (fail) under lean, the next Agent call goes through once the first has settled and its agent finished
+  (fail) under lean, an Agent call that throws does not hold the next one back
+
+## M12 no main-loop cap at all under lean
+replace: 'if (before === 0 && !(await backgroundBusy($))) return await next(e)'
+with:    'return await next(e)'
+result: 107 pass / 5 fail
+  (fail) under lean, an Agent call is refused while an agent the main loop started is running
+  (fail) under lean, a pending agent holds the next one back
+  (fail) under lean, a waiting agent holds the next one back
+  (fail) under lean, parallel Agent calls in one message let only one through
+  (fail) under lean, the next Agent call goes through once the first has settled and its agent finished
+
+## M13 increment the counter after the first await (race reintroduced)
+replace: '    const before = agentCallsInFlight++\n    try {\n      const plan = await loadPlan($)\n'
+with:    '    let before = 0\n    try {\n      const plan = await loadPlan($)\n      before = agentCallsInFlight++\n'
+result: 112 pass / 0 fail
+  SURVIVED: no test failed
+
+## M14 release the in-flight slot before next() is awaited (slot held only through the checks)
+replace: "if (before === 0 && !(await backgroundBusy($))) return await next(e)"
+with:    "if (before === 0 && !(await backgroundBusy($))) { agentCallsInFlight--; try { return await next(e) } finally { agentCallsInFlight++ } }"
+result: 112 pass / 0 fail
+  SURVIVED: no test failed
+
+## Notes on survivors
+- M10: the outer .catch is not reached by an agent.list error (backgroundBusy catches it itself), so fail-open on an unreadable list is held by the inner catch, which M9 shows is tested. M10 would only bite if loadPlan or next() threw; no test makes the hook body throw under lean and checks the call still goes through. Minor gap, outside the check's wording.
+- M13, M14: equivalent for calls in one message. Promise.all starts every call synchronously, so each call takes its counter value before any of them awaits; where the increment sits relative to loadPlan, and whether the slot is held during next(), changes nothing for a batch. The live run is what shows the real engine's agent list covers the gap between turns.
+
+== Round 2 (after re-review hardening) — run by the main session on a scratch copy
+== release-before-next: `if (before === 0 && !(await backgroundBusy($))) { release(); return await next(e) }`
+(fail) under lean, an Agent call holds its slot while the tool beneath is still starting the agent
+(fail) under lean, a foreground agent holds its slot for as long as it runs
+ 113 pass
+ 2 fail
+(M14 from round 1 survived for the same reason; it is now caught.)
