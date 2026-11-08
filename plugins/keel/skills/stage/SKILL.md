@@ -11,11 +11,12 @@ A stage is done when its checks pass against the running product, the suite is g
 
 - Read the plan (`docs/PLAN.md`, or the plan the project already keeps). No plan yet: run `keel:plan` first.
 - Take the stage the user named, or the first unchecked one.
-- Write its `## Now` section: scope, risk line, acceptance checks each with its proof, open decisions. If the scope is ambiguous or the user's latest words changed it, confirm in one short message before building; otherwise go.
+- Write its `## Now` section: scope, risk line, acceptance checks each with its proof, open decisions. Keep the Mode and Agents lines as they stand. If the scope is ambiguous or the user's latest words changed it, confirm in one short message before building; otherwise go.
 
 ## 2. Build it
 
 - **Foundation yourself, leaves in parallel.** Shared pieces (data, types, layout, conventions) you build first. Independent parts that only consume them can go to subagents, several at once, each with `isolation: "worktree"` so parallel edits can't collide; check each one's branch and merge it back.
+- **The plan's Agents line sets how far.** `lean`: build it all yourself, at most one agent running at a time. No line (`balanced`): leaves to subagents when it helps, as above. `wide`: every independent leaf to its own agent in its own worktree, and verify (step 3) goes to a fresh agent that built nothing. A `wide` line the hook says it isn't honouring yet counts as balanced: ask the user, and once they confirm, stamp it with the current time (`Agents: wide — confirmed <YYYY-MM-DD HH:MM>`).
 - **Brief subagents like peers.** Each brief states the goal, the files the agent owns (and that it must not touch others), the interfaces to use, the conventions to match, and how to check its own work. Never hand an agent your conclusions to confirm.
 - **Check what comes back yourself.** Read the diff, run it, look at it. An agent's "done" is a claim, not evidence.
 - **Tests travel with risky logic.** Money, dates, parsing, permissions, state machines: write the test with the code. A bug fix starts with a test that fails for the bug.
@@ -24,7 +25,7 @@ A stage is done when its checks pass against the running product, the suite is g
 
 ## 3. Verify it
 
-Run `keel:verify`, and tick each check in `## Now` as it's proven, in its own edit before the stage closes. At the plan's last stage, verify also re-runs the earlier stages' hand-proven checks; one that fails is a regression, fixed like any failing check. Fix what fails and re-verify the affected checks. Never call the stage done on red: the keel hook refuses a commit that ticks a stage whose checks it never saw ticked.
+Run `keel:verify` (under `wide`, a fresh agent runs it), and tick each check in `## Now` as it's proven, in its own edit before the stage closes. At the plan's last stage, verify also re-runs the earlier stages' hand-proven checks; one that fails is a regression, fixed like any failing check. Fix what fails and re-verify the affected checks. Never call the stage done on red: the keel hook refuses a commit that ticks a stage whose checks it never saw ticked.
 
 ## 4. Review it
 
@@ -32,7 +33,7 @@ First check the risk line against what the diff actually touches. The line was a
 
 ## 5. Close it
 
-- Update the plan in the same change: tick the stage, record decisions made along the way (dated, with the why), set `## Now` to the next stage with a one-line scope (its full checks get written when it starts).
+- Update the plan in the same change: tick the stage, record decisions made along the way (dated, with the why), set `## Now` to the next stage with a one-line scope (its full checks get written when it starts), keeping the Agents line.
 - Commit. One commit per stage, or a few if the stage has clearly separate parts. Stage files by name rather than `git add -A`, including the stage's evidence: the files in `docs/evidence/stage-<n>/` and `docs/evidence/.gitignore`. Files git ignores (screenshots, traces, videos by default) stay local; never force-add them. The message says what the stage delivers and anything a reviewer should know. The keel hook blocks a commit that carries a secret; if it fires, fix the cause, never work around it.
 
 ## 6. Stop and report
