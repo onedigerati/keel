@@ -665,6 +665,19 @@ export const register: Register = on => {
     }
   }).catch(($, e, next) => next(e))
 
+  // lean runs one agent at a time: the main loop starts no agent while one it started is still working, and an agent starts none of its own
+  on('tool.call', { tool: 'Agent' }, async ($, e, next) => {
+    const plan = await loadPlan($)
+    if (effectiveAgents(plan, undefined) !== 'lean') return next(e)
+    // a subagent starting a child would make two running agents
+    if (e.agentId)
+      return { deny: "keel: the plan's Agents line is lean, which allows one agent at a time, and you are that agent: do this work yourself rather than starting another." }
+    if (!(await backgroundBusy($))) return next(e)
+    return {
+      deny: "keel: the plan's Agents line is lean, which allows one agent at a time, and one is still running. Wait for it to finish (its report starts the next turn), or ask the user to change the Agents line.",
+    }
+  }).catch(($, e, next) => next(e))
+
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     if (!/\bgit\b|\b(gh|npm|pnpm|yarn|bun|cargo|twine|gem|poetry|uv|docker|podman|vercel|netlify|fly|flyctl|firebase|serverless|sls|wrangler|railway|cdk|terraform|tofu|pulumi|kubectl|helm|gcloud|az|aws|curl)\b/.test(e.command))
       return next(e)
