@@ -10,7 +10,7 @@ The author's review finds what the author already thought of. This one exists to
 ## 1. Set the scope
 
 - The change: the diff since the last stage commit (`git log --oneline` to find it), plus uncommitted work.
-- The intent: the plan's goal, this stage's scope, acceptance checks and risk line.
+- The intent: the plan's goal, this stage's scope, acceptance checks and risk line, and `docs/decisions.md` if it exists.
 
 ## 2. Hand it to fresh eyes
 

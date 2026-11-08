@@ -1,0 +1,15 @@
+$ diff <(HEAD:docs/PLAN.md ## Standing decisions lines) <(docs/decisions.md lines)   # empty diff = moved word for word
+identical: 24 lines
+
+$ check every plans/ link in docs/decisions.md resolves from docs/
+ok docs/plans/2026-11-07-regression-security-proof.md
+ok docs/plans/2026-11-07-verification-evidence.md
+ok docs/plans/2026-11-08-agents-level.md
+
+$ sed -n "/^## Standing decisions/,/^## Shipped/p" docs/PLAN.md
+## Standing decisions
+- Standing decisions from earlier plans are in [decisions.md](decisions.md).
+
+## Shipped
+
+# Skill text followed (plugins/keel/skills/plan/SKILL.md, Layout): more than ten standing decisions move to docs/decisions.md; "A plan whose ## Standing decisions already holds more than ten lines ... moves them the next time it is updated."

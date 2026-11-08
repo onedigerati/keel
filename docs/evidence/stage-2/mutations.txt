@@ -1,0 +1,25 @@
+$ claude plugin test <scratch copy of plugins/keel>   # one change to hooks/register.ts per run
+
+=== mutation: always name decisions.md (check 4: unchanged without it)
+--- replaced: decisionsFile = await $.fs.exists(DECISIONS_PATH)
+--- with:     decisionsFile = true
+(fail) without docs/decisions.md the plan section and status line are unchanged [30.35ms]
+(fail) an exists check on docs/decisions.md that fails adds nothing [39.85ms]
+(fail) with no roadmap, the plan section and status line are byte-identical to 0.7.0 [32.67ms]
+(fail) with a roadmap, the plan section gains one roadmap line and the status line a milestone segment [63.15ms]
+(fail) a roadmap that cannot be read adds nothing and does not block the request [46.58ms]
+(fail) a malformed roadmap leaves the plan section and status line as they were [34.83ms]
+(fail) a roadmap that is no regular file, or is over 1 MiB, adds nothing [42.54ms]
+(fail) an exists or stat check that throws adds nothing and does not block the request [27.16ms]
+(fail) with no stages and no roadmap, the plan section and status line are byte-identical to 0.7.0 [33.79ms]
+ 137 pass
+ 9 fail
+
+=== mutation: never name decisions.md (check 4: named with it)
+--- replaced: decisionsFile = await $.fs.exists(DECISIONS_PATH)
+--- with:     decisionsFile = false
+(fail) with docs/decisions.md the plan section names it as the home of standing decisions, without reading it [27.08ms]
+(fail) with both a roadmap and docs/decisions.md, the plan section carries both and the status line the milestone [49.31ms]
+ 144 pass
+ 2 fail
+

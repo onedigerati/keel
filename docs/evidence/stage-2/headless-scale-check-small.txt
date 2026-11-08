@@ -1,0 +1,52 @@
+$ claude -p "<the case's prompt>" --plugin-dir plugins/keel --max-turns 25 --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose   # in a fresh git repo laid out by the case's scaffold.sh
+# exit 0
+
+## Tool calls
+- Bash git ls-files && cat README* 2>/dev/null | head -80; ls docs 2>/dev/null
+- Bash cat package.json src/cli.js src/tally.js test/tally.test.js
+- Skill keel:plan
+- Bash node --version && npm test 2>&1 | tail -12; ls CLAUDE.md 2>&1; date +%F
+- Write <scratch>/v-scale-small/repo/docs/PLAN.md
+
+## Final reply
+I've written the plan to `docs/PLAN.md` and haven't touched any code. Before planning I ran the test suite once: 1 test, passing, on Node v22.23.2.
+
+**Usage**
+```
+node src/cli.js export <file.csv> [--columns a,b,c] [--rename old=new,...] [--out path]
+```
+`node src/cli.js file.csv` still prints the total, exactly as it does now.
+
+**Stages**
+1. **CSV parser:** a new `parseCsv` in `src/csv.js` that keys each row by the header names. It handles quoted fields, escaped `""`, CRLF line endings and rows with the wrong number of fields (an error naming the line number). It needs no dependencies and comes with tests.
+2. **Export core:** a separate function that does the column picking, ordering, renaming and option checking, with tests.
+3. **CLI wiring:** the `export` subcommand, output to the screen or `--out`, error exits and a README section.
+
+Every stage is marked as handling user input, so each one gets a security review.
+
+**Defaults I chose (all logged as decisions in the plan)**
+- **Output format:** a JSON array of objects, indented 2 spaces, printed to the screen.
+- **Values:** kept as strings exactly as they appear in the CSV, with no conversion to numbers.
+- **Column choice:** with no `--columns`, every column is exported in header order. With it, you get only those columns, in the order you list them.
+- **Renaming:** `--rename` uses the original header names and runs after the columns are picked.
+- **Errors:** these fail with exit code 1 and a message: an unknown column, renaming a column that isn't being exported, a badly formed `old=new` pair, or two columns ending up with the same name.
+- **`--out`:** overwrites an existing file. It writes to a temporary file first and then swaps it in, so a failed export never leaves half a file.
+- **Total command:** keeps its current simpler parsing for now, because moving it onto the new parser would change how it handles quoted values.
+
+**Left open for you:** whether the total command should move onto the new parser, and whether to add a flag that outputs numbers as JSON numbers.
+
+There's no `CLAUDE.md` yet. Want me to add one with the run and test commands so every session has them?
+
+Shall I start stage 1, or run the whole plan on autopilot?
+
+## Repo after the run
+?? docs/
+docs/PLAN.md
+
+### docs/PLAN.md stages and standing decisions
+## Stages
+- [ ] 1. CSV parser — header-aware `parseCsv` in `src/csv.js`, no dependencies, with tests
+- [ ] 2. Export core — pure `exportRows(rows, { columns, rename })` with selection, ordering, renaming and validation, with tests
+- [ ] 3. CLI wiring — `export` subcommand via `node:util` `parseArgs`, stdout or `--out`, error exits, README section
+
+## Decisions

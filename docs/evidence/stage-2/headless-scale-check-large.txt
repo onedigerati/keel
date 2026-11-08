@@ -1,0 +1,37 @@
+$ claude -p "<the case's prompt>" --plugin-dir plugins/keel --max-turns 25 --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose   # in a fresh git repo laid out by the case's scaffold.sh
+# exit 0
+
+## Tool calls
+- Skill keel:plan
+- Bash ls -la && ls docs && wc -l docs/PRD.md && cat docs/PRD.md; cat CLAUDE.md 2>/dev/null; ls /home/jonah/.claude/projects/-tmp-claude-1000--home-jonah-repos-keel-fd
+
+## Final reply
+I read the PRD and stopped before writing the plan, because one question can't be defaulted: how big a plan this should be.
+
+**Why I'm asking:** the PRD has 25 requirements in two releases, Release 1 (shared spending, March) and Release 2 (budgets and insight, June). That's more than one plan can hold well. An honest cut of Release 1 alone comes to about 7–8 stages, and both releases together would be around 14.
+
+**The choice:**
+- **Roadmap first (my recommendation).** I turn the PRD into `docs/ROADMAP.md` with Release 1 and Release 2 as milestones, then write `docs/PLAN.md` for Release 1 only. Release 2 gets its own plan once Release 1 ships, so its stages are based on the code that exists by then rather than guesses made now. This also writes a short pointer into `CLAUDE.md`.
+- **One plan.** All 25 requirements go into a single `docs/PLAN.md`. It's simpler, but the plan would be long and the Release 2 stages would be speculative.
+
+**What Release 1 would look like** (a sketch, not written yet):
+1. Scaffold: the web app, the JSON API, the database and the test setup.
+2. Accounts: sign-up, email confirmation and password reset (requirements 1–2).
+3. Households: create, invite with 7-day expiry, leave and remove (3–5).
+4. Expenses: integer cents, categories, edit history (6–7, 10, 14).
+5. Splits: equal, fixed amounts or percentages (8–9).
+6. Balances: running balances, fewest payments to settle, recorded settlements (11–13).
+7. List and export: filters by month, category and payer, plus CSV export (15–16).
+
+**Defaults I'll record as decisions** (you said to assume them):
+- **Stack:** TypeScript throughout, with a Node API (Fastify), a React web app (Vite), Postgres via Prisma, and Vitest plus Playwright for tests.
+- **Email:** sent through a swappable interface, with a local capture inbox during development.
+- **Accounts:** session cookies, and passwords hashed with argon2.
+- **Agents:** I'll use the default, `balanced`.
+- **Money and splits:** balances, splits and settlement are always proven by automated tests. For leftover cents, the remainder is assigned to members in a fixed order.
+- **Security review:** the account, household and money stages all get one.
+
+Should I build the roadmap first, or write one plan for everything?
+
+## Repo after the run
+docs/PRD.md

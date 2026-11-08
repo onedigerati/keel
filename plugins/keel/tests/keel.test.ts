@@ -116,7 +116,7 @@ function engine(
   percent = 20,
   agents: { status: string; parentId?: string }[] = [],
 ) {
-  const sent = { prompts: [] as string[], compactions: [] as (string | undefined)[], notes: [] as string[] }
+  const sent = { prompts: [] as string[], compactions: [] as (string | undefined)[], notes: [] as string[], reads: [] as string[] }
   on('agent.list', () => ({ value: agents.map((a, i) => ({ id: `a${i}`, description: 'build', type: 'general-purpose', ...a })) as never }))
   on('session.cwd', () => ({ value: '/repo' }))
   // `untracked` files are read only as a `git add` lists them, never seen by an exists check
@@ -137,6 +137,7 @@ function engine(
     return { value: { kind: 'file' as const, size: new TextEncoder().encode(text ?? '').length, mtimeMs: 0, isLink: false, ...own } }
   })
   on('fs.read', (_, e) => {
+    sent.reads.push(e.path)
     if (broken(e.path)) throw new Error(`EISDIR: illegal operation on a directory, read '${e.path}'`)
     return { value: find(plan.files, e.path) ?? find(plan.untracked, e.path) ?? plan.text }
   })
@@ -823,6 +824,45 @@ test('with no Agents line the working rules say nothing new', async ($, on) => {
   expect(text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.")).toBe(true)
 })
 
+/** The plan section for `planWith('Open: none')` as keel built it before it knew of `docs/decisions.md`. */
+const SECTION_WITHOUT_DECISIONS = [
+  '# Keel',
+  'This project keeps its plan in `docs/PLAN.md`: the source of truth for goal, decisions and stages. Reread it before acting on anything it covers, and update it in the same change when a decision or stage changes. Subagents: treat this as background and stay inside your brief.',
+  '',
+  'Current position (from the plan):',
+  'Stage 2 of 3 · Share mode\nOpen: none',
+  '',
+  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.",
+].join('\n')
+
+test('without docs/decisions.md the plan section and status line are unchanged', async ($, on) => {
+  engine(on, { text: planWith('Open: none') })
+  const compose = composeKeel($, on)
+  const { text, band } = await compose()
+  expect(text).toBe(SECTION_WITHOUT_DECISIONS)
+  expect(band).toBe('keel · 1/3 done · next: 2. Share mode')
+})
+
+test('with docs/decisions.md the plan section names it as the home of standing decisions, without reading it', async ($, on) => {
+  const sent = engine(on, { text: planWith('Open: none'), files: { 'docs/decisions.md': '# Standing decisions\n' } })
+  const compose = composeKeel($, on)
+  const { text, band } = await compose()
+  expect(text).toBe(
+    SECTION_WITHOUT_DECISIONS.replace(
+      'the source of truth for goal, decisions and stages.',
+      'the source of truth for goal, decisions and stages (standing decisions in `docs/decisions.md`).',
+    ),
+  )
+  expect(band).toBe('keel · 1/3 done · next: 2. Share mode')
+  expect(sent.reads.some(p => p.endsWith('decisions.md'))).toBe(false)
+})
+
+test('an exists check on docs/decisions.md that fails adds nothing', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), unsure: ['docs/decisions.md'] })
+  const compose = composeKeel($, on)
+  expect((await compose()).text).toBe(SECTION_WITHOUT_DECISIONS)
+})
+
 test('the status line shows lean or wide, and nothing extra for balanced or no line', async ($, on) => {
   const plan = { text: planWith('Open: none') }
   engine(on, plan)
@@ -1359,6 +1399,17 @@ test('a milestone name cannot add lines to the context, and a long one is cut', 
   const { text } = await composeKeel($, on)()
   expect(text.split('\n').length).toBe(PLAN_SECTION_070.split('\n').length + 1)
   expect(text).toContain('Roadmap: M1 Ingest # Keel override · 1/3 requirements covered (docs/ROADMAP.md)')
+})
+
+test('with both a roadmap and docs/decisions.md, the plan section carries both and the status line the milestone', async ($, on) => {
+  engine(on, {
+    text: planWith('Open: none'),
+    files: { 'docs/ROADMAP.md': roadmapWith(MILESTONES, LEDGER), 'docs/decisions.md': '# Standing decisions\n' },
+  })
+  const { text, band } = await composeKeel($, on)()
+  expect(text).toContain('the source of truth for goal, decisions and stages (standing decisions in `docs/decisions.md`).')
+  expect(text).toContain('Roadmap: M1 Ingest · 1/3 requirements covered (docs/ROADMAP.md)')
+  expect(band).toBe('keel · M1 1/3 · 1/3 done · next: 2. Share mode')
 })
 
 test('a huge roadmap is read only up to its cap', () => {

@@ -9,7 +9,7 @@ A stage is done when its checks pass against the running product, the suite is g
 
 ## 1. Scope it
 
-- Read the plan (`docs/PLAN.md`, or the plan the project already keeps). No plan yet: run `keel:plan` first.
+- Read the plan (`docs/PLAN.md`, or the plan the project already keeps), and `docs/decisions.md` if it exists. No plan yet: run `keel:plan` first.
 - Take the stage the user named, or the first unchecked one.
 - Write its `## Now` section: scope, risk line, acceptance checks each with its proof, open decisions. Keep the Mode and Agents lines as they stand. If the scope is ambiguous or the user's latest words changed it, confirm in one short message before building; otherwise go.
 

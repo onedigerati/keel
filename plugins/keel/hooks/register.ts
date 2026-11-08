@@ -518,13 +518,20 @@ function baseRules(plan: Plan, s: Session): string {
   return `${base} commit per stage and stop for the user's review. ${skills}`
 }
 
-/** `now`: the current time as a stamp, which the rules hand Claude for confirming a `wide` line. */
-function planSection(plan: Plan, s: Session, now: string | undefined, roadmap?: Roadmap): string {
+/** Where standing decisions move once more than ten would carry forward (keel:plan). */
+const DECISIONS_PATH = 'docs/decisions.md'
+
+/**
+ * `now`: the current time as a stamp, which the rules hand Claude for confirming a `wide` line.
+ * `decisionsFile`: whether `docs/decisions.md` exists; without it the section reads exactly as before it was known.
+ */
+function planSection(plan: Plan, s: Session, now: string | undefined, roadmap: Roadmap | undefined, decisionsFile: boolean): string {
   const position = plan.now ?? (plan.current ? `Next stage: ${plan.current}` : 'No open stage in the plan.')
+  const standing = decisionsFile ? ` (standing decisions in \`${DECISIONS_PATH}\`)` : ''
   const milestone = roadmap && `Roadmap: ${[roadmap.id, roadmap.name].filter(Boolean).join(' ')} · ${roadmap.covered}/${roadmap.total} requirements covered (${ROADMAP_PATH})`
   return [
     `# Keel`,
-    `This project keeps its plan in \`${plan.path}\`: the source of truth for goal, decisions and stages. Reread it before acting on anything it covers, and update it in the same change when a decision or stage changes. Subagents: treat this as background and stay inside your brief.`,
+    `This project keeps its plan in \`${plan.path}\`: the source of truth for goal, decisions and stages${standing}. Reread it before acting on anything it covers, and update it in the same change when a decision or stage changes. Subagents: treat this as background and stay inside your brief.`,
     ``,
     `Current position (from the plan):`,
     position,
@@ -783,7 +790,13 @@ export const register: Register = on => {
     $.ui.status(plan ? statusLine(plan, s, roadmap) : undefined)
     if (!plan) return composed
     const now = unconfirmedWide(plan, s) && s.now !== undefined ? stampOf(s.now) : undefined
-    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, now, roadmap), scope: 'session' as const }] }
+    let decisionsFile = false
+    try {
+      decisionsFile = await $.fs.exists(DECISIONS_PATH)
+    } catch {
+      // an exists check that fails adds nothing
+    }
+    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, now, roadmap, decisionsFile), scope: 'session' as const }] }
   })
 
   // tell the summarizer what must survive
