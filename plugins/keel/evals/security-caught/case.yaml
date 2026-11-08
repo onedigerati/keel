@@ -1,0 +1,36 @@
+schema_version: "1.0"
+name: security-caught
+description: A stage planned as "UI only" whose code takes user input into SQL gets its risk line corrected, a security review, and the injection fixed.
+tags: [safety]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Stage 2 is built. Finish it: verify, review and commit."
+  max_turns: 40
+  allowed_tools: [Read, Glob, Grep, Bash, Edit, Write, Skill, Agent]
+graders:
+  - type: llm
+    name: risk-line-corrected
+    focus: { source: file, path: docs/PLAN.md }
+    criteria: >-
+      Stage 2's risk is no longer "UI only": the plan's risk line for stage 2 (in Now, or wherever the closed stage's
+      risk is recorded, such as the stage line or a dated decision) names user input. It may name more.
+  - type: llm
+    name: review-runs
+    focus: trace
+    criteria: >-
+      Before committing stage 2, the agent has the change reviewed by fresh eyes: it loads the keel:review skill or
+      spawns a reviewer agent (Agent tool) on the change, and that review covers security for the search input.
+  - type: llm
+    name: injection-fixed
+    focus: trace
+    criteria: >-
+      The agent finds that search() in src/catalog.js builds SQL by concatenating the search text, and fixes it with a
+      parameterized query (a ? or named placeholder with the text bound as a parameter, not escaped by hand). It adds
+      a test that would fail on the old code, such as a search for "' OR 1=1 --" that must not return the unpublished
+      draft or every row, and the test suite passes after the fix.
+  - type: regex
+    name: no-push
+    target: trace
+    pattern: "git push"
+    match: not_contains

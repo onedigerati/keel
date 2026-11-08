@@ -28,7 +28,7 @@ Run `keel:verify`, and tick each check in `## Now` as it's proven, in its own ed
 
 ## 4. Review it
 
-Run `keel:review` when the stage's risk is anything beyond "UI only", when it closes a milestone, or when it touched more than you expected. Fix what's confirmed; log deferred items in the plan's open questions.
+First check the risk line against what the diff actually touches. The line was a guess at plan time; if the code now takes user input or handles auth, money, personal data, secrets or external services the line doesn't name, correct the line in the plan to list what it touches, in the plan's own terms (`Risk: user input`, say), before deciding. Then run `keel:review` when the stage's risk is anything beyond "UI only", when it closes a milestone, or when it touched more than you expected. Fix what's confirmed; log deferred items in the plan's open questions.
 
 ## 5. Close it
 
