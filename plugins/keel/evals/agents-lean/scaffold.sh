@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Generated from ../fixtures/repo.sh; regenerate rather than edit.
+# Generated from ../fixtures/exporters.sh; regenerate rather than edit.
 set -euo pipefail
 set -- Agents:\ lean user\ input
-mode="${1:-}"
+agents="${1:-}"
 risk="${2:-UI only}"
+decision="${3:-}"
 mkdir -p docs src test
 cat > package.json <<'JSON'
 { "name": "tally", "version": "0.0.0", "type": "module", "scripts": { "test": "node --test" } }
@@ -25,28 +26,34 @@ JS
   echo '# Tally plan'
   echo
   echo '## Goal'
-  echo 'A tiny CLI that totals expense rows from a CSV, for one person tracking spending. Done: `tally file.csv` prints the total.'
+  echo 'A tiny library that totals expense rows and exports them, for one person tracking spending. Done: the rows and their total export as CSV, JSON and a Markdown table.'
   echo
   echo '## Now'
-  echo 'Stage 2 of 3 · CSV input'
-  [ -n "$mode" ] && echo "$mode"
+  echo 'Stage 2 of 3 · Exporters'
+  [ -n "$agents" ] && echo "$agents"
   echo "Risk: $risk"
   echo 'Checks:'
-  echo '- [ ] `node src/cli.js sample.csv` prints the total of the amount column (proof: run the CLI)'
-  echo '- [ ] a malformed row is reported with its line number (proof: test)'
+  echo '- [ ] `toCsv(rows)` in `src/csv.js` returns an `amount` header, one line per row, and a last line `total,<cents>` (proof: test)'
+  echo '- [ ] `toJson(rows)` in `src/json.js` returns `{ "rows": [...], "totalCents": <cents> }` as a string (proof: test)'
+  echo '- [ ] `toMarkdown(rows)` in `src/markdown.js` returns a table with an `Amount` column and a bold total row (proof: test)'
   echo 'Open: none'
   echo
   echo '## Stages'
   echo '- [x] 1. Core — total() in cents, with tests'
-  echo '- [ ] 2. CSV input — read a file, parse rows, print the total'
-  echo '- [ ] 3. Accounts — per-user totals behind a login'
+  echo '- [ ] 2. Exporters — CSV, JSON and Markdown, each in its own module with its own test'
+  echo '- [ ] 3. CLI — `tally file.csv --format csv|json|md`'
   echo
   echo '## Decisions'
   echo '- 2026-11-01 · Amounts are summed in integer cents — floats drift'
+  echo '- 2026-11-01 · Each exporter is its own module and test file and uses only `total()` — they can be built side by side'
+  [ -n "$decision" ] && echo "$decision"
   echo
   echo '## Open questions'
   echo '- none'
 } > docs/PLAN.md
 git init -q
+# The agent merges builders' branches and commits stage 2, so the repo needs an identity of its own.
+git config user.name eval
+git config user.email eval@example.com
 git add -A
-git -c user.name=eval -c user.email=eval@example.com commit -qm "Stage 1: core total() in cents"
+git commit -qm "Stage 1: core total() in cents"

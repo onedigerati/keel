@@ -7,7 +7,7 @@ description: Verify work against the running product and the project's own check
 
 A clean type check proves the code compiles. Verification proves it does what the plan says, in the running product.
 
-Who runs it follows the plan's Agents line (`keel:plan`). Under `Agents: wide`, a plan stage's verify goes to a fresh agent that built nothing, briefed with the stage number and this skill; under `lean`, the main session runs it with no other agent running. No line (`balanced`): either. If you were spawned to verify, run it yourself.
+Who runs it follows the plan's Agents line (`keel:plan`). Under an `Agents: wide` the hook honours (one it isn't honouring yet counts as balanced), a plan stage's verify goes to a fresh agent that built nothing, briefed with the stage number and this skill; under `lean`, the main session runs it with no other agent running. No line (`balanced`): either. If you were spawned to verify, run it yourself.
 
 ## 1. The project's own checks
 

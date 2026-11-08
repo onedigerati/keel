@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
-import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, reportRows, samePath } from '../hooks/register.ts'
+import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, reportRows, samePath, stampOf } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
 
 // fake credentials are assembled at run time so this file never trips a secret scanner itself
@@ -736,7 +736,9 @@ test('finds the stage line when the Agents line sits above it', () => {
 
 test('a wide line counts only once the session saw it set or restamped', () => {
   const read = (line: string) => parsePlan('PLAN.md', planWith(line))
-  const level = (first: string, now: string) => effectiveAgents(read(now), firstAgentsOf(read(first)))
+  // the session first read the line at 14:00 and looks again at 14:10
+  const at = new Date(2026, 10, 8, 14, 0).getTime()
+  const level = (first: string, now: string) => effectiveAgents(read(now), firstAgentsOf(read(first), at), at + 10 * 60_000)
   // set during the session from no line, lean or balanced
   expect(level('Open: none', 'Agents: wide')).toBe('wide')
   expect(level('Agents: lean', 'Agents: wide')).toBe('wide')
@@ -746,6 +748,12 @@ test('a wide line counts only once the session saw it set or restamped', () => {
   expect(level('Agents: wide', 'Agents: wide — confirmed 2026-11-08 14:05')).toBe('wide')
   expect(level('Agents: wide — confirmed 2026-11-08', 'Agents: wide')).toBe('balanced')
   expect(level('Agents: wide — confirmed 2026-11-08', 'Agents: wide — confirmed 2026-11-08 14:05')).toBe('wide')
+  // a stamp outside the session, or with no time, or with no clock read, confirms nothing
+  expect(level('Agents: wide', 'Agents: wide — confirmed 2026-11-08 13:59')).toBe('balanced')
+  expect(level('Agents: wide', 'Agents: wide — confirmed 2026-11-08 14:12')).toBe('balanced')
+  expect(level('Agents: wide', 'Agents: wide — confirmed 2026-11-08')).toBe('balanced')
+  expect(effectiveAgents(read('Agents: wide — confirmed 2026-11-08 14:05'), firstAgentsOf(read('Agents: wide')), at)).toBe('balanced')
+  expect(effectiveAgents(read('Agents: wide — confirmed 2026-11-08 14:05'), firstAgentsOf(read('Agents: wide'), at), undefined)).toBe('balanced')
   // an unknown value at first read may be a disguised wide
   expect(level('Agents: turbo', 'Agents: wide')).toBe('balanced')
   // lean and balanced need no session state
@@ -783,7 +791,7 @@ test('the working rules name the level and what it means', async ($, on) => {
   const wide = (await compose()).text
   expect(wide).toContain('Agents: wide — fan out every independent leaf to its own agent in its own worktree')
   expect(wide).toContain('a fresh agent verify')
-  expect(wide).toContain('correctness and security reviewers in parallel')
+  expect(wide).toContain('when the security lens applies (risk beyond UI), run the correctness and security reviewers in parallel')
 })
 
 test('with no Agents line the working rules say nothing new', async ($, on) => {
@@ -810,6 +818,7 @@ test('the status line shows lean or wide, and nothing extra for balanced or no l
 })
 
 test('a wide line already in the plan when the session starts counts as balanced until it is restamped', async ($, on) => {
+  const clock = mock.clock(on, { now: new Date(2026, 10, 8, 14, 0).getTime() })
   const plan = { text: planWith('Agents: wide') }
   engine(on, plan)
   const compose = composeKeel($, on)
@@ -825,6 +834,7 @@ test('a wide line already in the plan when the session starts counts as balanced
   expect((await compose()).band).toBe('keel · 1/3 done · next: 2. Share mode')
 
   // the user said yes and Claude restamped the line: a new stamp during the session is honoured
+  await clock.advance(5 * 60_000)
   plan.text = planWith('Agents: wide — confirmed 2026-11-08 14:05')
   const confirmed = await compose()
   expect(confirmed.band).toBe('keel · wide · 1/3 done · next: 2. Share mode')
@@ -884,12 +894,14 @@ test('the same stamp in other punctuation confirms nothing', async ($, on) => {
 })
 
 test('a different stamp is honoured', async ($, on) => {
+  mock.clock(on, { now: new Date(2026, 10, 8, 14, 5).getTime() })
   const r = await readAs($, on, 'Agents: wide — confirmed 2026-11-07 09:00', 'Agents: wide — confirmed 2026-11-08 14:05')
   expect(r.band).toBe(WIDE_BAND)
   expect(r.text).toContain('Agents: wide — fan out every independent leaf')
 })
 
 test('a same-day stamp restamped later in the day is honoured', async ($, on) => {
+  mock.clock(on, { now: new Date(2026, 10, 8, 14, 5).getTime() })
   const r = await readAs($, on, 'Agents: wide — confirmed 2026-11-08', 'Agents: wide — confirmed 2026-11-08 14:05')
   expect(r.band).toBe(WIDE_BAND)
 })
@@ -927,6 +939,72 @@ test('the same time written without its colon confirms nothing', async ($, on) =
 
 test('text added or changed after the stamp confirms nothing', async ($, on) => {
   stillAsking(await readAs($, on, 'Agents: wide — confirmed 2026-11-01 09:00', 'Agents: wide — confirmed 2026-11-01 09:00 by jonah', 'Agents: wide — confirmed 2026-11-01 09:00 (ok)'))
+})
+
+/** The session first reads `first` at 14:00:30 on 2026-11-08, and reads `rewrite` `minutes` later. */
+async function confirmAt($: Engine, on: On, first: string, rewrite: string, minutes = 10) {
+  const clock = mock.clock(on, { now: new Date(2026, 10, 8, 14, 0, 30).getTime() })
+  const plan = { text: planWith(first) }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  await compose()
+  await clock.advance(minutes * 60_000)
+  plan.text = planWith(rewrite)
+  return compose()
+}
+
+test('a date-only restamp never confirms', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide', 'Agents: wide — confirmed 2026-11-08'))
+})
+
+test('a planted stamp rewritten without its time confirms nothing', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide — confirmed 2026-11-01 10:00', 'Agents: wide — confirmed 2026-11-01'))
+})
+
+test('a planted past stamp kept as it is confirms nothing', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide — confirmed 2026-11-01 10:00', 'Agents: wide — confirmed 2026-11-01 10:00'))
+})
+
+test('a planted past stamp reformatted confirms nothing', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide — confirmed 2026-11-01 10:00', 'Agents: wide - confirmed 2026/11/1 10.00'))
+})
+
+test('a past stamp the session never saw confirms nothing', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide — confirmed 2026-11-01 10:00', 'Agents: wide — confirmed 2026-11-01 10:01'))
+})
+
+test('a stamp from before the session first read the line confirms nothing', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide', 'Agents: wide — confirmed 2026-11-08 13:59'))
+})
+
+test('a future stamp never confirms', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide', 'Agents: wide — confirmed 2099-01-01 00:00'))
+})
+
+test('a stamp more than a minute ahead of the clock confirms nothing', async ($, on) => {
+  stillAsking(await confirmAt($, on, 'Agents: wide', 'Agents: wide — confirmed 2026-11-08 14:12'))
+})
+
+test('a stamp inside the session confirms', async ($, on) => {
+  const r = await confirmAt($, on, 'Agents: wide — confirmed 2026-11-01 10:00', 'Agents: wide — confirmed 2026-11-08 14:07')
+  expect(r.band).toBe(WIDE_BAND)
+  expect(r.text).toContain('Agents: wide — fan out every independent leaf')
+})
+
+test('a stamp in the minute of the first read confirms', async ($, on) => {
+  expect((await confirmAt($, on, 'Agents: wide', 'Agents: wide — confirmed 2026-11-08 14:00')).band).toBe(WIDE_BAND)
+})
+
+test('a stamp up to a minute ahead of the clock confirms', async ($, on) => {
+  expect((await confirmAt($, on, 'Agents: wide', 'Agents: wide — confirmed 2026-11-08 14:11')).band).toBe(WIDE_BAND)
+})
+
+test('when the clock cannot be read, no stamp confirms', async ($, on) => {
+  on('clock.now', () => {
+    throw new Error('no clock')
+  })
+  // stamped with the real time, so falling back to the system clock would confirm it
+  stillAsking(await readAs($, on, 'Agents: wide', `Agents: wide — confirmed ${stampOf(Date.now())}`))
 })
 
 /** The deny an Agent call gets, with the plan's `## Now` carrying `line` and the main loop's agents in `agents`. */

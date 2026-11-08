@@ -14,7 +14,7 @@ declare module 'claude-code' {
       /** The plan's Goal at the last look; a change means a new feature, and resets the per-stage records. */
       goal: string
       /** The plan's `Agents:` line as this session first read it (level and confirmation stamp); a `wide` already there is honoured only once restamped. */
-      firstAgents: { level: 'lean' | 'balanced' | 'wide' | 'none' | 'unknown'; stamp?: string }
+      firstAgents: { level: 'lean' | 'balanced' | 'wide' | 'none' | 'unknown'; stamp?: string; at?: number }
     }
   }
 }

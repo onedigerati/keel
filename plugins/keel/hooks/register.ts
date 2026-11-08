@@ -144,6 +144,8 @@ interface Session {
   checkCounts: Record<string, number>
   /** The Agents line as this session first read it; undefined until the session has looked. */
   firstAgents: FirstAgents | undefined
+  /** The time (ms) at the last sync, read only while the plan asks for wide; undefined when the clock can't be read. */
+  now: number | undefined
 }
 
 async function readSession($: EngineInterface): Promise<Session> {
@@ -160,6 +162,7 @@ async function readSession($: EngineInterface): Promise<Session> {
     openChecks: openChecks.value ?? {},
     checkCounts: checkCounts.value ?? {},
     firstAgents: typeof firstAgents.value === 'object' ? firstAgents.value : undefined,
+    now: undefined,
   }
 }
 
@@ -170,31 +173,63 @@ async function readSession($: EngineInterface): Promise<Session> {
 export interface FirstAgents {
   level: AgentsLevel | 'none' | 'unknown'
   stamp?: string
+  /** When the session first read the line (ms); a confirmation must be stamped no earlier than that minute. */
+  at?: number
 }
 
-export function firstAgentsOf(plan: Pick<Plan, 'agents' | 'agentsLine' | 'agentsStamp'> | undefined): FirstAgents {
+/** `at`: the time of the read, left out when the clock couldn't be read (then no stamp can confirm). */
+export function firstAgentsOf(plan: Pick<Plan, 'agents' | 'agentsLine' | 'agentsStamp'> | undefined, at?: number): FirstAgents {
   const level = plan?.agents ?? (plan?.agentsLine ? 'unknown' : 'none')
-  return plan?.agentsStamp ? { level, stamp: plan.agentsStamp } : { level }
+  return { level, ...(plan?.agentsStamp ? { stamp: plan.agentsStamp } : {}), ...(at !== undefined ? { at } : {}) }
 }
+
+/** A stamp with its time (`YYYYMMDDHHMM`) as local-time ms; undefined for a date-only or impossible stamp. */
+function stampTime(stamp: string): number | undefined {
+  const m = stamp.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/)
+  if (!m) return undefined
+  const [y, mo, d, h, mi] = m.slice(1).map(Number) as [number, number, number, number, number]
+  const t = new Date(y, mo - 1, d, h, mi)
+  const same = t.getFullYear() === y && t.getMonth() === mo - 1 && t.getDate() === d && t.getHours() === h && t.getMinutes() === mi
+  return same ? t.getTime() : undefined
+}
+
+const MINUTE = 60_000
 
 /**
  * The level this session works at. `lean` and `balanced` are honoured as found, since they only lower the spend,
- * so they need no session state (`first` may be undefined). `wide` is honoured only when the session first read
- * no line or a lean or balanced one, or when the line now carries a confirmation stamp other than the one first
- * read: a `wide` (or unknown) line already there at the start counts as `balanced` until the user confirms and the
- * line is restamped. Fields are compared, not text, so rewriting the line in another case or spacing, or dropping
- * its stamp, confirms nothing. Undefined when the plan has no Agents line, or its value is unknown.
+ * so they need no session state (`first` may be undefined). `wide` is honoured when the session first read no line
+ * or a lean or balanced one, or when the line now carries a confirmation stamp that has a time, differs from the
+ * one first read, and falls between the minute of the first read and a minute past `now` (local time, as
+ * `stampOf` writes it): a `wide` (or unknown) line already there at the start counts as `balanced` until the user
+ * confirms and the line is restamped. So a planted stamp, kept, reformatted, stripped of its time or set in the
+ * future, confirms nothing, and nor does any stamp when the clock couldn't be read. Fields are compared, not text,
+ * so rewriting the line in another case or spacing confirms nothing. Undefined when the plan has no Agents line,
+ * or its value is unknown.
  */
-export function effectiveAgents(plan: Pick<Plan, 'agents' | 'agentsStamp'> | undefined, first: FirstAgents | undefined): AgentsLevel | undefined {
+export function effectiveAgents(
+  plan: Pick<Plan, 'agents' | 'agentsStamp'> | undefined,
+  first: FirstAgents | undefined,
+  now?: number,
+): AgentsLevel | undefined {
   const level = plan?.agents
   if (level !== 'wide') return level
   if (!first) return 'balanced'
   if (first.level !== 'wide' && first.level !== 'unknown') return 'wide'
-  return plan?.agentsStamp !== undefined && plan.agentsStamp !== first.stamp ? 'wide' : 'balanced'
+  const stamp = plan?.agentsStamp
+  if (stamp === undefined || stamp === first.stamp || first.at === undefined || now === undefined) return 'balanced'
+  const t = stampTime(stamp)
+  return t !== undefined && t >= Math.floor(first.at / MINUTE) * MINUTE && t <= now + MINUTE ? 'wide' : 'balanced'
 }
 
 /** Whether the plan asks for `wide` and this session doesn't yet honour it. */
-const unconfirmedWide = (plan: Plan, s: Session) => plan.agents === 'wide' && effectiveAgents(plan, s.firstAgents) !== 'wide'
+const unconfirmedWide = (plan: Plan, s: Session) => plan.agents === 'wide' && effectiveAgents(plan, s.firstAgents, s.now) !== 'wide'
+
+/** The clock's time in ms, or undefined when it can't be read. */
+const clockNow = ($: EngineInterface) =>
+  $.clock.now().then(
+    t => (typeof t === 'number' && Number.isFinite(t) ? t : undefined),
+    () => undefined,
+  )
 
 /** A local `YYYY-MM-DD HH:MM` for the confirmation stamp. */
 export function stampOf(ms: number): string {
@@ -232,9 +267,11 @@ async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session
     await $.state.set(ARMED, session.armed)
   }
   if (session.firstAgents === undefined) {
-    session.firstAgents = firstAgentsOf(plan)
+    session.firstAgents = firstAgentsOf(plan, await clockNow($))
     await $.state.set(FIRST_AGENTS, session.firstAgents)
   }
+  // a wide line's stamp is checked against the time, so read it only then
+  if (plan?.agents === 'wide') session.now = await clockNow($)
   const stage = plan?.stage
   if (stage?.number && stage.checks.length) {
     const open = stage.checks.filter(c => !c.done).map(c => c.text)
@@ -270,7 +307,7 @@ function statusLine(plan: Plan, s: Session): string {
         : held(plan, s)
           ? ' · autopilot held'
           : ' · autopilot'
-  const level = effectiveAgents(plan, s.firstAgents)
+  const level = effectiveAgents(plan, s.firstAgents, s.now)
   const agents = level === 'lean' || level === 'wide' ? ` · ${level}` : ''
   return `keel${mode}${agents} · ${plan.done}/${plan.total} done · next: ${plan.current}`
 }
@@ -278,13 +315,13 @@ function statusLine(plan: Plan, s: Session): string {
 /** What the Agents line asks of this session, or `''` with no line. */
 function agentsRule(plan: Plan, s: Session, now: string | undefined): string {
   if (!plan.agents) return ''
-  const level = effectiveAgents(plan, s.firstAgents)
+  const level = effectiveAgents(plan, s.firstAgents, s.now)
   if (unconfirmedWide(plan, s))
-    return `Agents: the plan's Agents line asks for wide, but it was set before this session, so work at balanced (fan independent leaves out to subagents when it helps) until the user confirms: ask whether to fan out wide, and on their yes restamp the line as \`Agents: wide — confirmed ${now ?? '<YYYY-MM-DD HH:MM>'}\`${now ? '' : ', the current date and time'}.`
+    return `Agents: the plan's Agents line asks for wide, but it was set before this session, so work at balanced until the user confirms: ask whether to fan out wide (under keel:stage, before building; under autopilot, carry on at balanced meanwhile), and on their yes restamp the line as \`Agents: wide — confirmed ${now ?? '<YYYY-MM-DD HH:MM>'}\`${now ? '' : ', the current date and time'}.`
   if (level === 'lean')
     return 'Agents: lean — build and verify in the main session and run at most one agent at a time; under keel:autopilot, still delegate building, one builder at a time; review still uses one fresh reviewer.'
   if (level === 'wide')
-    return 'Agents: wide — fan out every independent leaf to its own agent in its own worktree, have a fresh agent verify, and run the correctness and security reviewers in parallel.'
+    return 'Agents: wide — fan out every independent leaf to its own agent in its own worktree, have a fresh agent verify, and when the security lens applies (risk beyond UI), run the correctness and security reviewers in parallel.'
   return 'Agents: balanced — fan independent leaves out to subagents when it helps.'
 }
 
@@ -567,7 +604,7 @@ export const register: Register = on => {
     const s = await sync($, plan)
     $.ui.status(plan ? statusLine(plan, s) : undefined)
     if (!plan) return composed
-    const now = unconfirmedWide(plan, s) ? await $.clock.now().then(stampOf, () => undefined) : undefined
+    const now = unconfirmedWide(plan, s) && s.now !== undefined ? stampOf(s.now) : undefined
     return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, now), scope: 'session' as const }] }
   })
 
