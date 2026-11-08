@@ -20,6 +20,8 @@ Spawn one reviewer agent (general-purpose) that did not write the code. Brief it
 - the lenses below;
 - what to return: each finding with file and line, what goes wrong, a concrete failing scenario, and confidence.
 
+How many follows the plan's Agents line (`keel:plan`), and every level gets at least one. `lean` and no line (`balanced`): the one reviewer, and under `lean` it's the only agent running. `wide`, when the security lens applies: two at once, one with the always lenses and one with the security lens, each briefed as above.
+
 Do **not** tell it what you believe is fine, what you already checked, or what you suspect. A reviewer handed a conclusion confirms it.
 
 **Always:** does it do what the stage says; broken edge cases (empty, huge, duplicate, concurrent, offline, wrong type); error paths that swallow failures or show the wrong thing; tests that don't actually test the behavior; inconsistencies with how the codebase already does things.

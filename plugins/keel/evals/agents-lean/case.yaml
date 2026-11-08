@@ -1,0 +1,42 @@
+schema_version: "1.0"
+name: agents-lean
+description: >-
+  Under `Agents: lean`, keel:stage builds and verifies stage 2 in the main session, with at most one agent running
+  at a time, and still hands the review to one fresh reviewer.
+tags: [outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  # Names neither agents nor review: both have to come from the plan's Agents line and risk line.
+  prompt: go
+  max_turns: 60
+  allowed_tools: [Read, Glob, Grep, Bash, Edit, Write, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-stage
+    tool: Skill
+    input_match: "stage"
+    min: 1
+    arm: with-only
+  - type: llm
+    name: builds-inline
+    focus: trace
+    criteria: >-
+      The main session writes stage 2's code itself (its own Edit or Write calls create src/cli.js or the CSV
+      parsing, and the test for a malformed row) and runs the verification itself. No Agent call is a builder or
+      verifier: no agent is briefed to write or change application code, or to run keel:verify. Never are two
+      agents running at once: no two Agent calls in the same turn, and no Agent call while an earlier background
+      agent has not yet reported back.
+  - type: llm
+    name: fresh-reviewer
+    focus: trace
+    criteria: >-
+      After the code is built, the agent loads keel:review (a Skill call whose skill is keel:review or review) and
+      spawns exactly one reviewer agent with the Agent tool, an agent that wrote none of stage 2's code, briefed to
+      review stage 2's change. Fails if no reviewer agent is spawned (the main session reviewing its own work does
+      not count), or if the review is split across several agents.
+  - type: regex
+    name: no-push
+    target: trace
+    pattern: "git push"
+    match: not_contains
