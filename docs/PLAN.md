@@ -7,14 +7,15 @@ Let Keel carry a large project — a PRD too big for one plan — without adding
 2026-11-08 · tests: 115 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 4 of 6 · Charter
+Stage 5 of 6 · Milestones in the loop
 Mode: autopilot
 Agents: wide — confirmed 2026-11-08 12:50
-Risk: user input (a PRD from a less-trusted source feeds `docs/ROADMAP.md` and `CLAUDE.md`)
+Risk: user input (checks, evidence rows and the ledger feed the stage and milestone gates)
 Checks:
-- [ ] `keel:charter` turns a PRD into `docs/ROADMAP.md` in the fixed layout — milestones with dependencies, one ledger row per PRD requirement with its own ID and `PRD §`, `Covered by` blank, `|` escaped, out of scope and open questions — and proposes its locked decisions for `CLAUDE.md`, shown to the user before they're written, never into the plan; the roadmap parses with the hook's reader (proof: eval `charter-prd`, headless run graded by hand against its answer key; and a test parsing the answer key)
-- [ ] Re-charter diffs a changed PRD in place: new rows with new IDs, removed ones marked `dropped <date>`, changed text kept under its ID, `Covered by` never cleared, a changed covered requirement logged as rework, the diff reported and logged as a dated decision (proof: eval `charter-rechart`, headless run graded by hand)
-- [ ] Process text in a PRD (review, tests, autopilot, agents, guard lines) never reaches `CLAUDE.md`, and backfill fills `Covered by` only from shipped plans' passing evidence, with a link, on the user's yes (proof: the planted "working agreement" in `charter-prd` dropped and reported; backfill is skill text, no eval yet)
+- [ ] A check may end in `(req: ID)` or `(req: ID, ID)`, and the hook's stage-close parser and evidence gate treat tagged checks and rows exactly like untagged ones (proof: test)
+- [ ] With a roadmap, `keel:plan` cuts the next plan from the current milestone's open requirements and rework items, tags each check, and at archive fills `Covered by` with the archived plan's link only for IDs tagged on that plan's own checks with a passing row; dropped rows stay blank; without a roadmap nothing changes (proof: eval `milestone-close`, headless run graded by hand)
+- [ ] A milestone closes only on the full suite, a coverage check and a fresh agent's evidence-fit sample (it picks its own sample and doesn't see the builder's verdicts), then a milestone review; autopilot cuts the next plan and stops for the user's yes before building it (proof: eval `milestone-close`, headless run graded by hand; skill behaviour)
+- [ ] A commit that ticks a milestone in `docs/ROADMAP.md` is refused unless its evidence (`milestone-<ID>.md`) has a row per non-dropped requirement of that milestone (proof: test)
 Open:
 - Deferred to stage 4 (charter): escape `|` in requirement text it writes to the ledger; leave `Covered by` blank, never `TBD`, `n/a` or a dash.
 - Deferred to stage 5 (archive): `Covered by` holds only an archived plan's name or nothing — the hook counts any other text as covered.
@@ -22,13 +23,14 @@ Open:
 - Deferred, pre-existing across all 18+ eval scaffolds: run by hand from a real repo root, a scaffold overwrites files and `git add -A && git commit`s there; a guard (refuse a non-empty directory) would make hand runs safe.
 - Deferred from stage 3 review: project rules are read only from `CLAUDE.md` and `.claude/CLAUDE.md` inside the repo, not `CLAUDE.local.md` or a parent directory's `CLAUDE.md` (fails toward fewer rules); and a project hold word, like the plan's own risk line, can still be edited away by the agent while a stage is held — consistent with how the built-in hold works today.
 - Deferred, pre-existing: the Bash hook's handler-level catch lets a command through if `sync` or a state read throws, the outward check included; failing closed under autopilot would stall a run on any engine error — worth a narrower catch in a later plan.
+- Deferred from stage 4: no eval runs the charter's backfill, a PRD without IDs, or one without phases (stage 6's USS grading covers the last), and there's no trigger eval for `keel:charter`; add with stage 6's eval list.
 - Deferred, pre-existing: `loadPlan` reads `docs/PLAN.md` without checking it's a regular file, so a FIFO there could block a request (the roadmap reader now stats first); worth the same check in a later stage.
 
 ## Stages
 - [x] 1. Roadmap in the hook — read `docs/ROADMAP.md` only when it exists; one context line and one status-line segment; nothing changes without it
 - [x] 2. Decisions file and scale check — standing decisions move to `docs/decisions.md` past ten; `keel:plan` reads scale signals, asks once, records the answer, and re-checks at each new plan; resume reads both files; Keel's own plan migrates as the proof
 - [x] 3. Project risk rules — `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` add hold words and outward commands; add-only, through the Bash prefilter, tested against loosening
-- [ ] 4. Charter — `keel:charter` turns a PRD into the roadmap, ledger and `CLAUDE.md` decisions; re-charter diffs a changed PRD; backfill from shipped plans; eval `charter-prd` against a synthetic PRD with a known answer key
+- [x] 4. Charter — `keel:charter` turns a PRD into the roadmap, ledger and `CLAUDE.md` decisions; re-charter diffs a changed PRD; backfill from shipped plans; eval `charter-prd` against a synthetic PRD with a known answer key
 - [ ] 5. Milestones in the loop — checks tag requirements `(req: ID)`; `keel:plan` cuts the next plan from the current milestone's uncovered requirements and fills `Covered by` at archive from passing evidence rows; milestone close in stage, autopilot, verify and review; eval `milestone-close`
 - [ ] 6. Proof and release — two plans in a row on a scratch milestone, the USS PRD graded, READMEs, eval list, version 0.8.0
 

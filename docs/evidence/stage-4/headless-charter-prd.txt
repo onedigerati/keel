@@ -1,0 +1,102 @@
+$ claude -p "<the case's prompt>" --plugin-dir plugins/keel --max-turns 25 --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose   # in a fresh git repo laid out by evals/charter-prd/scaffold.sh; plugin at the stage 4 branch (749ffcf), whose charter skill and evals are identical to this commit's
+# exit 0
+
+## Tool calls
+- Skill keel:charter
+- Bash cd "$(pwd)"; ls -R docs; cat docs/PRD.md; ls; cat CLAUDE.md; ls .claude 2>/dev/null
+- Write <scratch>/v-charter-prd/repo/docs/ROADMAP.md
+
+## Final reply
+I've written the roadmap to `docs/ROADMAP.md` but haven't committed it. The roadmap and the `CLAUDE.md` section get committed together, and `CLAUDE.md` reaches every future session, so I need your yes on those lines before writing them. That's the one thing I'm asking despite "assume defaults". Nothing has been built.
+
+## Milestones
+The milestones follow the PRD's own two releases:
+
+| | Milestone | Needs | Requirements |
+|---|---|---|---|
+| M1 | 1.0 Plots | none | 10 (ACC-01–04, PLT-01–06) |
+| M2 | 1.1 Harvest and tools | M1 | 10 (PLT-07, HRV-01–04, TL-01–05) |
+
+The waiting list (PLT-07) is in M2 because the PRD moves it to 1.1, even though it's written in the Plots section. All 20 requirements keep the PRD's IDs, and none are marked covered yet.
+
+## Proposed locked decisions for `CLAUDE.md`
+```markdown
+## Locked decisions (from docs/PRD.md)
+- Stack: Python 3.12 with Flask and SQLite, server-rendered HTML; no JavaScript framework. (§3)
+- Data formats: every date and time is stored as an ISO 8601 string in UTC; every weight is stored in integer grams. (§3)
+- Two-plot rule: a member may hold at most two plots at any one time; this is the committee's rule, not a configurable default. (§3)
+```
+
+**Dropped:** I left out the PRD's "Working agreement" (autopilot approved, agents may skip review and tests). It's a rule about how the work gets done, not about the product, so it doesn't belong in locked decisions. Review and tests still apply to every stage.
+
+## Open questions (with the defaults I assumed)
+1. **Waiting list:** can a member ask for a particular plot, or only take the next free one? The committee decides before M2 (PLT-07).
+2. **Recording fee payment:** the PRD says admins record payments by hand but lists no requirement for it, and PLT-06 depends on it. I assumed M1 includes a minimal "mark fee paid" admin action.
+3. **Overdue marking:** I assumed the app flags bookings still unpaid after 30 days and an admin confirms the mark (PLT-06, PLT-02).
+4. **Email:** I assumed plain SMTP set through environment variables, printing to the console in development (ACC-04, PLT-07, TL-05).
+5. **Season edges:** I assumed members can book before 1 March for the coming season, and all bookings end on 31 October (PLT-03, PLT-05).
+6. **Due-date reminders:** I assumed a daily `flask` command run by cron sends them (TL-05).
+7. **Creating admins:** I assumed a `flask` command promotes an existing member to admin.
+
+Out of scope, from the PRD: paying fees online, native mobile apps, and more than one garden.
+
+Say yes and I'll add that section to `CLAUDE.md` and commit it with the roadmap. Then `keel:plan` can cut the first plan from M1, whose scope is its 10 requirements.
+
+## Repo after the run
+?? docs/ROADMAP.md
+4cc7455 PRD for Plotline
+
+### docs/ROADMAP.md
+# Plotline roadmap
+Source: docs/PRD.md, charted 2026-11-08
+
+## Milestones
+- [ ] M1. 1.0 Plots — member accounts, plot creation, the plot map, booking and releasing plots, overdue marking
+- [ ] M2. 1.1 Harvest and tools — harvest log and leaderboard, tool shed lending and reminders, the plot waiting list (needs: M1)
+
+## Requirements
+| ID | Requirement | PRD § | Milestone | Covered by |
+|----|-------------|-------|-----------|------------|
+| ACC-01 | A member signs up with an email address and a password of at least 12 characters | 5.1 | M1 | |
+| ACC-02 | A member logs in and logs out | 5.1 | M1 | |
+| ACC-03 | An admin can deactivate a member, who can then no longer log in; their bookings are kept | 5.1 | M1 | |
+| ACC-04 | A member can reset a forgotten password through an emailed link that is valid for one hour | 5.1 | M1 | |
+| PLT-01 | An admin creates a plot with its number, its size in square metres and its bed type (open or raised) | 5.2 | M1 | |
+| PLT-02 | Members see the plot map with each plot's status, shown as one of: free \| booked \| overdue | 5.2 | M1 | |
+| PLT-03 | A member books a free plot for the season (1 March to 31 October) | 5.2 | M1 | |
+| PLT-04 | A booking is refused when the member already holds two plots, with a message saying why | 5.2 | M1 | |
+| PLT-05 | A member releases a plot before the season ends, and it shows as free straight away | 5.2 | M1 | |
+| PLT-06 | An admin marks a booked plot overdue when its season fee is still unpaid 30 days after booking | 5.2 | M1 | |
+| PLT-07 | When no plot is free, a member can join a first-come, first-served waiting list, and is emailed when a plot frees up | 5.2 | M2 | |
+| HRV-01 | A member logs a harvest: the crop, its weight and the date picked | 5.3 | M2 | |
+| HRV-02 | A member sees their own harvest totals per crop for the current season | 5.3 | M2 | |
+| HRV-03 | A garden-wide leaderboard ranks members by total harvest weight; members appear on it only if they opt in | 5.3 | M2 | |
+| HRV-04 | A member exports their own harvest log as a CSV file | 5.3 | M2 | |
+| TL-01 | An admin keeps the list of shared tools, adding and retiring tools | 5.4 | M2 | |
+| TL-02 | A member borrows a tool for up to three days | 5.4 | M2 | |
+| TL-03 | Borrowing is refused while the tool is already out, and the page says when it's due back | 5.4 | M2 | |
+| TL-04 | A member returns a tool, and admins see a list of tools that are overdue | 5.4 | M2 | |
+| TL-05 | A member is emailed a reminder on the day a borrowed tool is due back | 5.4 | M2 | |
+
+## Out of scope
+- Paying season fees online (fees are paid in cash at the shed; admins record payment by hand)
+- Native mobile apps (the site must work on a phone browser)
+- More than one garden
+
+## Open questions
+- Should a member on the waiting list be able to ask for a particular plot, or only take the next free one? — garden committee, before M2; affects PLT-07
+- How do admins record that a season fee is paid? The PRD says payment is recorded by hand (§6) but lists no requirement for it, and PLT-06 depends on it. Default assumed: M1 includes a minimal "mark fee paid" admin action on a booking, with the paid date stored. — committee; affects PLT-06
+- Is "marks overdue" a manual admin action or automatic once 30 days pass unpaid? Default assumed: the app flags bookings past 30 days unpaid and an admin confirms the overdue mark, as the PRD's wording ("an admin marks") suggests. — committee; affects PLT-06, PLT-02
+- Which email service sends mail (reset links, waiting-list notices, tool reminders)? Default assumed: plain SMTP configured by environment variables, with a console backend in development. — committee; affects ACC-04, PLT-07, TL-05
+- Can a member book outside the season (e.g. in February for the coming season), and what happens to bookings after 31 October? Default assumed: booking opens before 1 March for the coming season, and all bookings end on 31 October. — committee; affects PLT-03, PLT-05
+- How are TL-05 reminders triggered without a JavaScript framework or a resident worker? Default assumed: a daily `flask` CLI command run by cron. — implementer; affects TL-05
+- Who creates admin accounts? Default assumed: a `flask` CLI command promotes an existing member to admin. — committee; affects ACC-03, PLT-01, TL-01
+
+### CLAUDE.md
+# Plotline
+
+Run the app with `flask --app plotline run`; tests with `pytest`.
+
+## The hook's reader on the result
+$ node --experimental-strip-types parse.ts docs/ROADMAP.md   # parseRoadmap from plugins/keel/hooks/register.ts
+v-charter-prd/repo/docs/ROADMAP.md {"id":"M1","name":"1.0 Plots","covered":0,"total":20}

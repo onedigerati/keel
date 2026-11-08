@@ -1,0 +1,99 @@
+$ claude -p "<the case's prompt>" --plugin-dir plugins/keel --max-turns 25 --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose   # in a fresh git repo laid out by evals/charter-rechart/scaffold.sh; plugin at the stage 4 branch (749ffcf), whose charter skill and evals are identical to this commit's
+# exit 0
+
+## Tool calls
+- Skill keel:charter
+- Bash cat docs/ROADMAP.md; echo ----; cat docs/PLAN.md; echo ----; git show HEAD --stat; git show HEAD -- docs/PRD.md; echo ----; cat docs/PRD.md; ls docs docs/plans 
+- Bash ls docs/plans/2026-11-20-accounts/evidence/*; grep -n -i "hour\|deactiv\|Verified" -r docs/plans/ | head -20
+- Bash python3 - <<'EOF' p='docs/ROADMAP.md'; s=open(p).read() R=[ ("Source: docs/PRD.md, charted 2026-11-10","Source: docs/PRD.md, charted 2026-11-10, re-charted 2026
+- Bash git add docs/ROADMAP.md docs/PLAN.md && git commit -q -F - <<'EOF' Re-chart roadmap from PRD v2  Added TL-06; dropped HRV-03; changed ACC-04 (rework) and PLT-03
+
+## Final reply
+I re-charted the roadmap from PRD v2 and committed it as `b90ea80`. Nothing was built.
+
+**Changes by ID**
+- **Added:** TL-06, reserving a tool up to seven days ahead. It goes in M2.
+- **Dropped:** HRV-03, the opt-in harvest leaderboard. Its row stays, marked `dropped 2026-11-08`.
+- **Changed:**
+  - **ACC-04:** the password reset link now expires after 30 minutes instead of one hour. The shipped Accounts plan built and tested one hour (`test_reset_link_expires_after_one_hour`), so I added a "Rework ACC-04" item to the open questions for the next plan to pick up. Its coverage link is kept.
+  - **PLT-03:** the season now runs 1 April to 31 October instead of starting 1 March.
+- **Moved:** TL-01, the admin's tool list, goes from M2 to M1. The milestone summary lines are updated to match.
+- **Not moved yet — needs your decision:** PRD v2 moves ACC-03 (deactivating a member) to Release 1.1. It is already built and covered in M1, so I left it there and added it to the open questions. Do you want it kept in M1 or moved to M2? Either way, nothing needs rebuilding.
+
+**Milestones now**
+- **M1 Plots:** accounts, plot booking and the tool list. 11 requirements, 4 covered.
+- **M2 Harvest and tools:** harvest log, tool borrowing and reservations, and the plot waiting list. Needs M1. 9 requirements.
+
+**Unchanged:** the locked decisions in §3 are the same, so `CLAUDE.md` wasn't touched. The out-of-scope list and the waiting-list question are also unchanged.
+
+**What this does to the current plan**
+- I logged the re-charter as a dated decision in `docs/PLAN.md`. Its stages are as they were.
+- M1 now also needs TL-01 and the ACC-04 rework before it can close, and the current plan covers neither. One way to handle that is to add a stage or two to this plan; the other is a short follow-up plan.
+- Stage 2 (booking) will use the 1 April season start.
+
+**Dates look wrong:** today's date is 2026-11-08, but the roadmap says it was charted 2026-11-10, the Accounts plan shipped 2026-11-20, and a plan decision is dated 2026-11-21. I used today's date for the re-charter entries, so they come before the original charter date. You may want to check the clock or those earlier dates.
+
+## Repo after the run
+b90ea80 Re-chart roadmap from PRD v2
+7d776a7 PRD v2 from the garden committee
+f57e5e7 Start plan: plots
+
+### docs/ROADMAP.md
+# Plotline roadmap
+Source: docs/PRD.md, charted 2026-11-10, re-charted 2026-11-08
+
+## Milestones
+- [ ] M1. Plots — accounts, plot booking and the tool list (Release 1.0)
+- [ ] M2. Harvest and tools — harvest log, tool borrowing and reservations, and the plot waiting list (Release 1.1) (needs: M1)
+
+## Requirements
+| ID | Requirement | PRD § | Milestone | Covered by |
+|----|-------------|-------|-----------|------------|
+| ACC-01 | A member signs up with an email address and a password of at least 12 characters | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-02 | A member logs in and logs out | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-03 | An admin can deactivate a member, who can then no longer log in; their bookings are kept | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-04 | A member can reset a forgotten password through an emailed link valid for 30 minutes | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| PLT-01 | An admin creates a plot with its number, size in square metres and bed type (open or raised) | 5.2 | M1 | |
+| PLT-02 | Members see the plot map with each plot's status: free \| booked \| overdue | 5.2 | M1 | |
+| PLT-03 | A member books a free plot for the season (1 April to 31 October) | 5.2 | M1 | |
+| PLT-04 | A booking is refused, with the reason, when the member already holds two plots | 5.2 | M1 | |
+| PLT-05 | A member releases a plot early and it shows as free straight away | 5.2 | M1 | |
+| PLT-06 | An admin marks a booked plot overdue when its fee is unpaid 30 days after booking | 5.2 | M1 | |
+| PLT-07 | When no plot is free, a member joins a first-come, first-served waiting list and is emailed when one frees up | 5.2 | M2 | |
+| HRV-01 | A member logs a harvest: crop, weight and date picked | 5.3 | M2 | |
+| HRV-02 | A member sees their own harvest totals per crop for the current season | 5.3 | M2 | |
+| HRV-03 | An opt-in garden-wide leaderboard ranks members by total harvest weight | 5.3 | dropped 2026-11-08 | |
+| HRV-04 | A member exports their own harvest log as CSV | 5.3 | M2 | |
+| TL-01 | An admin keeps the list of shared tools, adding and retiring tools | 5.4 | M1 | |
+| TL-02 | A member borrows a tool for up to three days | 5.4 | M2 | |
+| TL-03 | Borrowing is refused while the tool is out, saying when it's due back | 5.4 | M2 | |
+| TL-04 | A member returns a tool, and admins see the overdue tools | 5.4 | M2 | |
+| TL-05 | A member is emailed a reminder on the day a borrowed tool is due back | 5.4 | M2 | |
+| TL-06 | A member reserves a tool up to seven days ahead, and nobody else can borrow it on that day | 5.4 | M2 | |
+
+## Out of scope
+- Paying season fees online (cash at the shed, recorded by admins)
+- Native mobile apps (the site works in a phone browser)
+- More than one garden
+
+## Open questions
+- Can a member on the waiting list ask for a particular plot, or only take the next free one? — the garden committee, before Release 1.1; changes PLT-07
+- Rework ACC-04: the reset link must now expire after 30 minutes, not one hour; the shipped Accounts plan built and tested one hour (re-charted 2026-11-08)
+- ACC-03 (member deactivation) moves to Release 1.1 in PRD v2, but it is already built and covered in M1; keep it in M1 or move it to M2? — the user, before M1 closes; affects ACC-03
+
+### CLAUDE.md
+# Plotline
+
+Run the app with `flask --app plotline run`; tests with `pytest`.
+
+## Locked decisions (from docs/PRD.md)
+- Python 3.12 with Flask and SQLite, server-rendered HTML, no JavaScript framework (§3)
+- Dates and times stored as ISO 8601 strings in UTC; weights in integer grams (§3)
+- A member holds at most two plots at a time (§3)
+
+## The hook's reader on the result
+$ node --experimental-strip-types parse.ts docs/ROADMAP.md   # parseRoadmap from plugins/keel/hooks/register.ts
+v-charter-rechart/repo/docs/ROADMAP.md {"id":"M1","name":"Plots","covered":4,"total":20}
+
+### docs/PLAN.md decision line written by the run
+- 2026-11-08 · Re-charted docs/PRD.md (v2): added TL-06 (M2); dropped HRV-03; changed ACC-04 (reset link 30 minutes, rework), PLT-03 (season 1 April to 31 October); moved TL-01 to M1; ACC-03 move to M2 held for the user (already covered); locked decisions unchanged — the garden committee sent PRD v2
