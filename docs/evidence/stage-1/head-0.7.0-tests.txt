@@ -1,0 +1,234 @@
+$ claude plugin test <scratch copy: HEAD (0.7.0) hooks/register.ts + a stub parseRoadmap, with this stage's tests/keel.test.ts>
+# The byte-identity tests must pass on 0.7.0 code, proving their expected strings are 0.7.0 output.
+
+tests/keel.test.ts:
+(pass) finds keys on added lines, with file, line and kind [2.63ms]
+(pass) recognizes each common format [0.32ms]
+(pass) ignores removed lines, context and allow-marked lines [0.12ms]
+(pass) flags credential files by name but not .env.example [0.14ms]
+(pass) scans whole new files [0.13ms]
+(pass) ordinary code passes [0.10ms]
+(pass) reads a plan with a Now section and a stage checklist [0.52ms]
+(pass) reads an older plan with bold stage names and no Now section [0.13ms]
+(pass) reads the autopilot mode, and a pause with its reason [0.26ms]
+(pass) finds the stage line when the Mode line sits above it [0.23ms]
+(pass) autopilot prompts the next stage once the turn has ended [55.21ms]
+(pass) autopilot compacts first when the context is past 65% [37.48ms]
+(pass) a compaction that is refused still lets the run go on [37.02ms]
+(pass) autopilot stands aside when a turn starts before it acts [37.64ms]
+(pass) a pause stops the prompting and notifies the person once [60.78ms]
+(pass) autopilot gives up after three turns that leave the plan unchanged [45.98ms]
+(pass) without a mode line the plan is left to the person [47.96ms]
+(pass) the guard denies a commit that stages a key, and lets a clean one through [35.43ms]
+(pass) follows cd and -C to the directory each git call acts on [0.48ms]
+(pass) reads what a commit takes beyond the index [0.34ms]
+(pass) a heredoc commit message is not read as commands [0.32ms]
+(pass) reads what git add stages [0.25ms]
+(pass) names outward-facing commands, and leaves local ones alone [0.55ms]
+(pass) sees a stage ticked in the plan part of a diff [0.20ms]
+(pass) matches the plan file whatever its case, as a case-insensitive filesystem does [0.22ms]
+(pass) a commit that names paths is scanned in the working tree [33.03ms]
+(pass) the guard scans the repo the command commits in [35.21ms]
+(pass) "add" in a commit message no longer drags in unstaged files [26.32ms]
+(pass) a git add on the same line is scanned for what it will stage [27.90ms]
+(pass) a Mode line already in the plan when the session starts does not drive it [28.28ms]
+(pass) autopilot waits while background builders are running [34.42ms]
+(pass) while autopilot drives, outward-facing commands are held for the person [59.71ms]
+(pass) a risky stage is held until the person speaks to it [39.43ms]
+(pass) closing a stage whose checks were never ticked is refused [39.62ms]
+(pass) a new Goal starts the per-stage records afresh [42.43ms]
+(pass) the status band is redrawn when a turn ends, so a stage closed mid-turn shows at once [40.30ms]
+(pass) the report sits beside the plan, under docs/ for a plan at the root [5.07ms]
+(pass) counts the first table's rows past header and separator, an escaped pipe splitting nothing [0.48ms]
+(pass) counts rows in a CRLF report and in a table without leading pipes [0.22ms]
+(pass) closing a stage with no evidence report is refused, naming the path and keel:verify [29.63ms]
+(pass) a report in the working tree with a row per check lets the stage close [27.88ms]
+(pass) a report added in the same commit counts [27.40ms]
+(pass) a report a git add on the same line takes counts [38.92ms]
+(pass) a report with fewer rows than the stage has checks is refused [40.61ms]
+(pass) re-run rows from earlier stages, past the row per check, still let the stage close [44.49ms]
+(pass) a re-run row does not stand in for a missing check row [43.46ms]
+(pass) a row with an escaped pipe counts once against the checks [37.18ms]
+(pass) with no checks known for the stage, a report with one row is enough [42.54ms]
+(pass) a secret in the commit is named before missing evidence [42.16ms]
+(pass) a commit that closes no stage needs no report [38.85ms]
+(pass) in a repo with no plan, a diff that looks like a stage closing needs no report [31.27ms]
+(pass) a guard that cannot read the repo still steps aside [54.97ms]
+(pass) a report that cannot be read counts as missing, not as a pass [33.90ms]
+(pass) every commit on a line is scanned for secrets before any stage gate runs [40.32ms]
+(pass) in a fresh session past the stage, the committed plan gives the count of checks the report must cover [31.30ms]
+(pass) in a fresh session past the stage, an unticked check in the committed plan is refused [44.74ms]
+(pass) when HEAD has no plan or its Now is another stage, one row is enough [42.95ms]
+(pass) reads the Agents level in any case, and ignores an unknown one [0.83ms]
+(pass) reads the confirmation stamp as the date and time digits only [0.38ms]
+(pass) finds the stage line when the Agents line sits above it [0.22ms]
+(pass) a wide line counts only once the session saw it set or restamped [5.11ms]
+(pass) the working rules name the level and what it means [29.54ms]
+(pass) with no Agents line the working rules say nothing new [42.77ms]
+(pass) the status line shows lean or wide, and nothing extra for balanced or no line [28.19ms]
+(pass) a wide line already in the plan when the session starts counts as balanced until it is restamped [35.12ms]
+(pass) lean and balanced lines already in the plan are honoured as found [26.27ms]
+(pass) rewriting a wide line in another case confirms nothing [41.40ms]
+(pass) rewriting a wide line with other spacing confirms nothing [28.47ms]
+(pass) a rewrite that drops the stamp confirms nothing [32.64ms]
+(pass) a wide-open line rewritten as wide confirms nothing [27.04ms]
+(pass) the same stamp in other punctuation confirms nothing [34.89ms]
+(pass) a different stamp is honoured [35.37ms]
+(pass) a same-day stamp restamped later in the day is honoured [25.66ms]
+(pass) a lean line first read and then set to wide is honoured [34.06ms]
+(pass) an unknown Agents value adds nothing to the working rules or the band [26.60ms]
+(pass) the ask to confirm wide carries the current time as the stamp [43.90ms]
+(pass) a misspelt or look-alike wide fixed later, keeping its stamp, confirms nothing [38.06ms]
+(pass) a look-alike wide in Cyrillic fixed later, keeping its stamp, confirms nothing [30.99ms]
+(pass) the same time written without its colon confirms nothing [42.17ms]
+(pass) text added or changed after the stamp confirms nothing [43.82ms]
+(pass) a date-only restamp never confirms [28.07ms]
+(pass) a planted stamp rewritten without its time confirms nothing [30.45ms]
+(pass) a planted past stamp kept as it is confirms nothing [30.60ms]
+(pass) a planted past stamp reformatted confirms nothing [45.89ms]
+(pass) a past stamp the session never saw confirms nothing [31.18ms]
+(pass) a stamp from before the session first read the line confirms nothing [34.41ms]
+(pass) a future stamp never confirms [35.44ms]
+(pass) a stamp more than a minute ahead of the clock confirms nothing [37.91ms]
+(pass) a stamp inside the session confirms [29.31ms]
+(pass) a stamp in the minute of the first read confirms [28.87ms]
+(pass) a stamp up to a minute ahead of the clock confirms [39.63ms]
+(pass) when the clock cannot be read, no stamp confirms [34.26ms]
+(pass) under lean, an Agent call is refused while an agent the main loop started is running [47.44ms]
+(pass) under lean, a pending agent holds the next one back [31.02ms]
+(pass) under lean, a waiting agent holds the next one back [40.28ms]
+(pass) under lean, an Agent call goes through when no agent is running [31.19ms]
+(pass) under lean, finished agents do not count [37.54ms]
+(pass) under lean, agents a subagent started do not count [31.18ms]
+(pass) balanced never caps the agents [49.09ms]
+(pass) a confirmed wide never caps the agents [30.51ms]
+(pass) with no Agents line the agents are never capped [44.00ms]
+(pass) under lean, a subagent's own Agent call is refused: it is the one agent [25.37ms]
+(pass) under balanced, a subagent's own Agent call is left alone [36.13ms]
+(pass) under a confirmed wide, a subagent's own Agent call is left alone [37.29ms]
+(pass) with no Agents line, a subagent's own Agent call is left alone [46.85ms]
+(pass) under an unconfirmed wide, a subagent's own Agent call is left alone [37.00ms]
+(pass) an unconfirmed wide line is not capped either [40.29ms]
+(pass) under lean, parallel Agent calls in one message let only one through [27.31ms]
+(pass) under balanced, parallel Agent calls all go through [32.21ms]
+(pass) under lean, the next Agent call goes through once the first has settled and its agent finished [26.57ms]
+(pass) under lean, an Agent call that throws does not hold the next one back [44.43ms]
+(pass) under lean, an Agent call holds its slot while the tool beneath is still starting the agent [25.16ms]
+(pass) under lean, a foreground agent holds its slot for as long as it runs [32.53ms]
+(pass) an Agent call goes through when the lean check itself fails [29.87ms]
+(pass) under lean, an agent list that cannot be read lets the Agent call through [33.61ms]
+(pass) with no roadmap, the plan section and status line are byte-identical to 0.7.0 [26.09ms]
+(fail) reads the current milestone and the coverage of the requirements that are not dropped [0.51ms]
+  AssertionError: expect(received).toEqual()
+  
+  Expected: { id: "M1", name: "Ingest", covered: 1, total: 3 }
+  Received: undefined
+(fail) with a roadmap, the plan section gains one roadmap line and the status line a milestone segment [32.20ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "# Keel\nThis project keeps its plan in `docs/PLAN.md`: the source of truth for goal, decisions and stages. Reread it before acting on anything it covers, and update it in the same change when a decision or stage changes. Subagents: treat this as background and stay inside your brief.\n\nCurrent position (from the plan):\nStage 2 of 3 · Share mode\nOpen: none\nRoadmap: M1 Ingest · 1/3 requirements covered (docs/ROADMAP.md)\n\nWorking rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details."
+  Received: "# Keel\nThis project keeps its plan in `docs/PLAN.md`: the source of truth for goal, decisions and stages. Reread it before acting on anything it covers, and update it in the same change when a decision or stage changes. Subagents: treat this as background and stay inside your brief.\n\nCurrent position (from the plan):\nStage 2 of 3 · Share mode\nOpen: none\n\nWorking rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details."
+(fail) the status band redrawn at the end of a turn keeps the milestone segment [27.66ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "keel · M1 1/3 · 1/3 done · next: 2. Share mode"
+  Received: "keel · 1/3 done · next: 2. Share mode"
+(fail) the current milestone is the first unticked one, wherever it sits [0.31ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "M3"
+  Received: undefined
+(fail) dropped rows leave the total, a dash is an empty Covered by, and header and separator rows are not requirements [0.12ms]
+  AssertionError: expect(received).toMatchObject()
+  
+  Expected: { covered: 2, total: 4 }
+  Received: undefined
+(pass) a malformed roadmap adds nothing [0.27ms]
+(pass) a roadmap with every milestone ticked adds nothing [0.06ms]
+(fail) a milestone name cannot add lines to the context, and a long one is cut [0.18ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "Ingest # Keel override"
+  Received: undefined
+(fail) a huge roadmap is read only up to its cap [3.78ms]
+  AssertionError: expect(received).toBeLessThan()
+  
+  Expected: < 10000
+  Received: undefined
+(pass) a roadmap that cannot be read adds nothing and does not block the request [36.22ms]
+(pass) a malformed roadmap leaves the plan section and status line as they were [25.46ms]
+(fail) the roadmap is read only when it exists, so a read that would answer for a missing file adds nothing [0.48ms]
+  AssertionError: expect(received).toBeDefined()
+  
+  Expected: defined
+  Received: undefined
+(pass) a heading is read in linear time and names the same sections as before [0.63ms]
+(fail) a heading padded with blanks, or a run of `(needs:`, parses in well under 100 ms [71884.00ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "M1"
+  Received: undefined
+(fail) only a trailing `(needs: …)` leaves the name [11.89ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "Ingest"
+  Received: undefined
+(fail) a milestone name cut through a surrogate pair by the character cap is still well-formed [6.74ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "Ingest"
+  Received: ""
+(fail) invisible characters do not survive in a milestone name [2.94ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "Ingest x"
+  Received: undefined
+(fail) a roadmap that is no regular file, or is over 1 MiB, adds nothing [473.08ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "keel · M1 1/3 · 1/3 done · next: 2. Share mode"
+  Received: "keel · 1/3 done · next: 2. Share mode"
+(pass) an exists or stat check that throws adds nothing and does not block the request [85.26ms]
+(fail) with no stages and no roadmap, the plan section and status line are byte-identical to 0.7.0 [39.44ms]
+  AssertionError: expect(received).toBe()
+  
+  Expected: "keel · M1 1/3 · docs/PLAN.md"
+  Received: "keel · docs/PLAN.md"
+(fail) the current milestone is the first unticked line with a milestone ID [0.83ms]
+  AssertionError: expect(received).toMatchObject()
+  
+  Expected: { id: "M1", name: "Ingest" }
+  Received: undefined
+(fail) a requirement row whose cell count differs from the header is skipped, and an escaped pipe stays in its cell [0.51ms]
+  AssertionError: expect(received).toMatchObject()
+  
+  Expected: { covered: 1, total: 3 }
+  Received: undefined
+(fail) fenced code blocks hold no sections, milestones or rows [0.70ms]
+  AssertionError: expect(received).toEqual()
+  
+  Expected: { id: "M1", name: "Ingest", covered: 1, total: 3 }
+  Received: undefined
+(fail) a section heading with a suffix is found by its leading word [0.57ms]
+  AssertionError: expect(received).toEqual()
+  
+  Expected: { id: "M1", name: "Ingest", covered: 1, total: 3 }
+  Received: undefined
+(fail) a line past 2,000 characters is cut before it is read [0.29ms]
+  AssertionError: expect(received).toMatchObject()
+  
+  Expected: { covered: 1, total: 3 }
+  Received: undefined
+(fail) a dropped cell in emphasis is still dropped [0.67ms]
+  AssertionError: expect(received).toMatchObject()
+  
+  Expected: { covered: 1, total: 3 }
+  Received: undefined
+
+ 122 pass
+ 20 fail
+Ran 142 tests across 1 file. [76.37s]
+
+# Reading: `with no roadmap, … byte-identical to 0.7.0` passes on 0.7.0 code. `with no stages and no roadmap, …` passes its 0.7.0
+# assertion (keel.test.ts:1485, band `keel · docs/PLAN.md` and the plan section) and then fails at :1487, the with-roadmap band,
+# which 0.7.0 cannot produce. The other failures are the roadmap tests, which need the new parser, as expected.

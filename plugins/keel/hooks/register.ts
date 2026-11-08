@@ -75,13 +75,27 @@ export function stampIn(line: string): string | undefined {
   return m.slice(1).filter(p => p !== undefined).map(p => p.padStart(2, '0')).join('')
 }
 
+/**
+ * A `## ` heading's text, exactly what `/^##\s+(.+?)\s*$/` captures, in linear time: that lazy pattern backtracks
+ * quadratically on a heading padded with spaces, and the plan and roadmap are parsed on every request.
+ * The text runs to the first line terminator (as `.` does), and only whitespace (a CRLF file's `\r`, say) may follow it.
+ */
+function headingText(line: string): string | undefined {
+  const m = /^##\s+(.+)/.exec(line)
+  if (!m) return undefined
+  if (!/^\s*$/.test(line.slice(m[0].length))) return undefined
+  const text = m[1] ?? ''
+  // a heading of only blanks: the lazy pattern kept its first one
+  return text.trimEnd() || text[0]
+}
+
 /** Reads the `## Now` section and the checklist under the first `## …Stages…` heading. */
 export function parsePlan(path: string, text: string): Plan {
   const sections = new Map<string, string[]>()
   let heading = ''
   for (const line of text.split('\n')) {
-    const m = line.match(/^##\s+(.+?)\s*$/)
-    if (m) heading = (m[1] ?? '').toLowerCase()
+    const h = headingText(line)
+    if (h !== undefined) heading = h.toLowerCase()
     else if (heading) sections.set(heading, [...(sections.get(heading) ?? []), line])
   }
 
@@ -124,6 +138,162 @@ export function parsePlan(path: string, text: string): Plan {
   const done = stages.length - stages.filter(l => /\[ \]/.test(l)).length
   const goal = sections.get('goal')?.join('\n').trim() || undefined
   return { path, goal, now, mode, agents, agentsLine, agentsStamp, stage, done, total: stages.length, current }
+}
+
+// ---- the roadmap: a large project's milestones and requirement ledger, read only when docs/ROADMAP.md exists ----
+
+const ROADMAP_PATH = 'docs/ROADMAP.md'
+
+/** The largest roadmap file read at all, in bytes: anything bigger, or anything but a regular file, is no roadmap. */
+const ROADMAP_MAX_BYTES = 1024 * 1024
+
+/** The most of the roadmap read, in characters and lines: it is parsed on every request, and a ledger past this is undercounted rather than slow. */
+const ROADMAP_MAX_CHARS = 256_000
+const ROADMAP_MAX_LINES = 4_000
+
+/** Each line is cut to this many characters before any pattern runs on it. */
+const ROADMAP_LINE_MAX = 2_000
+
+/** The longest milestone name shown; longer ones are cut with an ellipsis. */
+const MILESTONE_NAME_MAX = 60
+
+interface Roadmap {
+  /** The current milestone's ID, e.g. `M1`. */
+  id: string
+  /** Its name, flattened to one line of plain text; may be empty. */
+  name: string
+  covered: number
+  total: number
+}
+
+/**
+ * One line of printable text: control, format (bidi, zero-width), surrogate (a pair split by a cut), private-use, unassigned,
+ * line or paragraph separator and default-ignorable characters (fillers such as U+3164, U+034F, variation selectors), and the
+ * blank braille cell, become spaces, so a name can't add lines to the context, reorder it, or hide text in it.
+ */
+const oneLine = (text: string) =>
+  text
+    .replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u2800]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+/** The section a roadmap heading opens, by its leading word, so `## Requirements (46)` is the requirements. */
+const roadmapSection = (heading: string) => {
+  const h = heading.toLowerCase()
+  return /^milestones\b/.test(h) ? 'milestones' : /^requirements\b/.test(h) ? 'requirements' : h
+}
+
+/** A table row's cells, split on unescaped pipes; only the one leading and one trailing pipe are dropped, so an empty last cell stays a cell. */
+function rowCells(line: string): string[] | undefined {
+  const t = line.trim()
+  const cells = t.split(/(?<!\\)\|/)
+  if (cells.length < 2) return undefined
+  if (t.startsWith('|')) cells.shift()
+  if (t.endsWith('|') && !t.endsWith('\\|')) cells.pop()
+  return cells
+}
+
+/** A trailing `(needs: …)` taken off, as `/\s*\(needs:[^)]*\)\s*$/i` would, without its quadratic backtracking on a run of `(needs:`. */
+function withoutNeeds(text: string): string {
+  const close = text.lastIndexOf(')')
+  if (close < 0 || text.slice(close + 1).trim()) return text
+  // the earliest `(needs:` with no `)` between it and the closing one
+  const from = text.lastIndexOf(')', close - 1) + 1
+  const needs = /\(needs:/gi
+  needs.lastIndex = from
+  const m = needs.exec(text)
+  return m && m.index < close ? text.slice(0, m.index).trimEnd() : text
+}
+
+/**
+ * The current milestone and requirement coverage from `docs/ROADMAP.md`, or undefined when there is nothing sound to show:
+ * no `## Milestones` checklist, no `## Requirements` table with Milestone and Covered by columns, or every milestone ticked.
+ * The current milestone is the first unticked `- [ ] M1. <Name> — <scope>`; checklist lines without an `M<n>.` ID are not milestones.
+ * Total counts the table's rows except those whose Milestone cell starts with `dropped`; covered counts those whose Covered by
+ * cell holds anything but blanks or dashes. A row with more or fewer cells than the header is skipped, and fenced code is ignored.
+ */
+export function parseRoadmap(text: string): Roadmap | undefined {
+  const lines = text
+    .slice(0, ROADMAP_MAX_CHARS)
+    .split('\n', ROADMAP_MAX_LINES)
+    .map(l => l.slice(0, ROADMAP_LINE_MAX).replace(/\r$/, ''))
+  const sections = new Map<string, string[]>()
+  let heading = ''
+  let fence: string | undefined
+  for (const line of lines) {
+    const f = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1]
+    if (fence) {
+      // a closing fence is the opening one's character, at least as long, with nothing after it
+      if (f && f[0] === fence[0] && f.length >= fence.length && /^ {0,3}[`~]+\s*$/.test(line)) fence = undefined
+      continue
+    }
+    if (f) {
+      fence = f
+      continue
+    }
+    const h = headingText(line)
+    if (h !== undefined) {
+      heading = roadmapSection(h)
+      if (!sections.has(heading)) sections.set(heading, [])
+    } else sections.get(heading)?.push(line)
+  }
+
+  const milestones = (sections.get('milestones') ?? [])
+    .map(l => oneLine(l).match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/))
+    .filter(m => m !== null)
+    .map(m => ({ done: m[1] !== ' ', head: (m[2] ?? '').replace(/\*\*/g, '').match(/^\s*(M\d{1,4})\.\s*(.*)$/) }))
+    .filter(m => m.head !== null)
+  // every milestone ticked: the roadmap is finished and has no current milestone to steer by, so it adds nothing
+  // (starting the next body of work is keel:plan's call, and the plan line already says when its stages are done)
+  const head = milestones.find(m => !m.done)?.head
+  if (!head) return undefined
+  const id = head[1] ?? ''
+  const raw = withoutNeeds((head[2] ?? '').split(/\s+[—–-]\s+/)[0] ?? '')
+  // cut by code point, so an emoji or other astral character is never split in half
+  const chars = [...raw]
+  const name = chars.length > MILESTONE_NAME_MAX ? `${chars.slice(0, MILESTONE_NAME_MAX - 1).join('').trimEnd()}…` : raw
+
+  const rows = sections.get('requirements') ?? []
+  const separator = (cells: string[]) => cells.every(c => /^\s*:?-+:?\s*$/.test(c))
+  const at = rows.findIndex(l => {
+    const cells = rowCells(l)?.map(c => c.trim().toLowerCase())
+    return !!cells?.includes('milestone') && !!cells.includes('covered by')
+  })
+  const header = at < 0 ? undefined : rowCells(rows[at] ?? '')?.map(c => c.trim().toLowerCase())
+  const sep = rowCells(rows[at + 1] ?? '')
+  if (!header || !sep || !separator(sep)) return undefined
+  const milestoneAt = header.indexOf('milestone')
+  const coveredAt = header.indexOf('covered by')
+  let total = 0
+  let covered = 0
+  for (const line of rows.slice(at + 2)) {
+    const cells = rowCells(line)
+    if (!cells) break
+    if (separator(cells)) continue
+    // an unescaped `|` in a cell shifts every column after it: such a row can't be read soundly
+    if (cells.length !== header.length) continue
+    if ((cells[milestoneAt] ?? '').replace(/[*_~`]/g, '').trim().toLowerCase().startsWith('dropped')) continue
+    total++
+    // a dash is how an empty cell is often written
+    if (!/^[\s—–-]*$/.test(cells[coveredAt] ?? '')) covered++
+  }
+  return { id, name, covered, total }
+}
+
+/**
+ * The roadmap, only when `docs/ROADMAP.md` exists and is a regular file no larger than `ROADMAP_MAX_BYTES` (a FIFO, device or
+ * directory is none); a roadmap that can't be read or parsed is the same as none, and never blocks a request.
+ */
+async function loadRoadmap($: EngineInterface): Promise<Roadmap | undefined> {
+  try {
+    if (!(await $.fs.exists(ROADMAP_PATH))) return undefined
+    const stat = await $.fs.stat(ROADMAP_PATH)
+    if (stat.kind !== 'file' || !(stat.size <= ROADMAP_MAX_BYTES)) return undefined
+    const text = await $.fs.read(ROADMAP_PATH)
+    return typeof text === 'string' ? parseRoadmap(text) : undefined
+  } catch {
+    return undefined
+  }
 }
 
 // ---- session state: what this session, not the repo, says about autopilot ----
@@ -295,9 +465,11 @@ const held = (plan: Plan | undefined, s: Session) =>
 
 // ---- what rides in the system prompt ----
 
-function statusLine(plan: Plan, s: Session): string {
-  if (plan.total === 0) return `keel · ${plan.path}`
-  if (!plan.current) return `keel · all ${plan.total} stages done · next feature: keel:plan`
+function statusLine(plan: Plan, s: Session, roadmap?: Roadmap): string {
+  // the roadmap sits right after `keel`: it is the wider frame the plan's own progress sits in
+  const milestone = roadmap ? ` · ${roadmap.id} ${roadmap.covered}/${roadmap.total}` : ''
+  if (plan.total === 0) return `keel${milestone} · ${plan.path}`
+  if (!plan.current) return `keel${milestone} · all ${plan.total} stages done · next feature: keel:plan`
   const mode = !plan.mode
     ? ''
     : plan.mode.kind === 'paused'
@@ -309,7 +481,7 @@ function statusLine(plan: Plan, s: Session): string {
           : ' · autopilot'
   const level = effectiveAgents(plan, s.firstAgents, s.now)
   const agents = level === 'lean' || level === 'wide' ? ` · ${level}` : ''
-  return `keel${mode}${agents} · ${plan.done}/${plan.total} done · next: ${plan.current}`
+  return `keel${mode}${agents}${milestone} · ${plan.done}/${plan.total} done · next: ${plan.current}`
 }
 
 /** What the Agents line asks of this session, or `''` with no line. */
@@ -347,14 +519,16 @@ function baseRules(plan: Plan, s: Session): string {
 }
 
 /** `now`: the current time as a stamp, which the rules hand Claude for confirming a `wide` line. */
-function planSection(plan: Plan, s: Session, now: string | undefined): string {
+function planSection(plan: Plan, s: Session, now: string | undefined, roadmap?: Roadmap): string {
   const position = plan.now ?? (plan.current ? `Next stage: ${plan.current}` : 'No open stage in the plan.')
+  const milestone = roadmap && `Roadmap: ${[roadmap.id, roadmap.name].filter(Boolean).join(' ')} · ${roadmap.covered}/${roadmap.total} requirements covered (${ROADMAP_PATH})`
   return [
     `# Keel`,
     `This project keeps its plan in \`${plan.path}\`: the source of truth for goal, decisions and stages. Reread it before acting on anything it covers, and update it in the same change when a decision or stage changes. Subagents: treat this as background and stay inside your brief.`,
     ``,
     `Current position (from the plan):`,
     position,
+    ...(milestone ? [milestone] : []),
     ``,
     workingRules(plan, s, now),
   ].join('\n')
@@ -604,10 +778,12 @@ export const register: Register = on => {
     const composed = await next(e)
     const plan = await loadPlan($).catch(() => undefined)
     const s = await sync($, plan)
-    $.ui.status(plan ? statusLine(plan, s) : undefined)
+    // the roadmap rides with the plan: without a plan there is no section to carry it
+    const roadmap = plan ? await loadRoadmap($) : undefined
+    $.ui.status(plan ? statusLine(plan, s, roadmap) : undefined)
     if (!plan) return composed
     const now = unconfirmedWide(plan, s) && s.now !== undefined ? stampOf(s.now) : undefined
-    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, now), scope: 'session' as const }] }
+    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, now, roadmap), scope: 'session' as const }] }
   })
 
   // tell the summarizer what must survive
@@ -645,7 +821,7 @@ export const register: Register = on => {
     const plan = await loadPlan($).catch(() => undefined)
     const s = await sync($, plan)
     // redraw the band too: a stage closed mid-turn would otherwise show stale progress until the next prompt
-    $.ui.status(plan ? statusLine(plan, s) : undefined)
+    $.ui.status(plan ? statusLine(plan, s, await loadRoadmap($)) : undefined)
     const mode = plan?.mode?.kind
     const was = lastMode
     lastMode = mode

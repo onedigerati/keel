@@ -7,18 +7,16 @@ Let Keel carry a large project — a PRD too big for one plan — without adding
 2026-11-08 · tests: 115 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 1 of 6 · Roadmap in the hook
-Agents: wide — confirmed 2026-11-08 12:42
-Risk: user input (the hook parses a repo file into every request)
-Checks:
-- [ ] With no `docs/ROADMAP.md`, the injected context and status line are byte-identical to 0.7.0's for the same plan (proof: test)
-- [ ] With a roadmap, the context gains exactly one line naming the current milestone and requirements covered of total, e.g. `Roadmap: M1 Ingest · 14/46 requirements covered (docs/ROADMAP.md)`, and the status line gains a short `M1 14/46` segment (proof: test)
-- [ ] The current milestone is the first unticked one; dropped requirements are left out of the total; a malformed or unreadable roadmap adds nothing and never blocks a request (proof: test)
-- [ ] The roadmap is read only after an exists check, so the test mock's read fallback can't pass for a missing file (proof: test)
-Open: none
+Stage 2 of 6 · Decisions file and scale check — standing decisions move to `docs/decisions.md` past ten; `keel:plan` reads scale signals, asks once, records the answer, and re-checks at each new plan; resume reads both files; Keel's own plan migrates as the proof
+Mode: autopilot
+Agents: wide — confirmed 2026-11-08 12:50
+Open:
+- Deferred to stage 4 (charter): escape `|` in requirement text it writes to the ledger; leave `Covered by` blank, never `TBD`, `n/a` or a dash.
+- Deferred to stage 5 (archive): `Covered by` holds only an archived plan's name or nothing — the hook counts any other text as covered.
+- Deferred, pre-existing: `loadPlan` reads `docs/PLAN.md` without checking it's a regular file, so a FIFO there could block a request (the roadmap reader now stats first); worth the same check in a later stage.
 
 ## Stages
-- [ ] 1. Roadmap in the hook — read `docs/ROADMAP.md` only when it exists; one context line and one status-line segment; nothing changes without it
+- [x] 1. Roadmap in the hook — read `docs/ROADMAP.md` only when it exists; one context line and one status-line segment; nothing changes without it
 - [ ] 2. Decisions file and scale check — standing decisions move to `docs/decisions.md` past ten; `keel:plan` reads scale signals, asks once, records the answer, and re-checks at each new plan; resume reads both files; Keel's own plan migrates as the proof
 - [ ] 3. Project risk rules — `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` add hold words and outward commands; add-only, through the Bash prefilter, tested against loosening
 - [ ] 4. Charter — `keel:charter` turns a PRD into the roadmap, ledger and `CLAUDE.md` decisions; re-charter diffs a changed PRD; backfill from shipped plans; eval `charter-prd` against a synthetic PRD with a known answer key
@@ -33,6 +31,10 @@ Open: none
 - 2026-11-08 · Coverage is derived, not tracked: `Covered by` names the archived plan whose evidence report has a passing row tagged with the ID, filled when that plan is archived; the hook only counts filled cells — a hand-kept status column drifts, and counting a table is cheap enough for every request.
 - 2026-11-08 · Requirement tags go at the end of a check, `(req: SEC-01)` — the stage-close parser reads a leading number as a stage number, and a tag first in an evidence row could look like a re-run row.
 - 2026-11-08 · Locked decisions from a PRD go to `CLAUDE.md`, not the plan — they bind every session and subagent, and `CLAUDE.md` already reaches them.
+- 2026-11-08 · The hook adds no roadmap line when every milestone is ticked, or when there's no plan (the line rides in the plan section) — starting the next body of work is `keel:plan`'s job, and a stale "all done" line would sit in every request. A `Covered by` cell holding only a dash counts as empty, since that's how markdown tables commonly write an empty cell; charter and archive (stages 4–5) should still leave it blank.
+- 2026-11-08 · The README gives large-project support (charter, roadmap, milestones) a prominent place as a headline capability of 0.8.0, not a footnote — the user asked for it to be called out (done in stage 6).
+- 2026-11-08 · Stage 1's verify runs in the main session, and that run writes the report itself: subagents here can't write report `.md` files, and the user chose this over saving the fresh verifier's text on its behalf. The fresh verifier's mutation evidence stays alongside it.
+- 2026-11-08 · The hook reads at most 256K characters and 4,000 lines of the roadmap and cuts milestone names at 60 characters — it runs on every request, and a ledger past the cap is undercounted rather than slowing each one.
 - 2026-11-08 · Project risk rules only add: Keel's built-in outward check runs first and unconditionally, and the project list is consulted only when it found nothing; there's no allow or negation syntax — a cloned repo's `CLAUDE.md` mustn't loosen a guard, the same reasoning that keeps a `wide` line from raising spend unasked.
 - 2026-11-08 · Standing decisions move to `docs/decisions.md` once more than ten would carry forward, with one pointer line left in the plan; below that they stay in the plan — small projects keep one file, and the `next-feature` eval keeps grading the plan.
 - 2026-11-08 · Deferred, not built: a "decide" stage type, more than one active plan, and a debug workflow — a decision can be a stage whose check is a prototype and a logged decision; parallel plans bring back state sync; the built-in debugging tools already cover investigation.

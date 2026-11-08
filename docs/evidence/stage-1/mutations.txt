@@ -1,0 +1,94 @@
+$ claude plugin test <scratch copy of plugins/keel>   # once per mutation, each a fresh copy with one change to hooks/register.ts
+# Re-run on the code after the review fixes. Each mutation breaks one behaviour a check promises; tests must fail.
+
+=== mutation: no exists check before reading the roadmap (check 4)
+--- replaced: if (!(await $.fs.exists(ROADMAP_PATH))) return undefined
+--- with:     // exists check removed
+--- failing tests
+(fail) an exists or stat check that throws adds nothing and does not block the request [67.91ms]
+ 141 pass
+ 1 fail
+
+=== mutation: dropped rows counted in the total (check 3)
+--- replaced: .startsWith('dropped')) continue
+--- with:     .startsWith('dropped')) {}
+--- failing tests
+(fail) reads the current milestone and the coverage of the requirements that are not dropped [1.82ms]
+(fail) with a roadmap, the plan section gains one roadmap line and the status line a milestone segment [44.43ms]
+(fail) the status band redrawn at the end of a turn keeps the milestone segment [53.67ms]
+(fail) dropped rows leave the total, a dash is an empty Covered by, and header and separator rows are not requirements [0.48ms]
+(fail) a milestone name cannot add lines to the context, and a long one is cut [40.16ms]
+(fail) a roadmap that is no regular file, or is over 1 MiB, adds nothing [61.43ms]
+(fail) with no stages and no roadmap, the plan section and status line are byte-identical to 0.7.0 [57.71ms]
+(fail) a requirement row whose cell count differs from the header is skipped, and an escaped pipe stays in its cell [0.24ms]
+(fail) fenced code blocks hold no sections, milestones or rows [0.35ms]
+(fail) a section heading with a suffix is found by its leading word [0.24ms]
+(fail) a line past 2,000 characters is cut before it is read [0.32ms]
+(fail) a dropped cell in emphasis is still dropped [0.18ms]
+ 130 pass
+ 12 fail
+
+=== mutation: last unticked milestone instead of first (check 3)
+--- replaced: milestones.find(m => !m.done)
+--- with:     milestones.findLast(m => !m.done)
+--- failing tests
+(fail) reads the current milestone and the coverage of the requirements that are not dropped [1.28ms]
+(fail) with a roadmap, the plan section gains one roadmap line and the status line a milestone segment [71.68ms]
+(fail) the status band redrawn at the end of a turn keeps the milestone segment [40.92ms]
+(fail) dropped rows leave the total, a dash is an empty Covered by, and header and separator rows are not requirements [0.37ms]
+(fail) a heading padded with blanks, or a run of `(needs:`, parses in well under 100 ms [2.00ms]
+(fail) a roadmap that is no regular file, or is over 1 MiB, adds nothing [31.03ms]
+(fail) with no stages and no roadmap, the plan section and status line are byte-identical to 0.7.0 [31.88ms]
+(fail) the current milestone is the first unticked line with a milestone ID [0.84ms]
+(fail) fenced code blocks hold no sections, milestones or rows [0.37ms]
+(fail) a section heading with a suffix is found by its leading word [0.16ms]
+ 132 pass
+ 10 fail
+
+=== mutation: ticked milestone can be current (check 3)
+--- replaced: milestones.find(m => !m.done)
+--- with:     milestones.find(m => true)
+--- failing tests
+(fail) reads the current milestone and the coverage of the requirements that are not dropped [1.35ms]
+(fail) with a roadmap, the plan section gains one roadmap line and the status line a milestone segment [37.56ms]
+(fail) the status band redrawn at the end of a turn keeps the milestone segment [38.79ms]
+(fail) the current milestone is the first unticked one, wherever it sits [0.71ms]
+(fail) dropped rows leave the total, a dash is an empty Covered by, and header and separator rows are not requirements [0.36ms]
+(fail) a roadmap with every milestone ticked adds nothing [0.15ms]
+(fail) a heading padded with blanks, or a run of `(needs:`, parses in well under 100 ms [1.15ms]
+(fail) a milestone name cut through a surrogate pair by the character cap is still well-formed [2.24ms]
+(fail) a roadmap that is no regular file, or is over 1 MiB, adds nothing [33.96ms]
+(fail) with no stages and no roadmap, the plan section and status line are byte-identical to 0.7.0 [50.61ms]
+(fail) the current milestone is the first unticked line with a milestone ID [0.36ms]
+(fail) fenced code blocks hold no sections, milestones or rows [0.23ms]
+(fail) a section heading with a suffix is found by its leading word [0.17ms]
+ 129 pass
+ 13 fail
+
+=== mutation: an unreadable roadmap rethrows (check 3)
+--- replaced:   } catch {
+    return undefined
+  }
+}
+
+// ---- session state
+--- with:       } catch (e) {
+    throw e
+  }
+}
+
+// ---- session state
+--- failing tests
+(fail) a roadmap that cannot be read adds nothing and does not block the request [28.07ms]
+(fail) an exists or stat check that throws adds nothing and does not block the request [31.76ms]
+ 140 pass
+ 2 fail
+
+=== mutation: no stat check: a non-file or oversized roadmap is read (review fix)
+--- replaced: if (stat.kind !== 'file' || !(stat.size <= ROADMAP_MAX_BYTES)) return undefined
+--- with:     void stat
+--- failing tests
+(fail) a roadmap that is no regular file, or is over 1 MiB, adds nothing [27.89ms]
+ 141 pass
+ 1 fail
+

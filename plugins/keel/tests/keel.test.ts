@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
-import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, reportRows, samePath, stampOf } from '../hooks/register.ts'
+import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, parseRoadmap, reportRows, samePath, stampOf } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
 
 // fake credentials are assembled at run time so this file never trips a secret scanner itself
@@ -103,7 +103,16 @@ function planWith(mode: string, tag = '') {
 /** Stands in for the engine under the autopilot: the plan on disk (and any other files, by repo path), the context gauge, and what the hooks send it. */
 function engine(
   on: On,
-  plan: { text: string; files?: Record<string, string>; untracked?: Record<string, string>; broken?: string[] },
+  plan: {
+    text: string
+    files?: Record<string, string>
+    untracked?: Record<string, string>
+    broken?: string[]
+    /** What a stat of the path answers instead of a regular file of its text's size. */
+    stats?: Record<string, { kind: 'file' | 'dir' | 'other'; size: number } | 'throws'>
+    /** Paths whose exists check throws. */
+    unsure?: string[]
+  },
   percent = 20,
   agents: { status: string; parentId?: string }[] = [],
 ) {
@@ -111,10 +120,22 @@ function engine(
   on('agent.list', () => ({ value: agents.map((a, i) => ({ id: `a${i}`, description: 'build', type: 'general-purpose', ...a })) as never }))
   on('session.cwd', () => ({ value: '/repo' }))
   // `untracked` files are read only as a `git add` lists them, never seen by an exists check
-  const find = (files: Record<string, string> | undefined, path: string) => Object.entries(files ?? {}).find(([p]) => path === p || path.endsWith(`/${p}`))?.[1]
-  on('fs.exists', (_, e) => ({ value: e.path.endsWith('/docs/PLAN.md') || find(plan.files, e.path) !== undefined || !!plan.broken?.some(p => e.path === p || e.path.endsWith(`/${p}`)) }))
+  const find = <T,>(files: Record<string, T> | undefined, path: string) => Object.entries(files ?? {}).find(([p]) => path === p || path.endsWith(`/${p}`))?.[1]
+  const listed = (paths: string[] | undefined, path: string) => !!paths?.some(p => path === p || path.endsWith(`/${p}`))
+  on('fs.exists', (_, e) => {
+    if (listed(plan.unsure, e.path)) throw new Error(`EACCES: permission denied, access '${e.path}'`)
+    return { value: e.path.endsWith('/docs/PLAN.md') || find(plan.files, e.path) !== undefined || listed(plan.broken, e.path) }
+  })
   // a `broken` path exists but its read throws, as a directory's would
-  const broken = (path: string) => !!plan.broken?.some(p => path === p || path.endsWith(`/${p}`))
+  const broken = (path: string) => listed(plan.broken, path)
+  // a file stats as a regular file of its text's size, a `broken` one as an empty file; a missing one rejects, as the engine's does
+  on('fs.stat', (_, e) => {
+    const text = find(plan.files, e.path)
+    const own = find(plan.stats, e.path)
+    if (own === 'throws') throw new Error(`EACCES: permission denied, stat '${e.path}'`)
+    if (own === undefined && text === undefined && !broken(e.path)) throw new Error(`ENOENT: no such file or directory, stat '${e.path}'`)
+    return { value: { kind: 'file' as const, size: new TextEncoder().encode(text ?? '').length, mtimeMs: 0, isLink: false, ...own } }
+  })
   on('fs.read', (_, e) => {
     if (broken(e.path)) throw new Error(`EISDIR: illegal operation on a directory, read '${e.path}'`)
     return { value: find(plan.files, e.path) ?? find(plan.untracked, e.path) ?? plan.text }
@@ -1208,4 +1229,302 @@ test('under lean, an agent list that cannot be read lets the Agent call through'
   engine(on, { text: planWith('Agents: lean') }, 20, unreadable as never)
   on('tool.call', () => ({ result: { text: 'started' } }))
   expect((await $.tool.call(AGENT_CALL)).deny).toBeUndefined()
+})
+
+// ---- the roadmap ----
+
+/** The plan section and band for `planWith('Open: none')` exactly as keel 0.7.0 composed them. */
+const PLAN_SECTION_070 = [
+  '# Keel',
+  'This project keeps its plan in `docs/PLAN.md`: the source of truth for goal, decisions and stages. Reread it before acting on anything it covers, and update it in the same change when a decision or stage changes. Subagents: treat this as background and stay inside your brief.',
+  '',
+  'Current position (from the plan):',
+  'Stage 2 of 3 · Share mode',
+  'Open: none',
+  '',
+  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.",
+].join('\n')
+const BAND_070 = 'keel · 1/3 done · next: 2. Share mode'
+
+test('with no roadmap, the plan section and status line are byte-identical to 0.7.0', async ($, on) => {
+  const plan = { text: planWith('Open: none') }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  expect(await compose()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+  plan.text = planWith('Open: none').replace(/- \[ \]/g, '- [x]')
+  expect((await compose()).band).toBe('keel · all 3 stages done · next feature: keel:plan')
+})
+
+/** A roadmap in the fixed layout: milestones as given, and a requirements table with `rows` (cells after the ID). */
+function roadmapWith(milestones: string[], rows: string[][]) {
+  return [
+    '# Shop roadmap',
+    'Source: docs/PRD.md, charted 2026-11-08',
+    '## Milestones',
+    ...milestones,
+    '## Requirements',
+    '| ID | Requirement | PRD § | Milestone | Covered by |',
+    '|----|-------------|-------|-----------|------------|',
+    ...rows.map((r, i) => `| R-${i + 1} | ${r.join(' | ')} |`),
+    '## Out of scope',
+    '- payments',
+    '## Open questions',
+    '- none',
+  ].join('\n')
+}
+
+const MILESTONES = ['- [x] M0. Foundation — repo and CI', '- [ ] M1. Ingest — import orders (needs: M0)', '- [ ] M2. Reports — totals (needs: M1)']
+const LEDGER = [
+  ['import CSV', '2.1', 'M1', '2026-11-01-ingest'],
+  ['import JSON', '2.2', 'M1', ''],
+  ['dedupe', '2.3', 'dropped 2026-11-05', '2026-10-01-old'],
+  ['totals', '3.1', 'M2', ''],
+]
+
+test('reads the current milestone and the coverage of the requirements that are not dropped', () => {
+  expect(parseRoadmap(roadmapWith(MILESTONES, LEDGER))).toEqual({ id: 'M1', name: 'Ingest', covered: 1, total: 3 })
+})
+
+test('with a roadmap, the plan section gains one roadmap line and the status line a milestone segment', async ($, on) => {
+  const plan = { text: planWith('Open: none'), files: { 'docs/ROADMAP.md': roadmapWith(MILESTONES, LEDGER) } }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  const { text, band } = await compose()
+  const line = 'Roadmap: M1 Ingest · 1/3 requirements covered (docs/ROADMAP.md)'
+  expect(text).toBe(PLAN_SECTION_070.replace('Open: none\n', `Open: none\n${line}\n`))
+  expect(text.split('\n').length).toBe(PLAN_SECTION_070.split('\n').length + 1)
+  expect(band).toBe('keel · M1 1/3 · 1/3 done · next: 2. Share mode')
+
+  plan.text = planWith('Mode: paused — waiting\nAgents: lean')
+  expect((await compose()).band).toBe('keel · paused · lean · M1 1/3 · 1/3 done · next: 2. Share mode')
+  plan.text = planWith('Open: none').replace(/- \[ \]/g, '- [x]')
+  expect((await compose()).band).toBe('keel · M1 1/3 · all 3 stages done · next feature: keel:plan')
+})
+
+test('the status band redrawn at the end of a turn keeps the milestone segment', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), files: { 'docs/ROADMAP.md': roadmapWith(MILESTONES, LEDGER) } })
+  const bands: (string | undefined)[] = []
+  on('ui.status', (_, e) => (bands.push(e.text), { value: undefined }))
+  await $.turn.complete(ended('t1'))
+  expect(bands.at(-1)).toBe('keel · M1 1/3 · 1/3 done · next: 2. Share mode')
+})
+
+test('the current milestone is the first unticked one, wherever it sits', () => {
+  const ms = ['- [ ] M3. Polish — copy', '- [x] M1. Ingest — orders']
+  expect(parseRoadmap(roadmapWith(ms, LEDGER))?.id).toBe('M3')
+  const later = ['- [x] M1. Ingest — orders', '- [x] M2. Reports — totals', '- [ ] M3. **Polish** — copy (needs: M2)']
+  expect(parseRoadmap(roadmapWith(later, LEDGER))).toMatchObject({ id: 'M3', name: 'Polish' })
+  expect(parseRoadmap(roadmapWith(['- [ ] M4. Launch (needs: M3)'], LEDGER))?.name).toBe('Launch')
+})
+
+test('dropped rows leave the total, a dash is an empty Covered by, and header and separator rows are not requirements', () => {
+  const rows = [
+    ['a', '1', 'M1', 'plan-a'],
+    ['b', '2', 'Dropped 2026-11-02', ''],
+    ['c', '3', 'M1', '—'],
+    ['d', '4', 'M2', ' - '],
+    ['e', '5', 'M2', 'plan-b'],
+  ]
+  expect(parseRoadmap(roadmapWith(MILESTONES, rows))).toMatchObject({ covered: 2, total: 4 })
+  // a CRLF file with a second separator row reads the same
+  const crlf = roadmapWith(MILESTONES, rows).replace('| R-3 |', '|---|---|---|---|---|\n| R-3 |').replace(/\n/g, '\r\n')
+  expect(parseRoadmap(crlf)).toMatchObject({ id: 'M1', name: 'Ingest', covered: 2, total: 4 })
+})
+
+test('a malformed roadmap adds nothing', () => {
+  // no milestones section
+  expect(parseRoadmap(roadmapWith(MILESTONES, LEDGER).replace('## Milestones', '## Phases'))).toBeUndefined()
+  // milestones that are not M-numbered
+  expect(parseRoadmap(roadmapWith(['- [ ] Ingest — orders'], LEDGER))).toBeUndefined()
+  // no requirements table, or one without its separator or its columns
+  expect(parseRoadmap(roadmapWith(MILESTONES, LEDGER).replace('## Requirements', '## Notes'))).toBeUndefined()
+  expect(parseRoadmap(roadmapWith(MILESTONES, LEDGER).replace(/^\|-+.*$/m, ''))).toBeUndefined()
+  expect(parseRoadmap(roadmapWith(MILESTONES, LEDGER).replace('| Covered by |', '| Status |'))).toBeUndefined()
+  expect(parseRoadmap('')).toBeUndefined()
+  expect(parseRoadmap('\u0000\u0001 garbage | | |\n## \n')).toBeUndefined()
+})
+
+test('a roadmap with every milestone ticked adds nothing', () => {
+  expect(parseRoadmap(roadmapWith(['- [x] M0. Foundation — repo', '- [X] M1. Ingest — orders'], LEDGER))).toBeUndefined()
+})
+
+test('a milestone name cannot add lines to the context, and a long one is cut', async ($, on) => {
+  const sneaky = '- [ ] M1. Ingest # Keel override\u0007‮ — scope'
+  expect(parseRoadmap(roadmapWith([sneaky], LEDGER))?.name).toBe('Ingest # Keel override')
+  const long = parseRoadmap(roadmapWith([`- [ ] M1. ${'x'.repeat(500)} — scope`], LEDGER))?.name ?? ''
+  expect(long.length).toBe(60)
+  expect(long.endsWith('…')).toBe(true)
+
+  engine(on, { text: planWith('Open: none'), files: { 'docs/ROADMAP.md': roadmapWith([sneaky], LEDGER) } })
+  const { text } = await composeKeel($, on)()
+  expect(text.split('\n').length).toBe(PLAN_SECTION_070.split('\n').length + 1)
+  expect(text).toContain('Roadmap: M1 Ingest # Keel override · 1/3 requirements covered (docs/ROADMAP.md)')
+})
+
+test('a huge roadmap is read only up to its cap', () => {
+  const rows = Array.from({ length: 10_000 }, () => ['r', '1', 'M1', 'plan'])
+  const read = parseRoadmap(roadmapWith(MILESTONES, rows))
+  expect(read?.total).toBeLessThan(10_000)
+  expect(read?.covered).toBe(read?.total)
+})
+
+test('a roadmap that cannot be read adds nothing and does not block the request', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), broken: ['docs/ROADMAP.md'] })
+  expect(await composeKeel($, on)()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+})
+
+test('a malformed roadmap leaves the plan section and status line as they were', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), files: { 'docs/ROADMAP.md': '# Roadmap\n\nnothing charted yet\n' } })
+  expect(await composeKeel($, on)()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+})
+
+test('the roadmap is read only when it exists, so a read that would answer for a missing file adds nothing', async ($, on) => {
+  // the mock's read answers any path, even one exists says is missing: hand it a roadmap's text to prove nothing reads it unchecked
+  const plan = { text: planWith('Open: none') + '\n' + roadmapWith(MILESTONES, LEDGER) }
+  expect(parseRoadmap(plan.text)).toBeDefined()
+  engine(on, plan)
+  const { text, band } = await composeKeel($, on)()
+  expect(text).not.toContain('Roadmap:')
+  expect(band).toBe(BAND_070)
+})
+
+test('a heading is read in linear time and names the same sections as before', () => {
+  const text = ['## Goal', 'ship it', planWith('Open: none')].join('\n')
+  const base = parsePlan('docs/PLAN.md', text)
+  expect(base).toMatchObject({ goal: 'ship it', total: 3, done: 1, current: '2. Share mode' })
+  // blanks after a heading, or more of them before its text, change nothing
+  expect(parsePlan('docs/PLAN.md', text.replace(/^(##.*)$/gm, '$1 \t '))).toEqual(base)
+  expect(parsePlan('docs/PLAN.md', text.replace(/^## /gm, '##   '))).toEqual(base)
+  // a CRLF plan still finds its sections
+  expect(parsePlan('docs/PLAN.md', text.replace(/\n/g, '\r\n'))).toMatchObject({ goal: 'ship it', total: 3, done: 1, current: '2. Share mode' })
+  // a line separator inside a heading's text makes it no heading, as it did
+  expect(parsePlan('docs/PLAN.md', '## Now x\nStage 1\n## Stages\n- [ ] 1. A').now).toBeUndefined()
+})
+
+const timed = (run: () => unknown) => {
+  const start = performance.now()
+  run()
+  return performance.now() - start
+}
+
+test('a heading padded with blanks, or a run of `(needs:`, parses in well under 100 ms', () => {
+  const padded = '## a' + ' '.repeat(250_000) + 'b'
+  // many padded headings, each within the per-line cap, filling the character cap
+  const headings = Array.from({ length: 125 }, () => '## a' + ' '.repeat(1_990) + 'b').join('\n')
+  const needs = '- [ ] M1. Ingest ' + '(needs:'.repeat(Math.ceil(250_000 / 7))
+  expect(needs.length).toBeGreaterThan(250_000)
+  const times = {
+    plan: timed(() => expect(parsePlan('docs/PLAN.md', `${padded}\n${planWith('Open: none')}`).total).toBe(3)),
+    heading: timed(() => expect(parseRoadmap(`${padded}\n${roadmapWith(MILESTONES, LEDGER)}`)?.id).toBe('M1')),
+    headings: timed(() => expect(parseRoadmap(`${roadmapWith(MILESTONES, LEDGER)}\n${headings}`)?.id).toBe('M1')),
+    needs: timed(() => expect(parseRoadmap(roadmapWith([needs], LEDGER))?.id).toBe('M1')),
+  }
+  console.log(`roadmap timings (ms): ${JSON.stringify(times)}`)
+  for (const ms of Object.values(times)) expect(ms).toBeLessThan(100)
+})
+
+test('only a trailing `(needs: …)` leaves the name', () => {
+  const name = (line: string) => parseRoadmap(roadmapWith([line], LEDGER))?.name
+  expect(name('- [ ] M1. Ingest (NEEDS: M0)  — scope')).toBe('Ingest')
+  expect(name('- [ ] M1. Ingest (needs: (needs: M0)')).toBe('Ingest')
+  expect(name('- [ ] M1. Ingest (needs: M0) later')).toBe('Ingest (needs: M0) later')
+  expect(name('- [ ] M1. Ingest (needs: M0')).toBe('Ingest (needs: M0')
+  expect(name('- [ ] M1. Ingest (fast) (needs: M0)')).toBe('Ingest (fast)')
+})
+
+test('a milestone name cut through a surrogate pair by the character cap is still well-formed', () => {
+  const head = roadmapWith(['- [x] M0. Foundation — repo'], LEDGER) + '\n## Milestones\n'
+  const line = '- [ ] M1. Ingest '
+  // filler lines that are no milestones, so the emoji after the line straddles the cap
+  const fill = 255_999 - head.length - line.length
+  const filler = ('n'.repeat(999) + '\n').repeat(Math.floor(fill / 1000)) + (fill % 1000 ? 'n'.repeat((fill % 1000) - 1) + '\n' : '')
+  const text = head + filler + line + '\u{1F600} — scope'
+  expect(/\p{Cs}$/u.test(text.slice(0, 256_000))).toBe(true)
+  const name = parseRoadmap(text)?.name ?? ''
+  expect(name).toBe('Ingest')
+  expect(/\p{Cs}/u.test(name)).toBe(false)
+})
+
+test('invisible characters do not survive in a milestone name', () => {
+  // Hangul filler, blank braille cell, grapheme joiner, a variation selector, private use, unassigned
+  for (const hidden of ['ㅤ', '⠀', '͏', '️', '︀', '', '͸']) {
+    expect(parseRoadmap(roadmapWith([`- [ ] M1. Ingest${hidden}x — scope`], LEDGER))?.name).toBe('Ingest x')
+  }
+})
+
+test('a roadmap that is no regular file, or is over 1 MiB, adds nothing', async ($, on) => {
+  const plan: Parameters<typeof engine>[1] = { text: planWith('Open: none'), files: { 'docs/ROADMAP.md': roadmapWith(MILESTONES, LEDGER) } }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  expect((await compose()).band).toBe('keel · M1 1/3 · 1/3 done · next: 2. Share mode')
+  plan.stats = { 'docs/ROADMAP.md': { kind: 'file', size: 1024 * 1024 } }
+  expect((await compose()).band).toBe('keel · M1 1/3 · 1/3 done · next: 2. Share mode')
+  // a FIFO or device, a directory, and a file just over the cap
+  for (const stat of [{ kind: 'other' as const, size: 0 }, { kind: 'dir' as const, size: 4096 }, { kind: 'file' as const, size: 1024 * 1024 + 1 }]) {
+    plan.stats = { 'docs/ROADMAP.md': stat }
+    expect(await compose()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+  }
+})
+
+test('an exists or stat check that throws adds nothing and does not block the request', async ($, on) => {
+  const plan: Parameters<typeof engine>[1] = { text: planWith('Open: none'), files: { 'docs/ROADMAP.md': roadmapWith(MILESTONES, LEDGER) }, unsure: ['docs/ROADMAP.md'] }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  expect(await compose()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+  plan.unsure = []
+  plan.stats = { 'docs/ROADMAP.md': 'throws' }
+  expect(await compose()).toEqual({ text: PLAN_SECTION_070, band: BAND_070 })
+})
+
+test('with no stages and no roadmap, the plan section and status line are byte-identical to 0.7.0', async ($, on) => {
+  const plan: Parameters<typeof engine>[1] = { text: '## Goal\nShip the shop\n## Now\nScoping the first release' }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  // as keel 0.7.0 (HEAD 0bf29d0) composed them, run against this plan
+  const text = PLAN_SECTION_070.replace('Stage 2 of 3 · Share mode\nOpen: none', 'Scoping the first release')
+  expect(await compose()).toEqual({ text, band: 'keel · docs/PLAN.md' })
+  plan.files = { 'docs/ROADMAP.md': roadmapWith(MILESTONES, LEDGER) }
+  expect((await compose()).band).toBe('keel · M1 1/3 · docs/PLAN.md')
+})
+
+test('the current milestone is the first unticked line with a milestone ID', () => {
+  const nested = ['- [x] M0. F — s', '  - [ ] leftover task', '- [ ] M1. Ingest — s']
+  expect(parseRoadmap(roadmapWith(nested, LEDGER))).toMatchObject({ id: 'M1', name: 'Ingest' })
+  expect(parseRoadmap(roadmapWith(['- [ ] decide M5 scope', ...MILESTONES], LEDGER))).toMatchObject({ id: 'M1', name: 'Ingest' })
+  // with only stray unticked lines left, every milestone is ticked
+  expect(parseRoadmap(roadmapWith(['- [x] M0. F — s', '- [ ] decide M5 scope'], LEDGER))).toBeUndefined()
+})
+
+test('a requirement row whose cell count differs from the header is skipped, and an escaped pipe stays in its cell', () => {
+  // an unescaped pipe in code would shift `M1` into Covered by
+  expect(parseRoadmap(roadmapWith(MILESTONES, [['`a|b`', '1', 'M1', ''], ...LEDGER]))).toMatchObject({ covered: 1, total: 3 })
+  expect(parseRoadmap(roadmapWith(MILESTONES, [['`a\\|b`', '1', 'M1', ''], ...LEDGER]))).toMatchObject({ covered: 1, total: 4 })
+  expect(parseRoadmap(roadmapWith(MILESTONES, [['a \\| b', '1', 'M1', 'plan-x'], ...LEDGER]))).toMatchObject({ covered: 2, total: 4 })
+})
+
+test('fenced code blocks hold no sections, milestones or rows', () => {
+  const fake = ['```md', '## Milestones', '- [ ] M9. Fake — s', '## Requirements', '| ID | Requirement | PRD § | Milestone | Covered by |', '|---|---|---|---|---|', '| X-1 | x | 1 | M9 | p |', '```'].join('\n')
+  expect(parseRoadmap(`${fake}\n${roadmapWith(MILESTONES, LEDGER)}`)).toEqual({ id: 'M1', name: 'Ingest', covered: 1, total: 3 })
+  // a tilde fence inside the checklist, and a longer fence a shorter one does not close
+  const tilde = ['~~~', '- [ ] M7. Example — s', '~~~', '````', '```', '- [ ] M8. Example — s', '````', ...MILESTONES]
+  expect(parseRoadmap(roadmapWith(tilde, LEDGER))).toEqual({ id: 'M1', name: 'Ingest', covered: 1, total: 3 })
+  // rows inside a fence under the table are not requirements
+  const rows = roadmapWith(MILESTONES, LEDGER).replace('## Out of scope', '```\n| R-9 | x | 1 | M1 | p |\n```\n## Out of scope')
+  expect(parseRoadmap(rows)).toMatchObject({ covered: 1, total: 3 })
+})
+
+test('a section heading with a suffix is found by its leading word', () => {
+  const text = roadmapWith(MILESTONES, LEDGER).replace('## Milestones', '## Milestones (3)').replace('## Requirements', '## Requirements (4)')
+  expect(parseRoadmap(text)).toEqual({ id: 'M1', name: 'Ingest', covered: 1, total: 3 })
+})
+
+test('a line past 2,000 characters is cut before it is read', () => {
+  // the cut takes this row's later cells, so it no longer has the header's cell count
+  expect(parseRoadmap(roadmapWith(MILESTONES, [['x'.repeat(2_000), '1', 'M1', 'plan-x'], ...LEDGER]))).toMatchObject({ covered: 1, total: 3 })
+  expect(parseRoadmap(roadmapWith(MILESTONES, [['x'.repeat(1_900), '1', 'M1', 'plan-x'], ...LEDGER]))).toMatchObject({ covered: 2, total: 4 })
+})
+
+test('a dropped cell in emphasis is still dropped', () => {
+  const rows = [...LEDGER, ['old', '9', '**dropped** 2026-11-05', ''], ['older', '9', '_Dropped_ 2026-11-06', 'p']]
+  expect(parseRoadmap(roadmapWith(MILESTONES, rows))).toMatchObject({ covered: 1, total: 3 })
 })
