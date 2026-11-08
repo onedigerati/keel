@@ -20,7 +20,7 @@ This is `keel:stage` with you delegating rather than building:
 1. **Scope.** Write `## Now` for the stage: scope, risk line, checks with proofs, open decisions. If the risk line names auth, money or personal data, or an open decision blocks the stage, pause (section 3) before building.
 2. **Build, by delegation.** Spawn builder agents with peer briefs as `keel:stage` describes, the stage's checks quoted from the plan. Foundation first, by one builder in the main tree; independent leaves in parallel after, each with `isolation: "worktree"` so they can't collide, and merge each builder's branch back once you've checked it. Each reports what it changed and how it checked it.
 3. **Prove it independently.** A builder's "done" is a claim. Run `keel:verify`, or hand it to a fresh agent that built nothing and have it run `keel:verify`. Either way the stage's evidence is written to `docs/evidence/stage-<n>/`. Spot-check `report.md` against the files it links, and tick each proven check in `## Now`. Failures go back to a builder with the failing output.
-4. **Review.** Run `keel:review` when `keel:stage` would. Fixes go to a builder; re-verify what they touch.
+4. **Review.** First check the risk line against what the diff actually touches and correct it in the plan when it's wrong, as `keel:stage` step 4 says. If the corrected line names auth, money or personal data, pause (section 3) before closing the stage, as you would for a stage planned that way. Then run `keel:review` when `keel:stage` would. Fixes go to a builder; re-verify what they touch.
 5. **Close.** Update the plan and commit as `keel:stage` step 5 says, the stage's evidence included, then go straight on to the next stage. No stop-and-report in between; keep a line per stage for the final report.
 
 Small decisions inside the plan's intent are yours: make them, log them dated with the why, and list them at the end.
@@ -32,7 +32,7 @@ Keep your context lean. Diffs and logs stay with the agents; you hold the plan, 
 The keel hook enforces the first and last of these while autopilot is armed: it holds a stage whose risk line names auth, money or personal data (no file edits outside the plan, no builder agents) until the user speaks, it blocks outward-facing commands (push, publish, deploy, sending data to an outside service), and it refuses a commit that closes a stage whose checks were never seen ticked. Don't work around a block; it means pause.
 
 Pause when:
-- the next stage's risk line names auth, money or personal data (before building it);
+- the next stage's risk line names auth, money or personal data (before building it), or a built stage's corrected line does (before closing it);
 - a decision only the user can make blocks the work: scope, a product choice, a trade-off the plan doesn't settle;
 - a check still fails after three fix rounds, or a builder's report and the evidence disagree and you can't settle it;
 - the work shows the plan is wrong: a finished stage needs redoing, the scope must grow, a decision no longer holds;
