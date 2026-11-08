@@ -1,6 +1,6 @@
 schema_version: "1.0"
 name: charter-rechart
-description: Re-charting a changed PRD diffs it against the ledger — new IDs added, dropped rows kept and dated, changed text updated in place, Covered by never cleared, a move of covered work asked about — and logs the diff in the plan.
+description: Re-charting a changed PRD diffs it against the ledger — new IDs added, dropped rows kept and dated, changed text updated in place, Covered by never cleared but a reworded covered row recorded for rework, a move of covered work asked about, CLAUDE.md left alone — and logs the diff in the plan.
 tags: [charter, outcome]
 context:
   scaffold_script: scaffold.sh
@@ -33,8 +33,17 @@ graders:
     name: coverage-never-cleared
     focus: { source: file, path: docs/ROADMAP.md }
     criteria: >-
-      ACC-01, ACC-02, ACC-03 and ACC-04 each still have `2026-11-20-accounts` in their Covered by cell (none was
-      cleared or changed), and no other row's Covered by cell holds anything (not TBD, n/a, a dash or a status).
+      ACC-01, ACC-02, ACC-03 and ACC-04 each still have the link `[Accounts](plans/2026-11-20-accounts.md)` in their
+      Covered by cell (none was cleared, changed or turned into a bare name), and no other row's Covered by cell holds
+      anything (not TBD, n/a, a dash or a status).
+  - type: llm
+    name: rework-recorded
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      `## Open questions` has a line recording that ACC-04 needs rework, of the form
+      `- Rework ACC-04: <what changed> (re-charted <YYYY-MM-DD>)`, where what changed says the reset link is now valid
+      for 30 minutes instead of one hour. The PRD's waiting-list question (PLT-07) is still there, since v2 doesn't
+      answer it.
   - type: llm
     name: covered-changes-surfaced
     focus: trace
@@ -52,6 +61,14 @@ graders:
       The plan's Decisions section has a new dated entry recording the re-charter of docs/PRD.md and what changed
       (at least that TL-06 was added and HRV-03 dropped), alongside the earlier 2026-11-21 plot-number decision,
       which is kept. The plan's stages are not rewritten to build the new requirements.
+  - type: llm
+    name: claude-md-untouched
+    focus: { source: file, path: CLAUDE.md }
+    criteria: >-
+      CLAUDE.md is unchanged in substance, since PRD v2's locked decisions are the same as v1's: it still has the
+      flask run and pytest line, and its `## Locked decisions (from docs/PRD.md)` section lists the same three
+      decisions (the stack, ISO 8601 UTC dates and integer grams, at most two plots per member). Nothing outside
+      that section was rewritten or removed, and no line about process, review, agents or approvals was added.
   - type: regex
     name: no-source-changes
     target: files

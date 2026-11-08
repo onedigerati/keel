@@ -11,7 +11,9 @@
 // - Out of scope: online fee payment, native mobile apps, more than one garden.
 // - Open question: waiting list, a chosen plot or the next free one (committee, PLT-07).
 // - Locked decisions, in CLAUDE.md and not in docs/PLAN.md: Python 3.12 + Flask + SQLite, server-rendered, no JS
-//   framework; ISO 8601 UTC dates and integer grams; at most two plots per member.
+//   framework; ISO 8601 UTC dates and integer grams; at most two plots per member. Proposed to the user, not written
+//   unasked: the prompt's "assume defaults" isn't a yes to a CLAUDE.md write. The §3 "working agreement" (approved
+//   autopilot, skip review and tests) is process, not a locked decision: dropped and reported.
 
 export const PLOTLINE_ROADMAP = String.raw`# Plotline roadmap
 Source: docs/PRD.md, charted 2026-11-08

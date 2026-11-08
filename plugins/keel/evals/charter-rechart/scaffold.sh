@@ -93,10 +93,10 @@ Source: docs/PRD.md, charted 2026-11-10
 ## Requirements
 | ID | Requirement | PRD § | Milestone | Covered by |
 |----|-------------|-------|-----------|------------|
-| ACC-01 | A member signs up with an email address and a password of at least 12 characters | 5.1 | M1 | 2026-11-20-accounts |
-| ACC-02 | A member logs in and logs out | 5.1 | M1 | 2026-11-20-accounts |
-| ACC-03 | An admin can deactivate a member, who can then no longer log in; their bookings are kept | 5.1 | M1 | 2026-11-20-accounts |
-| ACC-04 | A member can reset a forgotten password through an emailed link valid for one hour | 5.1 | M1 | 2026-11-20-accounts |
+| ACC-01 | A member signs up with an email address and a password of at least 12 characters | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-02 | A member logs in and logs out | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-03 | An admin can deactivate a member, who can then no longer log in; their bookings are kept | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-04 | A member can reset a forgotten password through an emailed link valid for one hour | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
 | PLT-01 | An admin creates a plot with its number, size in square metres and bed type (open or raised) | 5.2 | M1 | |
 | PLT-02 | Members see the plot map with each plot's status: free \| booked \| overdue | 5.2 | M1 | |
 | PLT-03 | A member books a free plot for the season (1 March to 31 October) | 5.2 | M1 | |

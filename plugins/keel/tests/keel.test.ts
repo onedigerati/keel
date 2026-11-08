@@ -1532,7 +1532,8 @@ test('the charter-prd answer key parses: M1 is current, 20 requirements, none co
 })
 
 test('the charter-prd answer key re-charted: a dropped row leaves the total, a new row joins it, coverage is kept', () => {
-  const recharted = PLOTLINE_ROADMAP.replace(/^(\| ACC-0[1-4] \|.*\| M1 \|) \|$/gm, '$1 2026-11-20-accounts |')
+  // Covered by holds a link to the archived plan, relative to docs/
+  const recharted = PLOTLINE_ROADMAP.replace(/^(\| ACC-0[1-4] \|.*\| M1 \|) \|$/gm, '$1 [Accounts](plans/2026-11-20-accounts.md) |')
     .replace('| 5.3 | M2 | |\n| HRV-04', '| 5.3 | dropped 2026-12-01 | |\n| HRV-04')
     .replace('\n\n## Out of scope', '\n| TL-06 | A member reserves a tool up to seven days ahead | 5.4 | M2 | |\n\n## Out of scope')
   expect(parseRoadmap(recharted)).toEqual({ id: 'M1', name: 'Plots', covered: 4, total: 20 })
