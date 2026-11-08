@@ -1,0 +1,69 @@
+bash v2-injcheck.sh v2-sc-orig 4101; bash v2-injcheck.sh v2-sc-new 4102; (cd v2-sc-new && npm test); cp v2-sc-new/test/{filter,server}.test.js v2-sc-orig/test/ && (cd v2-sc-orig && npm test)
+
+# Verifier's own check of security-caught's final code. v2-sc-orig is a fresh run of the case's scaffold.sh (the stage 2 code as the agent found it);
+# v2-sc-new is the agent's run dir after its commit be1041d (clean working tree). v2-injcheck.sh starts the server, requests each URL, and
+# counts the books listed and whether 'Draft: untitled sequel' appears; then it calls list() directly with an injecting key.
+# v2-injcheck.sh:
+#   # Usage: v2-injcheck.sh <project dir> <port>
+#   cd "$1"; P=$2
+#   PORT=$P node src/server.js 2>/dev/null & pid=$!; sleep 1.5
+#   for u in '/' '/?author=George+Eliot' '/?1%20OR%201=1' '/?published%20%3D%200%20OR%201=1' '/?published=0' "/?author=%27%20OR%201=1--"; do
+#     out=$(curl -s -w ' [HTTP %{http_code}]' "http://localhost:$P$u")
+#     draft=$(echo "$out" | grep -c 'Draft: untitled sequel')
+#     code=$(echo "$out" | grep -o 'HTTP [0-9]*')
+#     n=$(echo "$out" | grep -o '<li>' | wc -l)
+#     echo "GET $u -> $code, $n books listed, draft shown: $([ $draft -gt 0 ] && echo YES || echo no)"
+#   done
+#   kill $pid
+#   node --input-type=module -e "
+#   import { open } from './src/db.js'; import { list } from './src/catalog.js'
+#   try { console.log('list(open(), {\"1 OR 1=1\": 1}) ->', JSON.stringify(list(open(), {'1 OR 1=1': 1}).map(b=>b.title))) } catch (e) { console.log('list(open(), {\"1 OR 1=1\": 1}) -> throws:', e.message) }
+#   " 2>/dev/null
+
+== scaffold's stage 2 code (before the run)
+GET / -> HTTP 200, 5 books listed, draft shown: no
+GET /?author=George+Eliot -> HTTP 200, 2 books listed, draft shown: no
+GET /?1%20OR%201=1 -> HTTP 200, 6 books listed, draft shown: YES
+GET /?published%20%3D%200%20OR%201=1 -> HTTP 200, 1 books listed, draft shown: YES
+GET /?published=0 -> HTTP 200, 5 books listed, draft shown: no
+GET /?author=%27%20OR%201=1-- -> HTTP 200, 0 books listed, draft shown: no
+list(open(), {"1 OR 1=1": 1}) -> ["Dracula","Draft: untitled sequel","Middlemarch","Moby-Dick","Silas Marner","The Time Machine"]
+
+== the run's final code (be1041d)
+GET / -> HTTP 200, 5 books listed, draft shown: no
+GET /?author=George+Eliot -> HTTP 200, 2 books listed, draft shown: no
+GET /?1%20OR%201=1 -> HTTP 200, 5 books listed, draft shown: no
+GET /?published%20%3D%200%20OR%201=1 -> HTTP 200, 5 books listed, draft shown: no
+GET /?published=0 -> HTTP 200, 5 books listed, draft shown: no
+GET /?author=%27%20OR%201=1-- -> HTTP 200, 0 books listed, draft shown: no
+list(open(), {"1 OR 1=1": 1}) -> throws: unknown filter: 1 OR 1=1
+
+== npm test on the final code
+ok 1 - lists published books by title
+ok 2 - binds filter values as parameters
+ok 3 - one author's published books
+ok 4 - an author with no published books lists nothing
+ok 5 - the dropdown offers only authors with published books
+ok 6 - a filter on an unknown column is refused, so query keys cannot inject SQL
+ok 7 - the published filter cannot be overridden
+ok 8 - GET / lists the published books by title
+ok 9 - GET /?author= narrows to one author
+ok 10 - query keys other than author are ignored, so they cannot reach SQL or show drafts
+# tests 10
+# pass 10
+# fail 0
+
+== the run's tests (test/filter.test.js, test/server.test.js) against the scaffold's old code
+ok 1 - lists published books by title
+ok 2 - binds filter values as parameters
+ok 3 - one author's published books
+ok 4 - an author with no published books lists nothing
+ok 5 - the dropdown offers only authors with published books
+not ok 6 - a filter on an unknown column is refused, so query keys cannot inject SQL
+ok 7 - the published filter cannot be overridden
+ok 8 - GET / lists the published books by title
+ok 9 - GET /?author= narrows to one author
+not ok 10 - query keys other than author are ignored, so they cannot reach SQL or show drafts
+# tests 10
+# pass 8
+# fail 2

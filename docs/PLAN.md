@@ -7,19 +7,19 @@ Close the two gaps in how Keel proves the code it helps build, without making it
 2026-11-07 · tests: 55 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 2 of 3 · Security proof
+Stage 3 of 3 · Docs and release
 Mode: autopilot
 Risk: UI only
 Checks:
-- [ ] `stage/SKILL.md` says to compare the risk line with what the diff actually touches before deciding on review, and to correct the line in the plan when it's wrong (proof: command, grep; a test can't judge skill wording)
-- [ ] `autopilot/SKILL.md` says the same, and pauses when the corrected line names auth, money or personal data (proof: command, grep; a test can't judge skill wording)
-- [ ] A "UI only" stage whose code builds a SQL query from user input gets its risk line corrected, a review, and the injection fixed with a parameterized query and a test (proof: new eval case `security-caught`, run headless and graded by hand, since Bash evals can't run here)
-- [ ] Plugin tests and validate still pass (proof: `claude plugin test plugins/keel`, `claude plugin validate plugins/keel`)
+- [ ] `plugins/keel/README.md` describes the end-of-plan re-run, the risk-line recheck and the gate skipping re-run rows, and lists `regression-caught`, `risk-recheck` and `security-caught` in the eval list and in the cases that can't run under WSL (proof: command, grep; a test can't judge prose)
+- [ ] The root `README.md` mentions tests as preferred proof and the risk-line recheck (proof: command, grep; a test can't judge prose)
+- [ ] `plugin.json` is version 0.6.0 (proof: command)
+- [ ] Plugin tests and validate pass (proof: `claude plugin test plugins/keel`, `claude plugin validate plugins/keel`)
 Open: none
 
 ## Stages
 - [x] 1. Regression proof — plans prefer tests as proof; verify re-runs hand-proven checks once at the end of a plan; eval `regression-caught`
-- [ ] 2. Security proof — stage and autopilot recheck the risk line against the diff before deciding on review; eval where review catches a planted SQL injection
+- [x] 2. Security proof — stage and autopilot recheck the risk line against the diff before deciding on review; eval `risk-recheck` proves the recheck; `security-caught` checks an injection is fixed before commit
 - [ ] 3. Docs and release — both READMEs, eval list, version 0.6.0
 
 ## Decisions
@@ -29,6 +29,8 @@ Open: none
 - 2026-11-07 · The evidence gate doesn't count `Re-run of stage <k>` rows toward a stage's check rows — the stage 1 verifier found re-run rows could otherwise stand in for a missing check row.
 - 2026-11-07 · Stage 1's eval `regression-caught` covers one shape: one earlier stage, one failing re-run. A passing re-run, several earlier stages and the `## Stages` fallback for a stage with no report aren't covered — accepted at n=1, as the plan's method for eval proof allows. `claude plugin eval plugins/keel --case regression-caught --scaffold` still to run off this machine.
 - 2026-11-07 · Stage 2 is built in a worktree in parallel with stage 1's review fixes, and merged after stage 1 is committed — the two touch different files, and the user asked for more parallelism.
+- 2026-11-07 · Stage 2's eval proves the risk recheck (`risk-recheck`: a safe user-input stage labelled "UI only" is relabelled and reviewed under the new skills, not the old), and `security-caught` stays as a plain safety check that an injection is fixed before commit, with no claim review found it — in 6 runs over 3 injection designs, the author found and fixed the injection on first reading the diff under both the new and the pre-stage-2 skills, so no small eval can show review catching it. Decided by the user, following the recommendation.
+- 2026-11-07 · `risk-recheck` reliably separates the versions on the risk line (corrected in `## Now` under the new skills; left "UI only" with only a dated decision under the old, 2 of 2 runs), but not always on review: the old skills skipped review in 1 of 2 runs and ran it in the other. So the stage proves the risk is now recorded where review and the hook read it, and that review runs under the new skills; it doesn't prove review would otherwise have been skipped every time.
 - 2026-11-07 · Not doing: mandatory test-first for every feature (tests first stays the rule for bug fixes and untested code, and tests travel with risky logic), a required static analysis tool in verify, or secure-coding rules at build time — each adds weight for little gain over what the suite, the linter the project already has, and the fresh-eyes security pass catch; projects that want strict TDD can say so in `CLAUDE.md`.
 
 ## Open questions

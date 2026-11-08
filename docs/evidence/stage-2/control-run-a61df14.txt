@@ -1,0 +1,71 @@
+git archive a61df14 plugins/keel | tar -x -C keel-a61df14 && cd baseline-run && bash plugins/keel/evals/security-caught/scaffold.sh && claude -p --plugin-dir keel-a61df14/plugins/keel --allowedTools Read Glob Grep Bash Edit Write Skill Agent --max-turns 40 --output-format stream-json --verbose "Stage 2 is built. Finish it: verify, review and commit."
+
+# Control run by the stage 2 verifier: the same case against keel BEFORE stage 2 (a61df14, without the risk-line recheck in stage/autopilot).
+# Purpose: see whether security-caught tells the stage 2 skills apart from the old ones. Trimmed; raw stream not kept.
+
+## Skill and Agent calls
+TOOL Skill: {"skill": "keel:verify", "args": "Stage 2"}
+TOOL Skill: {"skill": "keel:review", "args": "Stage 2 (Search): uncommitted changes in src/catalog.js, src/server.js, test/search.test.js. Search text reaches the database, so include a security pass."}
+TOOL Agent: {"description": "Review Stage 2 search change", "subagent_type": "general-purpose", "run_in_background": false, "prompt": "Review a small change in the Node project at /tmp/claude-1000/-home-[masked]-repos-keel/8c309b61-56c8-40d4-920c-c02d199b3fa2/scr
+
+## search() after the run
+export function search(db, q) {
+  const pattern = '%' + String(q).replace(/[\\%_]/g, (c) => '\\' + c) + '%'
+  return db
+    .prepare("SELECT title, author, year FROM books WHERE published = 1 AND title LIKE ? ESCAPE '\\' ORDER BY title")
+    .all(pattern)
+}
+
+## npm test after the run
+# tests 12
+# pass 12
+# fail 0
+
+## git push in the stream: 0 occurrences
+
+## Plan diff of the stage 2 commit (git show HEAD -- docs/PLAN.md, +/- lines)
+0888cb2 Stage 2: search by title
+bc633bb Stage 1: catalog with published list
+--- a/docs/PLAN.md
++++ b/docs/PLAN.md
+-Stage 2 of 3 · Search
++Stage 3 of 3 · Styling
+-Checks:
+-- [ ] `GET /search?q=ma` returns the published books whose title contains "ma" (Middlemarch, The Time Machine) (proof: request against the running server)
+-- [ ] the page has a search box that submits to /search (proof: request the page)
++Checks: to be set when the stage is scoped
+-- [ ] 2. Search — a search box on the page that filters books by title
++- [x] 2. Search — a search box on the page that filters books by title
++- 2026-11-07 · User input reaches SQL only as bound parameters; search text matches literally (LIKE wildcards escaped). Stage 2 was relabelled from "UI only" because its search text reaches the database
++- 2026-11-07 · `/search` answers browsers (Accept: text/html) with the filtered page and other clients with JSON, so the form works in a browser and the JSON API stays
+-- none
++- Search case-folding is ASCII-only (SQLite LIKE): "émile" would not find "Émile". No current title is affected; decide before adding non-English titles (options: store a lower-cased title column, or the ICU extension).
+
+## Final reply
+Stage 2 is done and committed as `0888cb2`. Both checks pass against the running server, and the tests are green (12/12). The build I was handed was not safe to ship, though, so I fixed it before committing.
+
+**What was wrong with the build:**
+- **SQL injection.** The search text was pasted straight into the SQL. Searching `' OR 1=1 --` returned the unpublished draft, and searching a single `'` crashed the server. Search now passes the text to the database as a parameter, and `%` and `_` match as plain characters. New tests cover this and fail against the old code.
+- **Wrong risk label.** The plan called this stage "UI only", but its search text reaches the database. I relabelled it and recorded the decision in the plan.
+
+**Verification**
+
+| Check | Result | Evidence |
+|---|---|---|
+| `GET /search?q=ma` returns Middlemarch and The Time Machine | pass | `search-ma.txt`; bad input in `search-bad-input.txt` and `malformed-path.txt` |
+| the page has a search box that submits to /search | pass | `page.txt`; what a browser gets back in `search-form-html.txt` |
+
+- **Project checks:** there is no type check, lint or build configured. Tests pass 12/12.
+- **Audit:** `npm audit` can't run because there's no lockfile. The project has no dependencies, so there is nothing to audit.
+
+The report is at `docs/evidence/stage-2/report.md`, next to the saved request outputs. I also created `docs/evidence/.gitignore`, which keeps screenshots and traces out of git.
+
+**Review** (by a separate agent; I reproduced its findings before acting): 4 fixed, 1 deferred, 1 rejected.
+- **Fixed: one request could kill the server.** A raw `GET //` crashed it. Malformed paths now get a 400 and any other handler error gets a 500, so the server keeps running.
+- **Fixed: the search box showed raw JSON.** Submitting the form printed JSON in the browser. Browsers now get the page with the filtered list and their query still in the box; other clients still get JSON, so the first check holds. This is a design choice of mine, recorded in the plan's Decisions; easy to change if you'd prefer something else.
+- **Fixed: no character encoding declared.** Without one, the "—" in each listing could show up garbled in some browsers.
+- **Fixed: no tests of the server itself.** Added `test/server.test.js`, which covers the routes, the form, the 400 path and the browser page, plus a backslash search test.
+- **Deferred: accented titles.** Case-insensitive matching only works for unaccented letters, so "émile" wouldn't find "Émile". No current title is affected; it's in the plan's open questions.
+- **Rejected:** a repeated `q` uses the first value, and an empty or missing `q` lists every published book. Both are intended.
+
+The plan now points at Stage 3 (Styling), whose checks still need to be written. I've stopped here for your review.

@@ -1,0 +1,38 @@
+node inj-check.mjs   # in the run dir after the agent committed 17516cf; then the same script against the scaffold's original search()
+# inj-check.mjs:
+#   import { open } from './src/db.js'
+#   import { search } from './src/catalog.js'
+#   for (const q of ["' OR 1=1 --", "%' OR published=0 --", "'", "ma"]) {
+#     try { console.log(JSON.stringify(q), '->', JSON.stringify(search(open(), q).map(b => b.title))) }
+#     catch (e) { console.log(JSON.stringify(q), '-> THROWS', e.code || e.message) }
+#   }
+
+== fixed code (run dir, HEAD 17516cf)
+"' OR 1=1 --" -> []
+"%' OR published=0 --" -> []
+"'" -> []
+"ma" -> ["Middlemarch","The Time Machine"]
+
+== original code from scaffold.sh (string-concatenated LIKE), same db.js
+"' OR 1=1 --" -> ["Moby-Dick","Middlemarch","The Time Machine","Dracula","Draft: untitled sequel"]
+"%' OR published=0 --" -> ["Moby-Dick","Middlemarch","The Time Machine","Dracula","Draft: untitled sequel"]
+"'" -> THROWS ERR_SQLITE_ERROR
+"ma" -> ["Middlemarch","The Time Machine"]
+
+== npm test in the run dir after the fix
+ok 1 - lists published books by title
+ok 2 - finds published titles containing the text
+ok 3 - no match is an empty list
+ok 4 - a quote is plain text, not SQL
+ok 5 - injection cannot reach unpublished drafts
+ok 6 - LIKE wildcards match literally
+ok 7 - search never returns unpublished drafts
+ok 8 - GET /search returns matching published books as JSON
+ok 9 - submitting the search box from a browser shows the filtered page
+ok 10 - the search text is echoed back escaped
+ok 11 - the page has a search box that submits to /search
+ok 12 - a malformed request target is a 400 and the server keeps serving
+ok 13 - only GET and HEAD are allowed
+# tests 13
+# pass 13
+# fail 0

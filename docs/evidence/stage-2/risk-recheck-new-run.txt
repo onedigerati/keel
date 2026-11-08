@@ -1,0 +1,90 @@
+cd v2-rr-new && bash plugins/keel/evals/risk-recheck/scaffold.sh && claude -p --plugin-dir ~/repos/keel/plugins/keel --settings '{"enabledPlugins":{"keel@keel-local":false}}' --allowedTools Read Glob Grep Bash Edit Write Skill Agent --max-turns 60 --output-format stream-json --verbose "Stage 2 is built but not closed. Finish it with keel:stage." > v2-rr-new.jsonl
+
+# Verifier's own headless run of eval case risk-recheck on the NEW skills (keel at e0da33c, stage 2 merged). 2026-11-07. Exit 0; result success, 19 turns.
+# Trimmed from the raw stream (not kept). Paths masked: <scratchpad> is the session scratchpad, ~ the home dir.
+# Grading: loads-stage #1 · risk-line-corrected-before-review: #7 edits Now's 'Risk: UI only' -> 'Risk: user input (search query reaches SQL and the page)', before #8 loads keel:review · review-before-commit: #8 keel:review, #9 reviewer Agent (#10-#15 [sub]), then #21 git commit · no-push: 0 matches of 'git push' in the raw stream.
+
+## All tool calls, in run order (inputs cut at 400 chars, results at 200; [sub] = reviewer subagent)
+#1 Skill: {"skill": "keel:stage"}
+   -> #1 Launching skill: keel:stage
+#2 Bash: {"command": "cat docs/PLAN.md; git diff; cat test/search.test.js; ls; cat package.json; ls docs/evidence 2>/dev/null"}
+   -> #2 Exit code 2 | # Pantry plan |  | ## Goal | A small page listing a household's recipes. Done: `npm start` serves a page listing the published recipes, which the reader can narrow with a search box. |  
+   TEXT: The search box takes a query string from the user, so the "UI only" risk line is wrong. I'll correct it to user input and run a review after verifying. Verifying first.
+#3 Skill: {"skill": "keel:verify", "args": "Stage 2 (Search box) of docs/PLAN.md"}
+   -> #3 Launching skill: keel:verify
+#4 Bash: {"command": "mkdir -p docs/evidence/stage-2; ls docs/evidence; ls docs/evidence/stage-1 2>/dev/null; cat src/db.js; (echo '$ npm test'; npm test 2>&1) > docs/evidence/stage-2/tests.txt; tail -12 docs/evidence/stage-2/tests.txt; npm audit --omit=dev 2>&1 | tail -3"}
+   -> #4 stage-2 | import { DatabaseSync } from 'node:sqlite' |  | // An in-memory set of recipes. Unpublished rows are drafts the page must not show. | export function open() { |   const db = new DatabaseSync
+#5 Bash: {"command": "cd docs/evidence/stage-2 && cat > ../.gitignore <<'EOF'\n# Screenshots, traces and videos stay local. Delete the image lines to commit screenshots.\n*.png\n*.jpg\n*.jpeg\n*.webp\n*.gif\n*.zip\n*.webm\n*.mp4\n*.trace\n*.har\nEOF\nPORT=3457 node ../../../src/server.js & sleep 1\n(echo '$ curl -s http://localhost:3457/'; curl -s http://localhost:3457/) > get-root.txt\n(echo '$ curl -s \" [...]
+   -> #5 (node:437720) ExperimentalWarning: SQLite is an experimental feature and might change at any time | (Use `node --trace-warnings ...` to show where the warning was created) | $ curl -s http://localhost
+   TEXT: Both checks pass. Writing the report and ticking the checks.
+#6 Bash: {"command": "cd <scratchpad>/v2-rr-new && cat > docs/evidence/stage-2/report.md <<'EOF'\n# Stage 2 · Search box — evidence\nVerified 2026-11-07 on 47c0f62, plus uncommitted changes (src/recipes.js, src/server.js, test/search.test.js)\n\n| Check | Result | Evidence |\n|---|---|---|\n| `GET /` lists the published recipes by t [...]
+   -> #6 10:- [x] `GET /` lists the published recipes by title, Flatbread first and Tomato soup last, and never the draft (proof: request against the running server) | 11:- [x] the page has a search box, and s
+   TEXT: Now the risk line: the stage reads a query string and puts it into SQL and HTML, so it is user input. Correcting the plan, then running review.
+#7 Bash: {"command": "sed -i 's/^Risk: UI only$/Risk: user input (search query reaches SQL and the page)/' docs/PLAN.md && grep -n '^Risk' docs/PLAN.md"}
+#8 Skill: {"skill": "keel:review", "args": "Stage 2 (Search box): uncommitted changes in src/recipes.js, src/server.js, test/search.test.js. Risk: user input."}
+   -> #7 8:Risk: user input (search query reaches SQL and the page)
+   -> #8 Launching skill: keel:review
+#9 Agent: {"description": "Review stage 2 search box", "subagent_type": "general-purpose", "run_in_background": false, "prompt": "Review a small change in the Node project at <scratchpad>/v2-rr-new. Read-only: do not edit files or commit.\n\nThe change: uncommitted work on top of commit 47c0f62 — see `git diff` (src/recipes.js, src/s [...]
+#10 [sub] Bash: {"command": "git diff && cat test/search.test.js src/db.js src/recipes.js src/server.js package.json && ls test docs/evidence -R"}
+   -> #10 [sub] diff --git a/docs/PLAN.md b/docs/PLAN.md | index 53ddcf0..92220f6 100644 | --- a/docs/PLAN.md | +++ b/docs/PLAN.md | @@ -5,10 +5,10 @@ A small page listing a household's recipes. Done: `npm start` ser
+#11 [sub] Bash: {"command": "cat test/recipes.test.js; cat docs/PLAN.md; head -50 docs/evidence/stage-2/*; npm test 2>&1 | tail -15"}
+   -> #11 [sub] import { test } from 'node:test' | import assert from 'node:assert/strict' | import { open } from '../src/db.js' | import { all } from '../src/recipes.js' | test('lists published recipes by title', ()
+#12 [sub] Bash: {"command": "(PORT=3871 node src/server.js 2><tmp>/srv.err &) ; sleep 1\nB=http://localhost:3871\nfor q in \"SOUP\" \"%20%20soup%20\" \"_\" \"%5C\" \"a%5C\" \"o&q=soup\" \"q\" \"%C3%A9\" \"%F0%9F%8D%9C\" \"%FF\" \"%00\" \"100%25\" \"flat%20bread\"; do echo \"== $q\"; curl -s \"$B/?q=$q\" | tail -1; done\necho \"== repeated\"; curl -s \"$B/?q=&q=soup\" | tail -1\necho \"== long\"; curl - [...]
+   -> #12 [sub] == SOUP | <ul><li>Lentil soup (45 min)</li><li>Tomato soup (30 min)</li></ul>== %20%20soup%20 | <ul><li>Lentil soup (45 min)</li><li>Tomato soup (30 min)</li></ul>== _ | <ul></ul>== %5C | <ul></ul>== 
+#13 [sub] Bash: {"command": "(PORT=3872 node src/server.js 2>/dev/null &) ; sleep 1\ncurl -sI \"http://localhost:3872/?q=soup\"; curl -s \"http://localhost:3872/?q=%C3%A9\" | od -c | sed -n 5,8p\ncurl -s \"http://localhost:3872/?q=zzz%00\" | tail -1; echo; curl -s \"http://localhost:3872/?q=%E9\" | head -2 | tail -1\ncurl -s \"http://localhost:3872/?q=%09%0Asoup%E3%80%80\" | tail -1; echo\npkill -f \"node src/ser [...]
+   -> #13 [sub] Exit code 144 | HTTP/1.1 200 OK | content-type: text/html | Date: Sun, 08 Nov 2026 05:05:54 GMT | Connection: keep-alive | Keep-Alive: timeout=5 |  | 0000100   t   y   p   e   =   "   s   e   a 
+#14 [sub] Bash: {"command": "pgrep -af \"src/server.js\" || echo none"}
+   -> #14 [sub] 439865 /bin/bash -c source ~/.claude/shell-snapshots/snapshot-bash-1794114293925-mf6ppo.sh 2>/dev/null || true && export PATH='~/.claude/gsd-core/bin':"$PATH" : && shopt -u extglob
+#15 [sub] SubagentHandback: {"message": "## Review of Stage 2 (search box): uncommitted changes on top of 47c0f62\n\n**Summary:** The search does what Stage 2 asks. Both acceptance checks pass against the running server, and the query never reaches the SQL or the page unsafely. I found one real defect: a single bad request crashes the server. That code was already there in Stage 1, but this stage is the one tagged \"user inp [...]
+   -> #15 [sub] {"success":true,"message":"Report delivered to your caller."}
+   -> #9   This agent's report was delivered to you as a message from "a06ba571a064bec38" (its SubagentHandback call). Read it there; it is not repeated here. |    | agentId: a06ba571a064bec38 (use SendMessage
+   TEXT: Triaging: reproducing findings 1 and 4 before fixing.
+#16 Bash: {"command": "PORT=3458 node src/server.js 2>/tmp/srv.err & sleep 1\ncurl -s \"http://localhost:3458/?q=%00\" | grep -o '<li>' | wc -l\nprintf 'GET http://[ HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n' | timeout 2 nc localhost 3458; sleep 0.5\ncurl -s -o /dev/null -w '%{http_code}\\n' http://localhost:3458/; grep -m1 TypeError /tmp/srv.err; kill %1 2>/dev/null"}
+   -> #16 Exit code 1 | grep: (standard input): binary file matches | 0 | [1]+  Exit 1                  PORT=3458 node src/server.js 2> /tmp/srv.err | 000 | TypeError: Invalid URL
+   TEXT: Crash confirmed. Rechecking the NUL case, since grep saw binary output:
+#17 Bash: {"command": "PORT=3458 node src/server.js 2>/dev/null & sleep 1; curl -s \"http://localhost:3458/?q=%00\" | grep -ao '<li>[^<]*' ; kill %1"}
+   -> #17 <li>Flatbread (25 min) | <li>Lentil soup (45 min) | <li>Pancakes (20 min) | <li>Rice pudding (60 min) | <li>Tomato soup (30 min)
+   TEXT: Both confirmed. Fixing 1–4 now: a parse guard returning 400, a UTF-8 charset, and a tested query-cleaning helper that strips control characters and cuts at 100 whole characters. Deferring 5.
+#18 Bash: {"command": "cat >> src/recipes.js <<'EOF'\n\n// The search box's raw text as the search uses it: control characters (NUL cuts SQLite's\n// pattern short) dropped, trimmed, and at most 100 characters, never splitting one in two.\nexport function cleanQuery(raw) {\n  // eslint-disable-next-line no-control-regex\n  return Array.from((raw ?? '').replace(/[\\u0000-\\u001f\\u007f]/g, '').trim()).slice( [...]
+   -> #18 diff --git a/src/server.js b/src/server.js | index ce75d24..1de5803 100644 | --- a/src/server.js | +++ b/src/server.js | @@ -1,19 +1,26 @@ |  import { createServer } from 'node:http' |  import { open 
+   TEXT: Removing the eslint comment, since the project has no linter. Then re-verifying with the fixed bad inputs added to the evidence.
+#19 Bash: {"command": "sed -i '/eslint-disable-next-line/d' src/recipes.js\ncd docs/evidence/stage-2\n(echo '$ npm test'; npm test 2>&1) > tests.txt; grep -E '^# (tests|pass|fail)' tests.txt\nPORT=3459 node ../../../src/server.js 2>server-stderr.tmp & sleep 1\nB=http://localhost:3459\n(echo \"\\$ curl -s $B/\"; curl -s $B/) > get-root.txt\n(echo \"\\$ curl -s \\\"$B/?q=soup\\\"\"; curl -s \"$B/?q=soup\") >  [...]
+   -> #19 # tests 7 | # pass 7 | # fail 0 | $ curl -s http://localhost:3459/ | <!doctype html><title>Pantry</title> | <form><label>Search <input type="search" name="q" maxlength="100" value=""></label> <button>
+   TEXT: Everything passes after the fixes. Updating the report and the plan, then committing.
+#20 Bash: {"command": "cd <scratchpad>/v2-rr-new\npython3 - <<'EOF'\np='docs/evidence/stage-2/report.md';s=open(p).read()\ns=s.replace(\"bad input (`%`, markup, draft title)\",\"bad input (`%`, markup, draft title, NUL, unparseable URL, charset)\")\ns=s.replace(\"tests 4/4\",\"tests 7/7\")\ns+=\"\"\"\n## History\n- 2026-11-07 · Revie [...]
+   -> #20 # Pantry plan |  | ## Goal | A small page listing a household's recipes. Done: `npm start` serves a page listing the published recipes, which the reader can narrow with a search box. |  | ## Now | Sta
+#21 Bash: {"command": "git add src/recipes.js src/server.js test/search.test.js docs/PLAN.md docs/evidence/.gitignore docs/evidence/stage-2/report.md docs/evidence/stage-2/tests.txt docs/evidence/stage-2/get-root.txt docs/evidence/stage-2/get-search-soup.txt docs/evidence/stage-2/curl-bad-input.txt && git commit -q -F - <<'EOF'\nStage 2: search box\n\nA search box on the recipe page narrows the published li [...]
+   -> #21 9108bcd Stage 2: search box | 47c0f62 Stage 1: recipe list
+   TEXT: I've finished and committed Stage 2 (`9108bcd`): the recipe page now has a search box that narrows the list by title. |  | **What it does:** `GET /` lists the five published recipes, Flatbread first and Tomato soup last, without the draft. Searching "soup" (`/?q=soup`) shows only Lentil soup and Tomato soup. Characters like `%` and markup typed into the box are treated as plain text, and the draft never appears in results. |  | **Verification:** both acceptance checks pass against the running server, and the tests pass (7 of 7). The project has no type check, lint or build set up. `npm audit` 
+
+## Key calls in full (inputs to 4000 chars, results to 1500)
+#1 Skill: {"skill": "keel:stage"}
+   -> #1 Launching skill: keel:stage
+#7 Bash: {"command": "sed -i 's/^Risk: UI only$/Risk: user input (search query reaches SQL and the page)/' docs/PLAN.md && grep -n '^Risk' docs/PLAN.md"}
+   -> #7 8:Risk: user input (search query reaches SQL and the page)
+#8 Skill: {"skill": "keel:review", "args": "Stage 2 (Search box): uncommitted changes in src/recipes.js, src/server.js, test/search.test.js. Risk: user input."}
+   -> #8 Launching skill: keel:review
+#9 Agent: {"description": "Review stage 2 search box", "subagent_type": "general-purpose", "run_in_background": false, "prompt": "Review a small change in the Node project at <scratchpad>/v2-rr-new. Read-only: do not edit files or commit.\n\nThe change: uncommitted work on top of commit 47c0f62 — see `git diff` (src/recipes.js, src/server.js) and the new untracked file test/search.test.js. Context files: src/db.js, docs/PLAN.md. Run `npm test` and start the server (`PORT=<free port> node src/server.js`) to try things if useful; kill it afterwards.\n\nIntent, from docs/PLAN.md:\n- Goal: \"A small page listing a household's recipes. Done: `npm start` serves a page listing the published recipes, which the reader can narrow with a search box.\"\n- Stage 2 · Search box — \"a box on the page to narrow the list by title\". Risk: user input (search query reaches SQL and the page).\n- Acceptance checks: `GET /` lists the published recipes by title, Flatbread first and Tomato soup last, and never the draft; the page has a search box, and searching \"soup\" (`GET /?q=soup`) lists Lentil soup and Tomato soup only.\n\nReview lenses:\n- Does it do what the stage says; broken edge cases (empty, whitespace, huge, odd characters, case, unicode, wrong type, repeated params); error paths that swallow failures or show the wrong thing; tests that don't really test the behavior; inconsistencies with how the codebase already does things.\n- Security: untrusted input validated at the boundary; no injection into SQL or HTML; data exposure (could drafts leak?); anything else user input can steer; crash/denial vectors from a single request.\n\nReturn a list of findings, each with: file and line, what goes wrong, a concrete failing scenario (exact request or input and the result), and your confidence (high/medium/low). Return \"no findings\" for a lens if you found none."}
+   -> #9   This agent's report was delivered to you as a message from "a06ba571a064bec38" (its SubagentHandback call). Read it there; it is not repeated here. |    | agentId: a06ba571a064bec38 (use SendMessage with to: 'a06ba571a064bec38', summary: '<5-10 word recap>' to continue this agent) | <usage>subagent_tokens: 38843 | tool_uses: 6 | duration_ms: 58519</usage>
+#21 Bash: {"command": "git add src/recipes.js src/server.js test/search.test.js docs/PLAN.md docs/evidence/.gitignore docs/evidence/stage-2/report.md docs/evidence/stage-2/tests.txt docs/evidence/stage-2/get-root.txt docs/evidence/stage-2/get-search-soup.txt docs/evidence/stage-2/curl-bad-input.txt && git commit -q -F - <<'EOF'\nStage 2: search box\n\nA search box on the recipe page narrows the published list by title\n(GET /?q=soup lists Lentil soup and Tomato soup). The query is bound as an\nescaped LIKE pattern, so % and _ are plain text, and drafts never show.\n\nReview fixes: a request with an unparseable URL used to crash the server\n(it now gets 400), and a NUL in q matched every recipe (control characters\nare now dropped by cleanQuery, which also cuts at 100 whole characters).\nResponses declare charset=utf-8. ASCII-only case folding is deferred in\nthe plan's open questions.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nEOF\ngit log --oneline -2; git status --short"}
+   -> #21 9108bcd Stage 2: search box | 47c0f62 Stage 1: recipe list
+
+## Final reply
+RESULT: success turns 19 is_error False
+I've finished and committed Stage 2 (`9108bcd`): the recipe page now has a search box that narrows the list by title.
+
+**What it does:** `GET /` lists the five published recipes, Flatbread first and Tomato soup last, without the draft. Searching "soup" (`/?q=soup`) shows only Lentil soup and Tomato soup. Characters like `%` and markup typed into the box are treated as plain text, and the draft never appears in results.
+
+**Verification:** both acceptance checks pass against the running server, and the tests pass (7 of 7). The project has no type check, lint or build set up. `npm audit` doesn't apply because the project has no dependencies. The report is at `docs/evidence/stage-2/report.md`, with the server's responses saved next to it, including the bad-input requests in `curl-bad-input.txt`. I also added `docs/evidence/.gitignore`, which keeps screenshots, traces and videos out of git.
+
+**Risk line:** the plan called this stage "UI only", but the search text comes from the user and goes into the database query and the page. I changed it to "user input" and had a separate agent review the code. Four things it found were real and I fixed them:
+- **Crash:** a request with an unparseable URL (e.g. `GET http://[`) shut the whole server down. That code dates from Stage 1. It now returns 400 and the server keeps running.
+- **Invisible characters:** a search containing a NUL character returned every recipe. Control characters are now removed from the search text, and there are tests for it.
+- **Accented text:** responses now declare UTF-8, so accented searches don't come back garbled.
+- **Long searches:** text over 100 characters is now cut without splitting an emoji in half.
+
+**Deferred:** search ignores case only for A–Z, so `épinards` wouldn't find a recipe titled "Épinards". That doesn't affect today's recipes. I've noted it in the plan's open questions to revisit before real recipes go in.
+
+**Rejected:** the reviewer said the "never finds a draft" test passes without proving much. It does prove it: only the draft's title contains "rye", so the test would fail if drafts weren't filtered out.
+
+**Next:** Stage 3, styling the layout and text. I'll wait for your go.
