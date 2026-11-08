@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
-import { closedStages, evidencePath, parsePlan, reportRows, samePath } from '../hooks/register.ts'
+import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, reportRows, samePath } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
 
 // fake credentials are assembled at run time so this file never trips a secret scanner itself
@@ -66,7 +66,7 @@ test('reads a plan with a Now section and a stage checklist', () => {
 
 test('reads an older plan with bold stage names and no Now section', () => {
   const plan = parsePlan('docs/BUILD_PLAN.md', '## Stages\n\n- [x] **Stage 1** — scaffold\n- [x] **Stage 2** — Act 2\n')
-  expect(plan).toEqual({ path: 'docs/BUILD_PLAN.md', goal: undefined, now: undefined, mode: undefined, stage: undefined, done: 2, total: 2, current: undefined })
+  expect(plan).toEqual({ path: 'docs/BUILD_PLAN.md', goal: undefined, now: undefined, mode: undefined, agents: undefined, agentsLine: undefined, agentsStamp: undefined, stage: undefined, done: 2, total: 2, current: undefined })
 })
 
 test('reads the autopilot mode, and a pause with its reason', () => {
@@ -695,4 +695,236 @@ test('when HEAD has no plan or its Now is another stage, one row is enough', asy
   expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
   plan.files = { [REPORT]: reportWith(0) }
   expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toContain('has 0 check rows')
+})
+
+// ---- the Agents line: how widely work fans out ----
+
+test('reads the Agents level in any case, and ignores an unknown one', () => {
+  const level = (line: string) => parsePlan('PLAN.md', planWith(line)).agents
+  expect(level('Agents: lean')).toBe('lean')
+  expect(level('Agents: Balanced')).toBe('balanced')
+  expect(level('AGENTS: WIDE')).toBe('wide')
+  expect(level('Agents: wide — confirmed 2026-11-08')).toBe('wide')
+  expect(level('Agents: turbo')).toBeUndefined()
+  expect(level('Open: none')).toBeUndefined()
+  expect(parsePlan('PLAN.md', planWith('Agents: wide — confirmed 2026-11-08')).agentsLine).toBe('Agents: wide — confirmed 2026-11-08')
+})
+
+test('reads the confirmation stamp as the date and time digits only', () => {
+  const stamp = (line: string) => parsePlan('PLAN.md', planWith(line)).agentsStamp
+  expect(stamp('Agents: wide — confirmed 2026-11-08 14:05')).toBe('202611081405')
+  expect(stamp('agents:  WIDE  -  Confirmed: 2026/11/08  14.05.')).toBe('202611081405')
+  expect(stamp('Agents: wide — confirmed 2026-11-08 1405')).toBe('202611081405')
+  expect(stamp('Agents: wide — confirmed 2026-11-8 9:05 by jonah')).toBe('202611080905')
+  expect(stamp('Agents: wide — confirmed 2026-11-08')).toBe('20261108')
+  expect(stamp('Agents: wide')).toBeUndefined()
+  expect(stamp('Agents: wide — confirmed')).toBeUndefined()
+  expect(stamp('Agents: wide — confirmed yesterday')).toBeUndefined()
+  // read whatever the level, so fixing a "typo" later can't bring in a stamp the session never saw
+  expect(stamp('Agents: turbo — confirmed 2026-11-08')).toBe('20261108')
+})
+
+test('finds the stage line when the Agents line sits above it', () => {
+  const text = ['## Now', 'Agents: lean', 'Mode: autopilot', 'Stage 2 of 3 · Share mode', '- [ ] controls work', '## Stages', '- [ ] 2. Share mode'].join('\n')
+  const plan = parsePlan('PLAN.md', text)
+  expect(plan.agents).toBe('lean')
+  expect(plan.stage?.key).toBe('Stage 2 of 3 · Share mode')
+  expect(plan.stage?.number).toBe('2')
+  // an Agents line that itself names a stage still never counts as the stage line
+  expect(parsePlan('PLAN.md', text.replace('Agents: lean', 'Agents: lean — stage 3 can go wide')).stage?.key).toBe('Stage 2 of 3 · Share mode')
+})
+
+test('a wide line counts only once the session saw it set or restamped', () => {
+  const read = (line: string) => parsePlan('PLAN.md', planWith(line))
+  const level = (first: string, now: string) => effectiveAgents(read(now), firstAgentsOf(read(first)))
+  // set during the session from no line, lean or balanced
+  expect(level('Open: none', 'Agents: wide')).toBe('wide')
+  expect(level('Agents: lean', 'Agents: wide')).toBe('wide')
+  expect(level('Agents: balanced', 'Agents: wide')).toBe('wide')
+  // already there: no rewrite short of a new stamp confirms it
+  expect(level('Agents: wide', 'Agents: wide')).toBe('balanced')
+  expect(level('Agents: wide', 'Agents: wide — confirmed 2026-11-08 14:05')).toBe('wide')
+  expect(level('Agents: wide — confirmed 2026-11-08', 'Agents: wide')).toBe('balanced')
+  expect(level('Agents: wide — confirmed 2026-11-08', 'Agents: wide — confirmed 2026-11-08 14:05')).toBe('wide')
+  // an unknown value at first read may be a disguised wide
+  expect(level('Agents: turbo', 'Agents: wide')).toBe('balanced')
+  // lean and balanced need no session state
+  expect(effectiveAgents(read('Agents: lean'), undefined)).toBe('lean')
+  expect(effectiveAgents(read('Agents: balanced'), undefined)).toBe('balanced')
+  expect(effectiveAgents(read('Agents: wide — confirmed 2026-11-08 14:05'), undefined)).toBe('balanced')
+  expect(effectiveAgents(read('Agents: turbo'), firstAgentsOf(read('Open: none')))).toBeUndefined()
+})
+
+/** The plan section keel adds to the system prompt, and the status band it drew, after one composition. */
+function composeKeel($: Engine, on: On) {
+  const bands: (string | undefined)[] = []
+  on('ui.status', (_, e) => (bands.push(e.text), { value: undefined }))
+  on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'You are Claude Code.', scope: 'shared' as const }] }))
+  const input = { model: 'claude-opus-5-5', promptModel: 'claude-opus-5-5', surfaces: [], tools: [], outputStyle: null, traits: [] }
+  return async () => {
+    const { sections } = await $.prompt.compose(input)
+    return { text: sections.find(s => s.id === 'keel:plan')?.text ?? '', band: bands.at(-1) }
+  }
+}
+
+test('the working rules name the level and what it means', async ($, on) => {
+  const plan = { text: planWith('Agents: lean') }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  expect((await compose()).text).toContain('Agents: lean — build and verify in the main session and run at most one agent at a time')
+  expect((await compose()).text).toContain('one builder at a time')
+  expect((await compose()).text).toContain('one fresh reviewer')
+
+  plan.text = planWith('Agents: balanced')
+  expect((await compose()).text).toContain('Agents: balanced — fan independent leaves out to subagents when it helps.')
+
+  // a line set during this session is honoured
+  plan.text = planWith('Agents: wide')
+  const wide = (await compose()).text
+  expect(wide).toContain('Agents: wide — fan out every independent leaf to its own agent in its own worktree')
+  expect(wide).toContain('a fresh agent verify')
+  expect(wide).toContain('correctness and security reviewers in parallel')
+})
+
+test('with no Agents line the working rules say nothing new', async ($, on) => {
+  engine(on, { text: planWith('Open: none') })
+  const compose = composeKeel($, on)
+  const { text } = await compose()
+  expect(text).not.toContain('Agents')
+  expect(text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.")).toBe(true)
+})
+
+test('the status line shows lean or wide, and nothing extra for balanced or no line', async ($, on) => {
+  const plan = { text: planWith('Open: none') }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  expect((await compose()).band).toBe('keel · 1/3 done · next: 2. Share mode')
+  plan.text = planWith('Agents: lean')
+  expect((await compose()).band).toBe('keel · lean · 1/3 done · next: 2. Share mode')
+  plan.text = planWith('Agents: balanced')
+  expect((await compose()).band).toBe('keel · 1/3 done · next: 2. Share mode')
+  plan.text = planWith('Agents: wide')
+  expect((await compose()).band).toBe('keel · wide · 1/3 done · next: 2. Share mode')
+  plan.text = planWith('Mode: paused — waiting\nAgents: lean')
+  expect((await compose()).band).toBe('keel · paused · lean · 1/3 done · next: 2. Share mode')
+})
+
+test('a wide line already in the plan when the session starts counts as balanced until it is restamped', async ($, on) => {
+  const plan = { text: planWith('Agents: wide') }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  const first = await compose()
+  expect(first.band).toBe('keel · 1/3 done · next: 2. Share mode')
+  expect(first.text).toContain("Agents line asks for wide, but it was set before this session, so work at balanced")
+  expect(first.text).toContain('ask whether to fan out wide')
+  expect(first.text).toContain('restamp the line as `Agents: wide — confirmed')
+  expect(first.text).not.toContain('Agents: wide — fan out every')
+
+  // still distrusted on the next look, however many turns pass
+  await $.turn.complete(ended('t1'))
+  expect((await compose()).band).toBe('keel · 1/3 done · next: 2. Share mode')
+
+  // the user said yes and Claude restamped the line: a new stamp during the session is honoured
+  plan.text = planWith('Agents: wide — confirmed 2026-11-08 14:05')
+  const confirmed = await compose()
+  expect(confirmed.band).toBe('keel · wide · 1/3 done · next: 2. Share mode')
+  expect(confirmed.text).toContain('Agents: wide — fan out every independent leaf')
+  expect(confirmed.text).not.toContain('set before this session')
+})
+
+test('lean and balanced lines already in the plan are honoured as found', async ($, on) => {
+  const plan = { text: planWith('Agents: lean') }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  const lean = await compose()
+  expect(lean.band).toBe('keel · lean · 1/3 done · next: 2. Share mode')
+  expect(lean.text).toContain('Agents: lean — build and verify in the main session')
+})
+
+const BAND = 'keel · 1/3 done · next: 2. Share mode'
+const WIDE_BAND = 'keel · wide · 1/3 done · next: 2. Share mode'
+
+/** Reads the plan as `first`, then as each of `rewrites` in turn, returning the band and rules after the last. */
+async function readAs($: Engine, on: On, first: string, ...rewrites: string[]) {
+  const plan = { text: planWith(first) }
+  engine(on, plan)
+  const compose = composeKeel($, on)
+  let last = await compose()
+  for (const line of rewrites) {
+    plan.text = planWith(line)
+    last = await compose()
+  }
+  return last
+}
+
+const stillAsking = (r: { text: string; band: string | undefined }) => {
+  expect(r.band).toBe(BAND)
+  expect(r.text).toContain('set before this session')
+  expect(r.text).not.toContain('Agents: wide — fan out every')
+}
+
+test('rewriting a wide line in another case confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'agents: Wide', 'Agents: wide'))
+})
+
+test('rewriting a wide line with other spacing confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: wide', 'Agents:\twide', '   Agents:   wide  '))
+})
+
+test('a rewrite that drops the stamp confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: wide — confirmed 2026-11-07 09:00', 'Agents: wide'))
+})
+
+test('a wide-open line rewritten as wide confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: wide-open', '   Agents: wide'))
+})
+
+test('the same stamp in other punctuation confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: wide — confirmed 2026-11-07 09:00', 'Agents: wide - confirmed 2026/11/07 09.00'))
+})
+
+test('a different stamp is honoured', async ($, on) => {
+  const r = await readAs($, on, 'Agents: wide — confirmed 2026-11-07 09:00', 'Agents: wide — confirmed 2026-11-08 14:05')
+  expect(r.band).toBe(WIDE_BAND)
+  expect(r.text).toContain('Agents: wide — fan out every independent leaf')
+})
+
+test('a same-day stamp restamped later in the day is honoured', async ($, on) => {
+  const r = await readAs($, on, 'Agents: wide — confirmed 2026-11-08', 'Agents: wide — confirmed 2026-11-08 14:05')
+  expect(r.band).toBe(WIDE_BAND)
+})
+
+test('a lean line first read and then set to wide is honoured', async ($, on) => {
+  const r = await readAs($, on, 'Agents: lean', 'Agents: wide')
+  expect(r.band).toBe(WIDE_BAND)
+  expect(r.text).toContain('Agents: wide — fan out every independent leaf')
+})
+
+test('an unknown Agents value adds nothing to the working rules or the band', async ($, on) => {
+  const r = await readAs($, on, 'Agents: turbo')
+  expect(r.band).toBe(BAND)
+  expect(r.text.slice(r.text.indexOf('Working rules:'))).not.toContain('Agents')
+  expect(r.text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.")).toBe(true)
+})
+
+test('the ask to confirm wide carries the current time as the stamp', async ($, on) => {
+  mock.clock(on, { now: new Date(2026, 10, 8, 14, 5).getTime() })
+  const r = await readAs($, on, 'Agents: wide')
+  expect(r.text).toContain('restamp the line as `Agents: wide — confirmed 2026-11-08 14:05`.')
+})
+
+test('a misspelt or look-alike wide fixed later, keeping its stamp, confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: w1de — confirmed 2026-11-08 14:05', 'Agents: wide — confirmed 2026-11-08 14:05'))
+})
+
+test('a look-alike wide in Cyrillic fixed later, keeping its stamp, confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: wid\u0435 — confirmed 2026-11-08 14:05', 'Agents: wide — confirmed 2026-11-08 14:05'))
+})
+
+test('the same time written without its colon confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: wide — confirmed 2026-11-01 09:00', 'Agents: wide — confirmed 2026-11-01 0900'))
+})
+
+test('text added or changed after the stamp confirms nothing', async ($, on) => {
+  stillAsking(await readAs($, on, 'Agents: wide — confirmed 2026-11-01 09:00', 'Agents: wide — confirmed 2026-11-01 09:00 by jonah', 'Agents: wide — confirmed 2026-11-01 09:00 (ok)'))
 })

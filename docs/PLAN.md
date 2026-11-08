@@ -7,17 +7,11 @@ Let the user choose how widely Keel fans work out to subagents, trading tokens f
 2026-11-08 · tests: 57 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 1 of 4 · Agents line
-Risk: user input (the plan text can come from someone else's repo)
-Checks:
-- [ ] `parsePlan` reads `Agents: lean`, `balanced` and `wide` (any case) from `## Now`, ignores an unknown value, and the stage line is still found when the Agents line sits above it (proof: test)
-- [ ] The injected working rules name the level and what it means, and say nothing new when there's no line (proof: test)
-- [ ] The status line shows `lean` or `wide`, and nothing extra for `balanced` or no line (proof: test)
-- [ ] A `wide` line already in the plan when the session first reads it is treated as `balanced` and the rules tell Claude to ask the user; a line that changes during the session is honoured (proof: test)
-Open: none
+Mode: autopilot
+Stage 2 of 4 · Skills follow it — plan sets and records the level; stage, autopilot, review and verify say what each level does; evals `agents-lean` and `agents-wide` (building in a worktree; checks written when it's verified)
 
 ## Stages
-- [ ] 1. Agents line — parse the level, inject it into the working rules, show it in the status line, distrust an earlier session's `wide`
+- [x] 1. Agents line — parse the level, inject it into the working rules, show it in the status line, distrust an earlier session's `wide`
 - [ ] 2. Skills follow it — plan sets and records the level; stage, autopilot, review and verify say what each level does; evals `agents-lean` and `agents-wide`
 - [ ] 3. Lean cap — the hook refuses an `Agent` call under `lean` while another agent the main loop started is still running
 - [ ] 4. Docs and release — both READMEs, eval list, version 0.7.0
@@ -29,10 +23,15 @@ Open: none
 - 2026-11-08 · A `wide` line already in the plan when a session starts counts as `balanced` until the user confirms; Claude confirms by restamping the line (`Agents: wide — confirmed 2026-11-08`), and the hook honours a line that changed during the session, as it does for Mode — a cloned repo shouldn't raise the user's spend unasked. `lean` and `balanced` are honoured as found, since they only lower it.
 - 2026-11-08 · Only `lean` gets a hard cap (one running agent); `balanced` and `wide` aren't capped by Keel — a cap on `balanced` would change today's behaviour, and Claude Code's own limits already bound `wide`.
 - 2026-11-08 · Stages 2 and 3 are built in parallel, each in its own worktree, once stage 1 is committed — they touch different files (skills and evals; the hook and its tests), and the user asked for as many agents as it takes to finish quickly.
+- 2026-11-08 · The hook compares the Agents line's parsed level and confirmation stamp, not its text, and the stamp carries the time to the minute (`Agents: wide — confirmed 2026-11-08 14:32`): `wide` is honoured only when the line turned to `wide` during the session or gained a new stamp — stage 1 review found that a case or spacing change, which autopilot's own rewrite of `## Now` can make, otherwise turned `wide` on unasked, and a same-day restamp could never confirm.
+- 2026-11-08 · An Agents line with an unknown value at the session's first read is distrusted like `wide`: rewriting it to `wide` still asks until a new stamp appears — otherwise a planted `Agents: turbo` gave the same rewrite bypass review found for case changes. Builder's call, accepted.
+- 2026-11-08 · Stage 2 started in its own worktree while stage 1's last review fixes were still in progress, not after stage 1's commit — it touches only skills and evals and needs only the line's format, which was settled; stage 3 still waits for the commit, since it calls the hook's `effectiveAgents`.
 
 ## Open questions
 - Committed screenshots get no secret scan (the guard skips binary files); the docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.
 - No eval covers masking yet (a case whose output holds a fake DB URL and email, graded for `[masked]`) — deferred from the last plan's stage 1 review; worth adding in a later plan.
+- A `wide` (or `Mode: autopilot`) line that arrives mid-session from git — a checkout or pull of someone else's branch, or a plan that couldn't be read at the session's first look — counts as a change and is honoured without asking; the Mode line already behaves this way. Closing it (move the baseline when the line matches the plan at HEAD, or count only edits made in the user's turn) is a design change for the user to weigh — found in stage 1 review.
+- With two Agents lines in `## Now`, only the first is read, so restamping the second does nothing (fails safe, but confusing); and an Agents line past `## Now`'s 40-line cap is parsed but not shown to Claude. Both minor — stage 1 review.
 
 ## Standing decisions
 - 2026-11-06 · Evidence lives in `docs/evidence/stage-<n>/` for the current plan — beside the plan file, and stage numbers restart with each plan, so a per-plan folder never collides. (from [Verification evidence](plans/2026-11-07-verification-evidence.md))

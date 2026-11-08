@@ -26,6 +26,9 @@ const USER_ORIGINS = new Set(['composer', 'bridge', 'sdk'])
 /** The `Mode:` line in `## Now`: `autopilot` while keel:autopilot is in charge, `paused — <reason>` while it waits. */
 type Mode = { kind: 'autopilot' } | { kind: 'paused'; reason: string }
 
+/** The `Agents:` line in `## Now`: how widely work fans out to subagents. No line means `balanced`. */
+export type AgentsLevel = 'lean' | 'balanced' | 'wide'
+
 interface Stage {
   /** The first line of `## Now`, e.g. `Stage 3 of 5 · Accounts`. */
   key: string
@@ -41,6 +44,12 @@ interface Plan {
   goal: string | undefined
   now: string | undefined
   mode: Mode | undefined
+  /** The level the `Agents:` line names; undefined with no line or an unknown value. */
+  agents: AgentsLevel | undefined
+  /** The `Agents:` line as written (trimmed), present even when its level is unknown. */
+  agentsLine: string | undefined
+  /** The date and optional time after `confirmed` on the Agents line, as digits (`202611081405`); undefined without one. */
+  agentsStamp: string | undefined
   stage: Stage | undefined
   done: number
   total: number
@@ -53,6 +62,17 @@ async function loadPlan($: EngineInterface): Promise<Plan | undefined> {
     return parsePlan(path, await $.fs.read(path))
   }
   return undefined
+}
+
+/**
+ * The confirmation stamp on an Agents line, whatever its level (so a typo fixed later can't bring in a new stamp):
+ * the first date after `confirmed`, with an optional time, as zero-padded digits (`2026-11-08 9:05` is
+ * `202611080905`). Separators and anything after the stamp don't count, so only a new date or time is a new stamp.
+ */
+export function stampIn(line: string): string | undefined {
+  const m = line.match(/\bconfirmed\b\D*?(\d{4})\D?(\d{1,2})\D?(\d{1,2})(?:[^\p{L}\d]{1,3}(\d{1,2})\D?(\d{2}))?/iu)
+  if (!m) return undefined
+  return m.slice(1).filter(p => p !== undefined).map(p => p.padStart(2, '0')).join('')
 }
 
 /** Reads the `## Now` section and the checklist under the first `## …Stages…` heading. */
@@ -73,12 +93,15 @@ export function parsePlan(path: string, text: string): Plan {
     : modeLine[1]?.toLowerCase() === 'autopilot'
       ? { kind: 'autopilot' }
       : { kind: 'paused', reason: modeLine[2]?.trim() || 'waiting on the user' }
+  const agentsLine = nowLines?.map(l => l.trim()).find(l => /^Agents:/i.test(l))
+  const agents = agentsLine?.match(/^Agents:\s*(lean|balanced|wide)\b/i)?.[1]?.toLowerCase() as AgentsLevel | undefined
+  const agentsStamp = agentsLine === undefined ? undefined : stampIn(agentsLine)
 
   let stage: Stage | undefined
   if (now && nowLines) {
-    // the stage line is the first line of `## Now` that isn't the Mode line, which may sit above it
+    // the stage line is the first line of `## Now` that isn't the Mode or Agents line, which may sit above it
     // (a pause reason can itself name a stage, so Mode lines never count)
-    const lines = now.split('\n').map(l => l.trim()).filter(l => l && !/^Mode:/i.test(l))
+    const lines = now.split('\n').map(l => l.trim()).filter(l => l && !/^(Mode|Agents):/i.test(l))
     const key = lines.find(l => /\bstage\s+\d+/i.test(l) && !/^[-*]\s+\[/.test(l)) ?? lines[0] ?? ''
     const risk = nowLines.map(l => l.match(/^Risk:\s*(.*)$/i)?.[1]).find(r => r !== undefined) ?? ''
     const risky = [...new Set([...risk.matchAll(RISKY)].map(m => (m[1] ?? '').toLowerCase()))]
@@ -100,7 +123,7 @@ export function parsePlan(path: string, text: string): Plan {
 
   const done = stages.length - stages.filter(l => /\[ \]/.test(l)).length
   const goal = sections.get('goal')?.join('\n').trim() || undefined
-  return { path, goal, now, mode, stage, done, total: stages.length, current }
+  return { path, goal, now, mode, agents, agentsLine, agentsStamp, stage, done, total: stages.length, current }
 }
 
 // ---- session state: what this session, not the repo, says about autopilot ----
@@ -111,6 +134,7 @@ const CLEARED = { plugin: 'keel', key: 'cleared' } as const
 const OPEN_CHECKS = { plugin: 'keel', key: 'openChecks' } as const
 const GOAL = { plugin: 'keel', key: 'goal' } as const
 const CHECK_COUNTS = { plugin: 'keel', key: 'checkCounts' } as const
+const FIRST_AGENTS = { plugin: 'keel', key: 'firstAgents' } as const
 
 interface Session {
   armed: boolean
@@ -118,22 +142,72 @@ interface Session {
   openChecks: Record<string, string[]>
   /** For each stage number, how many checks `## Now` listed when last seen there. */
   checkCounts: Record<string, number>
+  /** The Agents line as this session first read it; undefined until the session has looked. */
+  firstAgents: FirstAgents | undefined
 }
 
 async function readSession($: EngineInterface): Promise<Session> {
-  const [armed, cleared, openChecks, checkCounts] = await Promise.all([
+  const [armed, cleared, openChecks, checkCounts, firstAgents] = await Promise.all([
     $.state.get(ARMED),
     $.state.get(CLEARED),
     $.state.get(OPEN_CHECKS),
     $.state.get(CHECK_COUNTS),
+    $.state.get(FIRST_AGENTS),
   ])
-  return { armed: armed.value ?? false, cleared: cleared.value ?? [], openChecks: openChecks.value ?? {}, checkCounts: checkCounts.value ?? {} }
+  return {
+    armed: armed.value ?? false,
+    cleared: cleared.value ?? [],
+    openChecks: openChecks.value ?? {},
+    checkCounts: checkCounts.value ?? {},
+    firstAgents: typeof firstAgents.value === 'object' ? firstAgents.value : undefined,
+  }
+}
+
+/**
+ * The Agents line as a session first reads it: its level (`none` without a line, `unknown` for a line whose
+ * value isn't a level, which may be a disguised `wide`) and its confirmation stamp.
+ */
+export interface FirstAgents {
+  level: AgentsLevel | 'none' | 'unknown'
+  stamp?: string
+}
+
+export function firstAgentsOf(plan: Pick<Plan, 'agents' | 'agentsLine' | 'agentsStamp'> | undefined): FirstAgents {
+  const level = plan?.agents ?? (plan?.agentsLine ? 'unknown' : 'none')
+  return plan?.agentsStamp ? { level, stamp: plan.agentsStamp } : { level }
+}
+
+/**
+ * The level this session works at. `lean` and `balanced` are honoured as found, since they only lower the spend,
+ * so they need no session state (`first` may be undefined). `wide` is honoured only when the session first read
+ * no line or a lean or balanced one, or when the line now carries a confirmation stamp other than the one first
+ * read: a `wide` (or unknown) line already there at the start counts as `balanced` until the user confirms and the
+ * line is restamped. Fields are compared, not text, so rewriting the line in another case or spacing, or dropping
+ * its stamp, confirms nothing. Undefined when the plan has no Agents line, or its value is unknown.
+ */
+export function effectiveAgents(plan: Pick<Plan, 'agents' | 'agentsStamp'> | undefined, first: FirstAgents | undefined): AgentsLevel | undefined {
+  const level = plan?.agents
+  if (level !== 'wide') return level
+  if (!first) return 'balanced'
+  if (first.level !== 'wide' && first.level !== 'unknown') return 'wide'
+  return plan?.agentsStamp !== undefined && plan.agentsStamp !== first.stamp ? 'wide' : 'balanced'
+}
+
+/** Whether the plan asks for `wide` and this session doesn't yet honour it. */
+const unconfirmedWide = (plan: Plan, s: Session) => plan.agents === 'wide' && effectiveAgents(plan, s.firstAgents) !== 'wide'
+
+/** A local `YYYY-MM-DD HH:MM` for the confirmation stamp. */
+export function stampOf(ms: number): string {
+  const d = new Date(ms)
+  const two = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`
 }
 
 /**
  * Brings the session's view up to date with the plan. Autopilot arms when the Mode line turns to autopilot
  * during this session, and disarms when the line goes; a plan that already said autopilot when the session
- * first looked stays unarmed, so a repo can never start a run by itself. Also notes which checks are unticked.
+ * first looked stays unarmed, so a repo can never start a run by itself. Also notes which checks are unticked,
+ * and the Agents line as first read, so a `wide` the session didn't see set isn't honoured unasked.
  */
 async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session> {
   const mode = plan?.mode?.kind ?? 'none'
@@ -156,6 +230,10 @@ async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session
     if (mode === 'none') session.armed = false
     await $.state.set(SEEN_MODE, mode)
     await $.state.set(ARMED, session.armed)
+  }
+  if (session.firstAgents === undefined) {
+    session.firstAgents = firstAgentsOf(plan)
+    await $.state.set(FIRST_AGENTS, session.firstAgents)
   }
   const stage = plan?.stage
   if (stage?.number && stage.checks.length) {
@@ -192,10 +270,31 @@ function statusLine(plan: Plan, s: Session): string {
         : held(plan, s)
           ? ' · autopilot held'
           : ' · autopilot'
-  return `keel${mode} · ${plan.done}/${plan.total} done · next: ${plan.current}`
+  const level = effectiveAgents(plan, s.firstAgents)
+  const agents = level === 'lean' || level === 'wide' ? ` · ${level}` : ''
+  return `keel${mode}${agents} · ${plan.done}/${plan.total} done · next: ${plan.current}`
 }
 
-function workingRules(plan: Plan, s: Session): string {
+/** What the Agents line asks of this session, or `''` with no line. */
+function agentsRule(plan: Plan, s: Session, now: string | undefined): string {
+  if (!plan.agents) return ''
+  const level = effectiveAgents(plan, s.firstAgents)
+  if (unconfirmedWide(plan, s))
+    return `Agents: the plan's Agents line asks for wide, but it was set before this session, so work at balanced (fan independent leaves out to subagents when it helps) until the user confirms: ask whether to fan out wide, and on their yes restamp the line as \`Agents: wide — confirmed ${now ?? '<YYYY-MM-DD HH:MM>'}\`${now ? '' : ', the current date and time'}.`
+  if (level === 'lean')
+    return 'Agents: lean — build and verify in the main session and run at most one agent at a time; under keel:autopilot, still delegate building, one builder at a time; review still uses one fresh reviewer.'
+  if (level === 'wide')
+    return 'Agents: wide — fan out every independent leaf to its own agent in its own worktree, have a fresh agent verify, and run the correctness and security reviewers in parallel.'
+  return 'Agents: balanced — fan independent leaves out to subagents when it helps.'
+}
+
+function workingRules(plan: Plan, s: Session, now: string | undefined): string {
+  const rules = baseRules(plan, s)
+  const agents = agentsRule(plan, s, now)
+  return agents ? `${rules} ${agents}` : rules
+}
+
+function baseRules(plan: Plan, s: Session): string {
   const base =
     'Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review;'
   const skills = 'The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.'
@@ -210,7 +309,8 @@ function workingRules(plan: Plan, s: Session): string {
   return `${base} commit per stage and stop for the user's review. ${skills}`
 }
 
-function planSection(plan: Plan, s: Session): string {
+/** `now`: the current time as a stamp, which the rules hand Claude for confirming a `wide` line. */
+function planSection(plan: Plan, s: Session, now: string | undefined): string {
   const position = plan.now ?? (plan.current ? `Next stage: ${plan.current}` : 'No open stage in the plan.')
   return [
     `# Keel`,
@@ -219,7 +319,7 @@ function planSection(plan: Plan, s: Session): string {
     `Current position (from the plan):`,
     position,
     ``,
-    workingRules(plan, s),
+    workingRules(plan, s, now),
   ].join('\n')
 }
 
@@ -467,7 +567,8 @@ export const register: Register = on => {
     const s = await sync($, plan)
     $.ui.status(plan ? statusLine(plan, s) : undefined)
     if (!plan) return composed
-    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s), scope: 'session' as const }] }
+    const now = unconfirmedWide(plan, s) ? await $.clock.now().then(stampOf, () => undefined) : undefined
+    return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, now), scope: 'session' as const }] }
   })
 
   // tell the summarizer what must survive

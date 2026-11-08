@@ -1,0 +1,165 @@
+# for each mutation: copy plugins/keel to the scratchpad, apply one perl substitution to hooks/register.ts, run claude plugin test on the copy (working tree untouched); 14 mutations, all caught
+== stagefilter
+100c100
+<     const lines = now.split('\n').map(l => l.trim()).filter(l => l && !/^(Mode|Agents):/i.test(l))
+---
+>     const lines = now.split('\n').map(l => l.trim()).filter(l => l && !/^Mode:/i.test(l))
+(fail) finds the stage line when the Agents line sits above it [0.28ms]
+ 75 pass
+ 1 fail
+== nocase
+86c86
+<   const agents = agentsLine?.match(/^Agents:\s*(lean|balanced|wide)\b/i)?.[1]?.toLowerCase() as AgentsLevel | undefined
+---
+>   const agents = agentsLine?.match(/^Agents:\s*(lean|balanced|wide)\b/)?.[1]?.toLowerCase() as AgentsLevel | undefined
+(fail) reads the Agents level in any case, and ignores an unknown one [1.15ms]
+(fail) reads the confirmation stamp by its letters and digits only [0.51ms]
+ 74 pass
+ 2 fail
+== unknown
+86c86
+<   const agents = agentsLine?.match(/^Agents:\s*(lean|balanced|wide)\b/i)?.[1]?.toLowerCase() as AgentsLevel | undefined
+---
+>   const agents = agentsLine?.match(/^Agents:\s*(lean|balanced|wide|\w+)\b/i)?.[1]?.toLowerCase() as AgentsLevel | undefined
+(fail) reads the Agents level in any case, and ignores an unknown one [1.12ms]
+(fail) reads the confirmation stamp by its letters and digits only [0.39ms]
+(fail) a wide line counts only once the session saw it set or restamped [0.53ms]
+(fail) an unknown Agents value adds nothing to the working rules or the band [31.37ms]
+ 72 pass
+ 4 fail
+== trustwide
+186c186
+<   if (level !== 'wide') return level
+---
+>   return level
+(fail) a wide line counts only once the session saw it set or restamped [0.47ms]
+(fail) a wide line already in the plan when the session starts counts as balanced until it is restamped [46.23ms]
+(fail) rewriting a wide line in another case confirms nothing [51.46ms]
+(fail) rewriting a wide line with other spacing confirms nothing [50.41ms]
+(fail) a rewrite that drops the stamp confirms nothing [25.86ms]
+(fail) a wide-open line rewritten as wide confirms nothing [42.08ms]
+(fail) the same stamp in other punctuation confirms nothing [33.63ms]
+(fail) the ask to confirm wide carries the current time as the stamp [46.61ms]
+ 68 pass
+ 8 fail
+== nodistrustrule
+278c278
+<   if (unconfirmedWide(plan, s))
+---
+>   if (false)
+(fail) a wide line already in the plan when the session starts counts as balanced until it is restamped [36.28ms]
+(fail) rewriting a wide line in another case confirms nothing [47.34ms]
+(fail) rewriting a wide line with other spacing confirms nothing [27.48ms]
+(fail) a rewrite that drops the stamp confirms nothing [40.72ms]
+(fail) a wide-open line rewritten as wide confirms nothing [42.99ms]
+(fail) the same stamp in other punctuation confirms nothing [31.23ms]
+(fail) the ask to confirm wide carries the current time as the stamp [62.33ms]
+ 69 pass
+ 7 fail
+== statusbalanced
+270c270
+<   const agents = level === 'lean' || level === 'wide' ? ` · ${level}` : ''
+---
+>   const agents = level ? ` · ${level}` : ''
+(fail) the status line shows lean or wide, and nothing extra for balanced or no line [33.80ms]
+(fail) a wide line already in the plan when the session starts counts as balanced until it is restamped [26.12ms]
+(fail) rewriting a wide line in another case confirms nothing [30.63ms]
+(fail) rewriting a wide line with other spacing confirms nothing [25.22ms]
+(fail) a rewrite that drops the stamp confirms nothing [30.28ms]
+(fail) a wide-open line rewritten as wide confirms nothing [23.85ms]
+(fail) the same stamp in other punctuation confirms nothing [38.58ms]
+ 69 pass
+ 7 fail
+== rulenoline
+276c276
+<   if (!plan.agents) return ''
+---
+>   if (false) return ''
+(fail) with no Agents line the working rules say nothing new [35.75ms]
+(fail) an unknown Agents value adds nothing to the working rules or the band [37.84ms]
+ 74 pass
+ 2 fail
+== resyncseen
+230c230
+<   if (session.firstAgents === undefined) {
+---
+>   if (true) {
+(fail) the working rules name the level and what it means [50.20ms]
+(fail) the status line shows lean or wide, and nothing extra for balanced or no line [38.76ms]
+(fail) a wide line already in the plan when the session starts counts as balanced until it is restamped [27.16ms]
+(fail) a different stamp is honoured [32.99ms]
+(fail) a same-day stamp restamped later in the day is honoured [31.18ms]
+(fail) a lean line first read and then set to wide is honoured [36.46ms]
+ 70 pass
+ 6 fail
+== nolean
+280c280
+<   if (level === 'lean')
+---
+>   if (false)
+(fail) the working rules name the level and what it means [40.47ms]
+(fail) lean and balanced lines already in the plan are honoured as found [24.36ms]
+ 74 pass
+ 2 fail
+== unknownrule
+276c276
+<   if (!plan.agents) return ''
+---
+>   if (!plan.agentsLine) return ''
+(fail) an unknown Agents value adds nothing to the working rules or the band [34.06ms]
+ 75 pass
+ 1 fail
+== droppedstamp
+189c189
+<   return plan?.agentsStamp !== undefined && plan.agentsStamp !== first.stamp ? 'wide' : 'balanced'
+---
+>   return plan?.agentsStamp !== first.stamp ? 'wide' : 'balanced'
+(fail) a wide line counts only once the session saw it set or restamped [1.10ms]
+(fail) a rewrite that drops the stamp confirms nothing [29.22ms]
+ 74 pass
+ 2 fail
+== rawtext
+88c88,89
+<   const agentsStamp = !agents
+---
+>   const agentsStamp = agents ? agentsLine : undefined
+>   const _raw = !agents
+(fail) reads the confirmation stamp by its letters and digits only [0.45ms]
+(fail) a wide line counts only once the session saw it set or restamped [0.44ms]
+(fail) rewriting a wide line in another case confirms nothing [27.74ms]
+(fail) rewriting a wide line with other spacing confirms nothing [32.16ms]
+(fail) a rewrite that drops the stamp confirms nothing [21.16ms]
+(fail) a wide-open line rewritten as wide confirms nothing [36.78ms]
+(fail) the same stamp in other punctuation confirms nothing [22.11ms]
+ 69 pass
+ 7 fail
+== unknownfirst
+188c188
+<   if (first.level !== 'wide' && first.level !== 'unknown') return 'wide'
+---
+>   if (first.level !== 'wide') return 'wide'
+(fail) a wide line counts only once the session saw it set or restamped [0.87ms]
+ 75 pass
+ 1 fail
+== noclock
+567c567
+<     return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, now), scope: 'session' as const }] }
+---
+>     return { sections: [...composed.sections, { id: 'keel:plan', text: planSection(plan, s, undefined), scope: 'session' as const }] }
+(fail) the ask to confirm wide carries the current time as the stamp [34.91ms]
+ 75 pass
+ 1 fail
+
+== Round 3 (after review fixes N1, N2) — run by the main session on a scratch copy
+== n1-stamp-only-known-level: register.ts:98 `agentsStamp = agents === undefined ? undefined : stampIn(agentsLine!)`
+(fail) reads the confirmation stamp as the date and time digits only
+(fail) a misspelt or look-alike wide fixed later, keeping its stamp, confirms nothing
+(fail) a look-alike wide in Cyrillic fixed later, keeping its stamp, confirms nothing
+ 77 pass
+ 3 fail
+== n2-letters-digits-normalisation: stampIn returns the text after `confirmed`, lowercased, non-alphanumerics as spaces
+(fail) reads the confirmation stamp as the date and time digits only
+(fail) the same time written without its colon confirms nothing
+(fail) text added or changed after the stamp confirms nothing
+ 77 pass
+ 3 fail
