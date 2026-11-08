@@ -9,7 +9,7 @@ Rebuild the picture from what's written down, not from memory. A summary of the 
 
 ## Gather
 
-1. The plan (`docs/PLAN.md`, or the plan the project keeps): goal, baseline, `## Now`, stages, recent decisions, open questions.
+1. The plan (`docs/PLAN.md`, or the plan the project keeps): goal, baseline, `## Now`, stages, recent decisions, open questions. If `docs/decisions.md` exists, read it too: the standing decisions from earlier plans live there.
 2. `git log --oneline -15` and the date of the last stage commit; anything after it is work in the current stage.
 3. `git status` and `git diff --stat`: uncommitted work, and whether it matches the current stage.
 4. Anything the plan or memory says is running or pending (a dev server, a background job, a question put to the user).

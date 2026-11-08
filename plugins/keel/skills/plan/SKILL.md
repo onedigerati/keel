@@ -17,8 +17,9 @@ One file holds the project's state: `docs/PLAN.md`. If the project already keeps
    - what's risky near it: auth, money, personal data, migrations, and code with no tests.
 
    Survey only what the plan touches, not the whole repo. Then run the test suite (and lint and build, if they're quick) once, and record the result as the plan's baseline. Failures that are already there belong to the baseline, not to the first stage. If the run, test and build commands aren't in `CLAUDE.md`, offer to add them there: that file reaches every session and subagent, and the plan doesn't need to repeat them.
-3. Cut the work into stages a user can review in one sitting. Each stage ends in something that runs and can be checked. Earlier stages lay foundations the later ones reuse. Three to eight stages is typical; more means the stages are too small or the project should be split. In existing code, let the survey shape the stages: code with no tests near the change gets its tests first, and the risk lines name what the survey found.
-4. Write the file using the layout below, then show the user the stage list and the decisions you defaulted, and ask whether to start: stage by stage (`keel:stage`), or the whole plan on autopilot (`keel:autopilot`).
+3. Cut the work into stages a user can review in one sitting. Each stage ends in something that runs and can be checked. Earlier stages lay foundations the later ones reuse. In existing code, let the survey shape the stages: code with no tests near the change gets its tests first, and the risk lines name what the survey found.
+4. **Check the scale.** Count what you can: the stages after an honest cut (more than about eight), a PRD's distinct requirements (more than about fifteen) or its own list of phases, more than one release in the goal, or the user calling it a big or multi-release project. If none fires, plan it as one plan and don't raise it. If one fires and no answer is logged yet (in the plan or `docs/decisions.md`), ask once, before writing, even when told to assume defaults: chart the project first (`keel:charter` turns the PRD into `docs/ROADMAP.md`, and plans are then cut one at a time from its current milestone), or keep one plan? Say what fired and which you recommend. Log the answer as a decision with the signal that fired; it carries forward as standing, so it isn't asked again. On a yes, run `keel:charter` instead of writing the plan here; declining keeps one plan as usual. Every new plan runs this check, so a project that grows gets the question when it does.
+5. Write the file using the layout below, then show the user the stage list and the decisions you defaulted, and ask whether to start: stage by stage (`keel:stage`), or the whole plan on autopilot (`keel:autopilot`).
 
 ## Layout
 
@@ -58,6 +59,14 @@ Open: <decision waiting on the user, or "none">
 
 `## Standing decisions` and `## Shipped` appear once an earlier plan has been finished and archived (see "Starting the next plan").
 
+Once more than ten standing decisions would carry forward, they move to `docs/decisions.md`, and `## Standing decisions` keeps one line: `- Standing decisions from earlier plans are in [decisions.md](decisions.md).` Ten or fewer stay in the plan, so a small project keeps one file. The file holds a heading and the same dated lines, links and all; its links are relative to `docs/`, as the plan's are. Each archive appends the newly carried decisions at the end, and one replaced or no longer binding is struck through (`~~old~~`) with the reason, never deleted:
+
+```markdown
+# Standing decisions
+
+- 2026-09-02 · <decision from an earlier plan that still binds> — <why> (from [<plan name>](plans/2026-09-30-<plan-slug>.md))
+```
+
 `## Baseline` is for a project that already had code when the plan started: the project's checks as they stood before any stage, so later failures can be told apart as inherited or new. Leave it out for a new project. When a stage fixes a baseline failure, update the line and log it as a decision.
 
 The risk line is `UI only`, or a list of what the stage touches: user input, auth, money, personal data, secrets, external services.
@@ -86,7 +95,7 @@ A plan covers one body of work with one Goal: a single feature, several features
 - **The Goal is met and the next work goes beyond it:** start a fresh plan rather than adding stages to the old one. If any stages are still open, ask first: finish them, drop them (logged as a decision), or carry them into the new plan.
 
 1. **Archive.** Move the finished plan to `docs/plans/<date finished>-<plan-slug>.md` (`git mv`, so its history follows it). If `docs/evidence/` exists, move it beside the plan: `mkdir -p docs/plans/<date finished>-<plan-slug>` then `git mv docs/evidence docs/plans/<date finished>-<plan-slug>/evidence`. That moves the whole folder, its `.gitignore` and local (ignored) files included. The plan stays unchanged except for one line under its Goal, `Evidence: [<date finished>-<plan-slug>/evidence/](<date finished>-<plan-slug>/evidence/)`, and any links it had into `docs/evidence/` rewritten to the new place. The new plan starts with no `docs/evidence/`; `keel:verify` recreates it.
-2. **Carry forward only what binds.** Read the archived plan's decisions and the current `## Standing decisions`. Each one that still constrains the work (data formats, conventions, technology choices, product rules) goes into the new plan's `## Standing decisions`, word for word, with its original date and a link to the plan it came from. Leave out what only mattered to the finished work. Open questions that are still open carry into the new plan's `## Open questions`.
+2. **Carry forward only what binds.** Read the archived plan's decisions and the current standing decisions (`## Standing decisions`, and `docs/decisions.md` if it exists). Each one that still constrains the work (data formats, conventions, technology choices, product rules) goes into the new plan's `## Standing decisions`, word for word, with its original date and a link to the plan it came from. Leave out what only mattered to the finished work. If that makes more than ten, or `docs/decisions.md` already exists, they go to that file instead and the plan keeps its pointer line (see Layout). Open questions that are still open carry into the new plan's `## Open questions`.
 3. **Record what shipped.** Add a line to `## Shipped`: date, the plan's name, what it delivered, link to the archive, and link to its evidence folder if it has one. Keep earlier lines.
 4. **Plan the new work as usual** (Creating a plan above): new Goal, a survey of what it touches, a fresh `## Baseline` taken now (the last plan's work is part of the project now, failures included), and stages numbered from 1. The Agents line carries over unless the user changes it.
 5. **Commit the switch on its own** (archive, evidence, new plan), then suggest the user clear the conversation (`/clear`) or start a new session before building. Nothing is lost: the plan, the archive and git carry everything, and `keel:resume` picks it up from there.
