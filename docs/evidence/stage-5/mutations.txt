@@ -1,0 +1,49 @@
+$ claude plugin test <scratch copy of plugins/keel>   # one change per run; the tests named must fail
+
+=== mutation: milestone tick never gated (check 4)
+--- in hooks/register.ts replaced:         if (missing) return { deny: missing }
+      }
+    }
+    return next(e)
+--- with:         void missing
+      }
+    }
+    return next(e)
+(fail) ticking a milestone with no evidence file is refused, naming the path and the close [41.81ms]
+(fail) milestone evidence missing a requirement is refused, naming only the missing ID [37.83ms]
+(fail) an ID named in milestone evidence prose, or in a row's later cell, is not its row [38.05ms]
+(fail) a milestone whose rows are all dropped, or that has none, ticks without evidence [52.95ms]
+(fail) milestone evidence that cannot be read counts as missing [38.33ms]
+(fail) a stage close and a milestone tick in one commit each need their evidence [51.55ms]
+ 246 pass
+ 6 fail
+
+=== mutation: missing milestone evidence file allowed (check 4)
+--- in hooks/register.ts replaced:   if (typeof text !== 'string')
+    return [
+--- with:   if (typeof text !== 'string') return undefined
+  if (false) return [
+(fail) closing a stage with no evidence report is refused, naming the path and keel:verify [28.71ms]
+(fail) a report that cannot be read counts as missing, not as a pass [39.67ms]
+ 250 pass
+ 2 fail
+
+=== mutation: evidence missing a requirement allowed (check 4)
+--- in hooks/register.ts replaced:   if (!missing.length) return undefined
+--- with:   if (missing.length >= 0) return undefined
+(fail) milestone evidence missing a requirement is refused, naming only the missing ID [36.75ms]
+(fail) an ID named in milestone evidence prose, or in a row's later cell, is not its row [28.41ms]
+ 250 pass
+ 2 fail
+
+=== mutation: dropped rows required too (check 4)
+--- in hooks/register.ts replaced: const wanted = ledger === undefined ? undefined : milestoneRequirements(ledger, id)
+--- with: const wanted = ledger === undefined ? undefined : [...milestoneRequirements(ledger, id), 'DROPPED-X']
+(fail) milestone evidence missing a requirement is refused, naming only the missing ID [47.11ms]
+(fail) an ID named in milestone evidence prose, or in a row's later cell, is not its row [38.86ms]
+(fail) complete milestone evidence lets the tick through, from the working tree or the same commit; dropped rows are not asked for [42.57ms]
+(fail) a milestone whose rows are all dropped, or that has none, ticks without evidence [31.78ms]
+(fail) a stage close and a milestone tick in one commit each need their evidence [35.01ms]
+ 247 pass
+ 5 fail
+

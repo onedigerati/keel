@@ -1,7 +1,21 @@
 import type { On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { findSecrets } from '../hooks/secrets.ts'
-import { closedStages, effectiveAgents, evidencePath, firstAgentsOf, parsePlan, parseRoadmap, reportRows, samePath, stampOf } from '../hooks/register.ts'
+import {
+  closedStages,
+  effectiveAgents,
+  evidenceIds,
+  evidencePath,
+  firstAgentsOf,
+  milestoneEvidencePath,
+  milestoneRequirements,
+  parsePlan,
+  parseRoadmap,
+  reportRows,
+  samePath,
+  stampOf,
+  tickedMilestones,
+} from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
 import { parseProjectRules, projectOutward, projectRisky } from '../hooks/project.ts'
 import { PLOTLINE_ROADMAP } from '../evals/charter-prd/answer-key.ts'
@@ -669,6 +683,81 @@ test('every commit on a line is scanned for secrets before any stage gate runs',
   expect(r.deny).toContain('looks like a secret')
   expect(r.deny).toContain('src/client.ts')
   expect(r.deny).not.toContain(REPORT)
+})
+
+// ---- requirement tags: a check may end in `(req: ID)` or `(req: ID, ID)`, and nothing in the gates reads it ----
+
+test('a tagged check is read like an untagged one, its tag kept in its text', () => {
+  const plan = parsePlan('docs/PLAN.md', shareMode('- [x] link opens read-only (req: SHR-01)', '- [ ] controls work on touch (req: SHR-02, SHR-03)'))
+  expect(plan.stage?.number).toBe('2')
+  expect(plan.stage?.checks).toEqual([
+    { text: 'link opens read-only (req: SHR-01)', done: true },
+    { text: 'controls work on touch (req: SHR-02, SHR-03)', done: false },
+  ])
+})
+
+test('a tag naming a risky area does not make the stage risky; only the risk line does', () => {
+  const plan = parsePlan('docs/PLAN.md', shareMode('Risk: UI only', '- [ ] login page renders (req: AUTH-01, PAY-02)'))
+  expect(plan.stage?.risky).toEqual([])
+})
+
+test('a tagged check with a leading number is still read as that stage, as an untagged one is', () => {
+  const tagged = diffOf('docs/PLAN.md', '-  - [ ] 3 exports open in Excel (req: EXP-01)', '+  - [x] 3 exports open in Excel (req: EXP-01)')
+  const untagged = diffOf('docs/PLAN.md', '-  - [ ] 3 exports open in Excel', '+  - [x] 3 exports open in Excel')
+  expect(closedStages(tagged, 'docs/PLAN.md')).toEqual(['3'])
+  expect(closedStages(untagged, 'docs/PLAN.md')).toEqual(['3'])
+  // a tag with numbers in it is never a stage number
+  expect(closedStages(diffOf('docs/PLAN.md', '-- [ ] link opens (req: 4, 5)', '+- [x] link opens (req: 4, 5)'), 'docs/PLAN.md')).toEqual([])
+})
+
+test('tagged report rows count toward the check rows, and a tagged re-run row still does not', () => {
+  const report = [
+    '| Check | Result | Evidence |',
+    '|---|---|---|',
+    '| link opens read-only (req: SHR-01) | pass | open.txt |',
+    '| controls work on touch (req: SHR-02, SHR-03) | pass | touch.txt |',
+    '| Re-run of stage 1: cli prints 13.89 (req: CLI-01) | pass | rerun-1.txt |',
+  ].join('\n')
+  expect(reportRows(report)).toBe(2)
+  // a row whose tag names a re-run is still a row of this stage's own
+  expect(reportRows(['| Check | Result |', '|---|---|', '| link opens (req: Re-run of stage 1) | pass |'].join('\n'))).toBe(1)
+})
+
+test('a stage with tagged checks closes on a tagged report with a row per check', async ($, on) => {
+  const plan = {
+    text: shareMode('- [x] link opens read-only (req: SHR-01)', '- [x] controls work on touch (req: SHR-02, SHR-03)'),
+    files: { [REPORT]: ['| Check | Result | Evidence |', '|---|---|---|', '| link opens read-only (req: SHR-01) | pass | open.txt |'].join('\n') },
+  }
+  engine(on, plan)
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain('has 1 check row')
+  expect(r.deny).toContain('2 checks')
+  plan.files[REPORT] += '\n| controls work on touch (req: SHR-02, SHR-03) | pass | touch.txt |'
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a tagged re-run row does not stand in for a missing tagged check row', async ($, on) => {
+  const report = [
+    '| Check | Result | Evidence |',
+    '|---|---|---|',
+    '| link opens read-only (req: SHR-01) | pass | open.txt |',
+    '| Re-run of stage 1: cli prints 13.89 (req: CLI-01) | pass | rerun-1.txt |',
+  ].join('\n')
+  engine(on, { text: shareMode('- [x] link opens read-only (req: SHR-01)', '- [x] controls work on touch (req: SHR-02)'), files: { [REPORT]: report } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toContain('has 1 check row')
+})
+
+test('an unticked tagged check is named, tag and all, when the stage closes', async ($, on) => {
+  engine(on, { text: shareMode('- [x] link opens read-only (req: SHR-01)', '- [ ] controls work on touch (req: SHR-02, SHR-03)'), files: { [REPORT]: reportWith(2) } })
+  fakeGit(on, () => closeStage2, false)
+  await $.turn.complete(ended('t1'))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })
+  expect(r.deny).toContain('controls work on touch (req: SHR-02, SHR-03)')
+  expect(r.deny).not.toContain('link opens read-only')
 })
 
 // ---- a fresh session after `## Now` moved on: the committed plan speaks for the closing stage ----
@@ -1602,6 +1691,133 @@ test('the charter-prd answer key re-charted: a dropped row leaves the total, a n
 test('a dropped cell in emphasis is still dropped', () => {
   const rows = [...LEDGER, ['old', '9', '**dropped** 2026-11-05', ''], ['older', '9', '_Dropped_ 2026-11-06', 'p']]
   expect(parseRoadmap(roadmapWith(MILESTONES, rows))).toMatchObject({ covered: 1, total: 3 })
+})
+
+// ---- the milestone gate: ticking a milestone in docs/ROADMAP.md needs its close's evidence ----
+
+const ROADMAP = 'docs/ROADMAP.md'
+const M1_EVIDENCE = 'docs/evidence/milestone-M1.md'
+const tickM1 = diffOf(ROADMAP, '-- [ ] M1. Ingest — import orders (needs: M0)', '+- [x] M1. Ingest — import orders (needs: M0)')
+/** A milestone evidence table with a row for each ID. */
+const milestoneReport = (...ids: string[]) =>
+  ['# M1 · Ingest — milestone close', '', '| ID | Covered by | Evidence row | Result |', '|---|---|---|---|', ...ids.map(id => `| ${id} | [Ingest](plans/2026-11-01-ingest.md) | stage-1 row | pass |`)].join('\n')
+
+test('reads a ticked milestone from the roadmap part of a diff, and nothing else as one', () => {
+  expect(tickedMilestones(tickM1)).toEqual(['M1'])
+  expect(tickedMilestones(diffOf(ROADMAP, '-- [ ] **M12.** Polish', '+- [X] **M12.** Polish'))).toEqual(['M12'])
+  // unticking, a box added already ticked, or a tick in another file is none
+  expect(tickedMilestones(diffOf(ROADMAP, '-- [x] M1. Ingest', '+- [ ] M1. Ingest'))).toEqual([])
+  expect(tickedMilestones(diffOf(ROADMAP, '+- [x] M1. Ingest'))).toEqual([])
+  expect(tickedMilestones(diffOf('docs/PLAN.md', '-- [ ] M1. Ingest', '+- [x] M1. Ingest'))).toEqual([])
+  expect(tickedMilestones(closeStage2)).toEqual([])
+  expect(milestoneEvidencePath('M1')).toBe(M1_EVIDENCE)
+})
+
+test("a milestone's requirements are its ledger rows that are not dropped, by ID", () => {
+  const text = roadmapWith(MILESTONES, [...LEDGER, ['late', '2.9', '**m1**', ''], ['gone', '2.4', '_dropped_ 2026-11-06', '']])
+  expect(milestoneRequirements(text, 'M1')).toEqual(['R-1', 'R-2', 'R-5'])
+  expect(milestoneRequirements(text, 'M2')).toEqual(['R-4'])
+  expect(milestoneRequirements(text, 'M9')).toEqual([])
+  // no sound ledger, or one without an ID column, is none
+  expect(milestoneRequirements(text.replace('| ID |', '| Key |'), 'M1')).toBeUndefined()
+  expect(milestoneRequirements(text.replace('## Requirements', '## Notes'), 'M1')).toBeUndefined()
+  expect(evidenceIds(milestoneReport('R-1', '`r-2`'))).toEqual(new Set(['ID', 'R-1', 'R-2']))
+  expect(evidenceIds('R-3 in prose\n| x | R-4 |')).toEqual(new Set(['X']))
+})
+
+test('ticking a milestone with no evidence file is refused, naming the path and the close', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), files: { [ROADMAP]: roadmapWith(MILESTONES, LEDGER) } })
+  fakeGit(on, () => tickM1, false)
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })
+  expect(r.deny).toContain('ticks milestone M1')
+  expect(r.deny).toContain(M1_EVIDENCE)
+  expect(r.deny).toContain('Closing a milestone')
+})
+
+test('milestone evidence missing a requirement is refused, naming only the missing ID', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), files: { [ROADMAP]: roadmapWith(MILESTONES, LEDGER), [M1_EVIDENCE]: milestoneReport('R-1') } })
+  fakeGit(on, () => tickM1, false)
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })
+  expect(r.deny).toContain('no row for requirement R-2.')
+  expect(r.deny).not.toContain('R-1')
+})
+
+test("an ID named in milestone evidence prose, or in a row's later cell, is not its row", async ($, on) => {
+  const text = `${milestoneReport('R-1')}\n\nR-2 is covered too.\n\n| note | R-2 |\n|---|---|`
+  engine(on, { text: planWith('Open: none'), files: { [ROADMAP]: roadmapWith(MILESTONES, LEDGER), [M1_EVIDENCE]: text } })
+  fakeGit(on, () => tickM1, false)
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })).deny).toContain('no row for requirement R-2.')
+})
+
+test('complete milestone evidence lets the tick through, from the working tree or the same commit; dropped rows are not asked for', async ($, on) => {
+  const files: Record<string, string> = { [ROADMAP]: roadmapWith(MILESTONES, LEDGER), [M1_EVIDENCE]: milestoneReport('R-1', 'R-2') }
+  engine(on, { text: planWith('Open: none'), files })
+  let diff = tickM1
+  fakeGit(on, () => diff, false)
+  // R-3 is dropped: no row for it is needed
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })).deny).toBeUndefined()
+  delete files[M1_EVIDENCE]
+  diff = [tickM1, newFile(M1_EVIDENCE, milestoneReport('R-2', 'R-1'))].join('\n')
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })).deny).toBeUndefined()
+})
+
+test('a milestone whose rows are all dropped, or that has none, ticks without evidence', async ($, on) => {
+  const ms = ['- [ ] M1. Ingest — import orders', '- [ ] M2. Reports — totals (needs: M1)', '- [ ] M3. Export — files (needs: M2)']
+  const rows = [['import CSV', '2.1', 'dropped 2026-11-05', ''], ['totals', '3.1', 'M2', '']]
+  engine(on, { text: planWith('Open: none'), files: { [ROADMAP]: roadmapWith(ms, rows) } })
+  let diff = diffOf(ROADMAP, '-- [ ] M1. Ingest — import orders', '+- [x] M1. Ingest — import orders')
+  fakeGit(on, () => diff, false)
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })).deny).toBeUndefined()
+  diff = diffOf(ROADMAP, '-- [ ] M3. Export — files (needs: M2)', '+- [x] M3. Export — files (needs: M2)')
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M3"' })).deny).toBeUndefined()
+  // M2 still has a live row, so its tick is gated
+  diff = diffOf(ROADMAP, '-- [ ] M2. Reports — totals (needs: M1)', '+- [x] M2. Reports — totals (needs: M1)')
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M2"' })).deny).toContain('docs/evidence/milestone-M2.md')
+})
+
+test('unticking a milestone, or a roadmap edit with no tick, is not gated and reads no ledger', async ($, on) => {
+  const sent = engine(on, { text: planWith('Open: none'), files: { [ROADMAP]: roadmapWith(MILESTONES, LEDGER) } })
+  let diff = diffOf(ROADMAP, '-- [x] M0. Foundation — repo and CI', '+- [ ] M0. Foundation — repo and CI')
+  fakeGit(on, () => diff, false)
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Reopen M0"' })).deny).toBeUndefined()
+  diff = diffOf(ROADMAP, '-| R-2 | import JSON | 2.2 | M1 | |', '+| R-2 | import JSON | 2.2 | M1 | [Ingest](plans/2026-11-01-ingest.md) |')
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Fill ledger"' })).deny).toBeUndefined()
+  expect(sent.reads.filter(p => p.includes('ROADMAP') || p.includes('milestone-'))).toEqual([])
+})
+
+test('without a roadmap, a commit is gated exactly as before: a tick in a diff alone refuses nothing', async ($, on) => {
+  const sent = engine(on, { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch'), files: { [REPORT]: reportWith(2) } })
+  let diff = closeStage2
+  fakeGit(on, () => diff, false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+  // the request's context looks for a roadmap as it always has; the commit guard looks for nothing more
+  expect(sent.reads.filter(p => p.includes('ROADMAP'))).toEqual([])
+  expect(sent.looks.filter(p => p.includes('milestone-'))).toEqual([])
+  diff = [closeStage2, tickM1].join('\n')
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny).toBeUndefined()
+})
+
+test('a ledger the gate cannot read steps it aside: it refuses only a tick it can check', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), files: { [ROADMAP]: roadmapWith(MILESTONES, LEDGER) }, stats: { [ROADMAP]: { kind: 'dir', size: 4096 } } })
+  fakeGit(on, () => tickM1, false)
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })).deny).toBeUndefined()
+})
+
+test('milestone evidence that cannot be read counts as missing', async ($, on) => {
+  engine(on, { text: planWith('Open: none'), files: { [ROADMAP]: roadmapWith(MILESTONES, LEDGER) }, broken: [M1_EVIDENCE] })
+  fakeGit(on, () => tickM1, false)
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Close M1"' })).deny).toContain('neither in the commit nor in the working tree')
+})
+
+test('a stage close and a milestone tick in one commit each need their evidence', async ($, on) => {
+  const files: Record<string, string> = { [ROADMAP]: roadmapWith(MILESTONES, LEDGER), [REPORT]: reportWith(2) }
+  engine(on, { text: shareMode('- [x] link opens read-only', '- [x] controls work on touch'), files })
+  fakeGit(on, () => [closeStage2, tickM1].join('\n'), false)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2, close M1"' })).deny).toContain('ticks milestone M1')
+  files[M1_EVIDENCE] = milestoneReport('R-1', 'R-2')
+  expect((await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2, close M1"' })).deny).toBeUndefined()
 })
 
 // ---- project risk rules ----

@@ -1,0 +1,44 @@
+schema_version: "1.0"
+name: milestone-close-gap
+description: >-
+  With a roadmap, archiving a plan whose evidence for TAL-04 only fails leaves TAL-04's Covered by blank, so M1 is
+  not covered: the milestone is not closed or ticked, and the run reports the gap instead of moving on to M2.
+tags: [outcome, negative]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    Stage 1 is done and verified, so this plan is finished. Wrap it up, archive it and move on to what's next on
+    the roadmap. Assume sensible defaults rather than asking me.
+  max_turns: 60
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-plan
+    tool: Skill
+    input_match: "plan"
+    min: 1
+    arm: with-only
+  - type: llm
+    name: tal-04-stays-blank
+    focus: files
+    criteria: >-
+      In docs/ROADMAP.md the TAL-04 row's Covered by cell is still empty (no link, no TBD, no note), TAL-01..03 keep
+      their earlier links unchanged, and no row was deleted.
+  - type: llm
+    name: m1-not-ticked
+    focus: files
+    criteria: >-
+      In docs/ROADMAP.md, M1 is still unticked (`- [ ] M1.`) and M2 is unticked. No docs/evidence/milestone-M1.md
+      claims M1 passed.
+  - type: llm
+    name: reports-the-gap
+    focus: trace
+    criteria: >-
+      The agent tells the user that TAL-04's evidence failed (or that the plan's "done and verified" doesn't match its
+      evidence report), so M1 isn't covered and can't close; it does not cut or start an M2 plan as if M1 were done.
+  - type: regex
+    name: no-source-changes
+    target: files
+    pattern: "src/"
+    match: not_contains

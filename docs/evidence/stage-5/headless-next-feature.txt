@@ -1,0 +1,49 @@
+$ claude -p "<the case's prompt>" --plugin-dir plugins/keel --max-turns <the case's max_turns> --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose   # in a fresh git repo laid out by evals/next-feature/scaffold.sh, on this commit's plugin
+# exit 0
+
+## Tool calls
+- Skill keel:plan
+- Bash cd "$PWD"; cat docs/PLAN.md; echo ----; git ls-files; echo ----; cat CLAUDE.md README* 2>/dev/null; ls docs docs/evidence 2>/dev/null
+- Bash cat package.json src/*.js test/*.js docs/evidence/.gitignore docs/evidence/stage-1/report.md; git log --oneline; npm test 2>&1 | tail -15
+- Bash git log -1 --format=%ci 488a411; git show --stat 488a411 | tail -5
+- Bash set -e; mkdir -p docs/plans/2026-11-08-csv-total git mv docs/PLAN.md docs/plans/2026-11-08-csv-total.md git mv docs/evidence docs/plans/2026
+- Write <scratch>/v5-next-feature/repo/docs/PLAN.md
+- Bash git add -A docs && git commit -qm "Archive CSV-total plan; plan monthly reports  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" &&
+
+## Final reply
+The monthly-reports plan is written and committed; no code yet. The finished CSV-total plan and its evidence are archived under `docs/plans/2026-11-08-csv-total*`, and the new plan is in `docs/PLAN.md` (commit `c2e6293`). The test suite passes today (1 test), which is the starting baseline.
+
+**Stages**
+1. **Row parsing:** a tested function that reads date, amount and category from each CSV row. It handles Windows line endings, blank lines and missing categories, and stops with the line number when a row is bad. The existing `tally file.csv` switches to it with no change in output. This stage is marked risky because it parses an outside file, so it gets a security review.
+2. **Monthly grouping:** totals for each month and category, kept in whole cents, with tests around month boundaries and refunds.
+3. **Report table:** `tally report <file>` prints the aligned table with a subtotal for each month and a grand total.
+
+**Defaults I chose (all logged as decisions)**
+- **The CSV columns are `date,amount,category`, with a header line.** This is the biggest assumption, so please check it against a real bank export. The amount staying in column 2 matches the earlier decision, and the current code already skips line 1, but nothing in the repo shows the date or category columns.
+- **Dates are `YYYY-MM-DD`.** The month comes from the first 7 characters of the text, so time zones can't push a row into the wrong month.
+- **Refunds (negative amounts) are allowed** and reduce their month and category. This answers the old open question.
+- **A missing category goes under `Uncategorized`.**
+- **A bad row stops the run with an error** instead of being skipped, so totals are never quietly wrong.
+- **Table layout:** one row per month and category, oldest month first, categories A–Z. Amounts are right-aligned to 2 decimals, and it's plain text with no dependencies.
+- **`report` is a new subcommand**, so `tally file.csv` behaves exactly as before.
+- **One plan is enough:** at 3 stages it doesn't need a roadmap.
+
+One gap in the previous work: Stage 2 (CSV input) was closed without a saved evidence report; only Stage 1 has one. Its code is untested apart from `total()`. Stage 1 of this plan puts a test around the command itself.
+
+Do you want to go stage by stage (`keel:stage`) or run the whole plan on autopilot (`keel:autopilot`)? Either way, it's worth `/clear` or a fresh session first; the plan and git keep everything.
+
+## Repo after the run
+c2e6293 Archive CSV-total plan; plan monthly reports
+488a411 Stage 2: CSV input; all stages done
+
+### docs/PLAN.md: Goal and Stages
+## Goal
+Monthly reports for Tally: `tally report file.csv` groups the expense rows by month and category and prints a summary table, with a subtotal for each month and a grand total. It's for the same single user and the same bank export. Done means the report command prints a correct, aligned table for a real export, and `tally file.csv` still prints the plain total exactly as before.
+
+## Baseline
+## Stages
+- [ ] 1. Row parsing — tested parseRows() for date/amount/category, used by the existing CLI
+- [ ] 2. Monthly grouping — group rows into month × category totals in cents, with tests
+- [ ] 3. Report table — `tally report <file>` prints the aligned table with subtotals and a grand total
+
+## Decisions

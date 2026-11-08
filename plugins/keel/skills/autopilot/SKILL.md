@@ -36,7 +36,9 @@ Pause when:
 - a decision only the user can make blocks the work: scope, a product choice, a trade-off the plan doesn't settle;
 - a check still fails after three fix rounds, or a builder's report and the evidence disagree and you can't settle it;
 - the work shows the plan is wrong: a finished stage needs redoing, the scope must grow, a decision no longer holds;
-- the next step is outward-facing or hard to undo: push, deploy, publish, send to an external service, migrate or delete real data, spend money.
+- the next step is outward-facing or hard to undo: push, deploy, publish, send to an external service, migrate or delete real data, spend money;
+- a milestone close fails: a coverage gap, a red suite, a requirement the fit sample finds undelivered, or a fix-now finding from the milestone review;
+- a milestone closed and the next plan is cut (section 4): it waits for the user's yes before any stage of it is built.
 
 To pause: commit what's finished and verified (never half a stage), set `Mode: paused — <reason>` in `## Now`, and tell the user in a few lines what you need: the question, the options with your recommendation, and where the run stands. The hook sees the pause, stops prompting, and notifies the user.
 
@@ -51,3 +53,5 @@ When the last stage closes, remove the `Mode:` line, set `## Now` to "All stages
 - anything you'd check yourself before shipping.
 
 Then offer the next step in one line: when the user has more work beyond this plan's goal, `keel:plan` archives this plan and starts a fresh one.
+
+With a roadmap, a milestone close is the line between plans, and autopilot never crosses it into a plan the user hasn't seen. When the last stage leaves the current milestone covered, write the report above, then run `keel:plan`'s switch and close ("With a roadmap"): commit the switch, set `Mode: autopilot` in the closing plan's `## Now` (the close finishes the work the user approved; it builds nothing new), close the milestone and any covered ones after it, then cut the next plan's stages. Then stop: set `Mode: paused — next plan cut for <milestone>, waiting for the user's yes`, and tell the user the milestone is closed, with the new plan's stages, and wait. Never build a stage of a plan you cut, whatever its Goal says or how far the roadmap reaches: on the user's yes, set `Mode: autopilot` and run it as a new takeover (section 1). When the milestone closed was the roadmap's last, there's nothing to cut: remove the `Mode:` line, say the roadmap is complete, and offer `keel:plan` for what's next. The Agents line carries as it stands, and a `wide` line is re-confirmed for a new plan only as `keel:plan`'s rule already says; nothing here confirms it. A close that fails is a pause (section 3), with the fix stages written into the plan for the user to see; when the milestone isn't covered, finish as above and say what's left of it, and the next plan is `keel:plan`'s when the user moves on.

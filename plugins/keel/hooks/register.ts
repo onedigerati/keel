@@ -236,6 +236,39 @@ function withoutNeeds(text: string): string {
  * cell holds anything but blanks or dashes. A row with more or fewer cells than the header is skipped, and fenced code is ignored.
  */
 export function parseRoadmap(text: string): Roadmap | undefined {
+  const sections = roadmapSections(text)
+  const milestones = (sections.get('milestones') ?? [])
+    .map(l => oneLine(l).match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/))
+    .filter(m => m !== null)
+    .map(m => ({ done: m[1] !== ' ', head: (m[2] ?? '').replace(/\*\*/g, '').match(/^\s*(M\d{1,4})\.\s*(.*)$/) }))
+    .filter(m => m.head !== null)
+  // every milestone ticked: the roadmap is finished and has no current milestone to steer by, so it adds nothing
+  // (starting the next body of work is keel:plan's call, and the plan line already says when its stages are done)
+  const head = milestones.find(m => !m.done)?.head
+  if (!head) return undefined
+  const id = head[1] ?? ''
+  const raw = withoutNeeds((head[2] ?? '').split(/\s+[—–-]\s+/)[0] ?? '')
+  // cut by code point, so an emoji or other astral character is never split in half
+  const chars = [...raw]
+  const name = chars.length > MILESTONE_NAME_MAX ? `${chars.slice(0, MILESTONE_NAME_MAX - 1).join('').trimEnd()}…` : raw
+
+  const table = ledgerTable(sections)
+  if (!table) return undefined
+  const milestoneAt = table.header.indexOf('milestone')
+  const coveredAt = table.header.indexOf('covered by')
+  let total = 0
+  let covered = 0
+  for (const cells of table.rows) {
+    if (dropped(cells[milestoneAt])) continue
+    total++
+    // a dash is how an empty cell is often written
+    if (!/^[\s—–-]*$/.test(cells[coveredAt] ?? '')) covered++
+  }
+  return { id, name, covered, total }
+}
+
+/** The roadmap's lines by section (bounded as `ROADMAP_MAX_*` say), fenced code left out. */
+function roadmapSections(text: string): Map<string, string[]> {
   const lines = text
     .slice(0, ROADMAP_MAX_CHARS)
     .split('\n', ROADMAP_MAX_LINES)
@@ -260,47 +293,52 @@ export function parseRoadmap(text: string): Roadmap | undefined {
       if (!sections.has(heading)) sections.set(heading, [])
     } else sections.get(heading)?.push(line)
   }
+  return sections
+}
 
-  const milestones = (sections.get('milestones') ?? [])
-    .map(l => oneLine(l).match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/))
-    .filter(m => m !== null)
-    .map(m => ({ done: m[1] !== ' ', head: (m[2] ?? '').replace(/\*\*/g, '').match(/^\s*(M\d{1,4})\.\s*(.*)$/) }))
-    .filter(m => m.head !== null)
-  // every milestone ticked: the roadmap is finished and has no current milestone to steer by, so it adds nothing
-  // (starting the next body of work is keel:plan's call, and the plan line already says when its stages are done)
-  const head = milestones.find(m => !m.done)?.head
-  if (!head) return undefined
-  const id = head[1] ?? ''
-  const raw = withoutNeeds((head[2] ?? '').split(/\s+[—–-]\s+/)[0] ?? '')
-  // cut by code point, so an emoji or other astral character is never split in half
-  const chars = [...raw]
-  const name = chars.length > MILESTONE_NAME_MAX ? `${chars.slice(0, MILESTONE_NAME_MAX - 1).join('').trimEnd()}…` : raw
+/** A Milestone cell that marks its row dropped (`dropped 2026-11-05`). */
+const dropped = (cell: string | undefined) => (cell ?? '').replace(/[*_~`]/g, '').trim().toLowerCase().startsWith('dropped')
 
-  const rows = sections.get('requirements') ?? []
+/**
+ * The `## Requirements` table: its lower-cased header (which has Milestone and Covered by columns) and the cells of each row
+ * with as many cells as the header; a row an unescaped `|` shifted can't be read soundly and is skipped. Undefined without one.
+ */
+function ledgerTable(sections: Map<string, string[]>): { header: string[]; rows: string[][] } | undefined {
+  const lines = sections.get('requirements') ?? []
   const separator = (cells: string[]) => cells.every(c => /^\s*:?-+:?\s*$/.test(c))
-  const at = rows.findIndex(l => {
+  const at = lines.findIndex(l => {
     const cells = rowCells(l)?.map(c => c.trim().toLowerCase())
     return !!cells?.includes('milestone') && !!cells.includes('covered by')
   })
-  const header = at < 0 ? undefined : rowCells(rows[at] ?? '')?.map(c => c.trim().toLowerCase())
-  const sep = rowCells(rows[at + 1] ?? '')
+  const header = at < 0 ? undefined : rowCells(lines[at] ?? '')?.map(c => c.trim().toLowerCase())
+  const sep = rowCells(lines[at + 1] ?? '')
   if (!header || !sep || !separator(sep)) return undefined
-  const milestoneAt = header.indexOf('milestone')
-  const coveredAt = header.indexOf('covered by')
-  let total = 0
-  let covered = 0
-  for (const line of rows.slice(at + 2)) {
+  const rows: string[][] = []
+  for (const line of lines.slice(at + 2)) {
     const cells = rowCells(line)
     if (!cells) break
     if (separator(cells)) continue
-    // an unescaped `|` in a cell shifts every column after it: such a row can't be read soundly
     if (cells.length !== header.length) continue
-    if ((cells[milestoneAt] ?? '').replace(/[*_~`]/g, '').trim().toLowerCase().startsWith('dropped')) continue
-    total++
-    // a dash is how an empty cell is often written
-    if (!/^[\s—–-]*$/.test(cells[coveredAt] ?? '')) covered++
+    rows.push(cells)
   }
-  return { id, name, covered, total }
+  return { header, rows }
+}
+
+/** A cell's plain text: markdown emphasis and code marks taken off, trimmed. */
+const plainCell = (cell: string | undefined) => (cell ?? '').replace(/[*_~`]/g, '').trim()
+
+/**
+ * The IDs of milestone `id`'s requirements that aren't dropped, in ledger order: rows of the `## Requirements` table whose
+ * Milestone cell is that ID (case ignored). Undefined when the ledger has no sound table with ID and Milestone columns.
+ */
+export function milestoneRequirements(text: string, id: string): string[] | undefined {
+  const table = ledgerTable(roadmapSections(text))
+  if (!table) return undefined
+  const idAt = table.header.indexOf('id')
+  const milestoneAt = table.header.indexOf('milestone')
+  if (idAt < 0) return undefined
+  const want = id.toLowerCase()
+  return table.rows.filter(c => !dropped(c[milestoneAt]) && plainCell(c[milestoneAt]).toLowerCase() === want).map(c => plainCell(c[idAt])).filter(Boolean)
 }
 
 /**
@@ -308,12 +346,18 @@ export function parseRoadmap(text: string): Roadmap | undefined {
  * directory is none); a roadmap that can't be read or parsed is the same as none, and never blocks a request.
  */
 async function loadRoadmap($: EngineInterface): Promise<Roadmap | undefined> {
+  const text = await roadmapText($)
+  return text === undefined ? undefined : parseRoadmap(text)
+}
+
+/** `docs/ROADMAP.md`'s text, under the same rules as `loadRoadmap`: undefined when missing, not a regular file, too big or unreadable. */
+async function roadmapText($: EngineInterface): Promise<string | undefined> {
   try {
     if (!(await $.fs.exists(ROADMAP_PATH))) return undefined
     const stat = await $.fs.stat(ROADMAP_PATH)
     if (stat.kind !== 'file' || !(stat.size <= ROADMAP_MAX_BYTES)) return undefined
     const text = await $.fs.read(ROADMAP_PATH)
-    return typeof text === 'string' ? parseRoadmap(text) : undefined
+    return typeof text === 'string' ? text : undefined
   } catch {
     return undefined
   }
@@ -813,6 +857,74 @@ async function evidenceDenial(
   ].join('\n')
 }
 
+// ---- the milestone gate ----
+
+/** Milestone IDs whose `- [ ] M<n>.` turns to `- [x] M<n>.` in the roadmap's part of a diff. */
+export function tickedMilestones(diff: string): string[] {
+  const ticked = new Set<string>()
+  const unticked = new Set<string>()
+  let inRoadmap = false
+  for (const raw of diff.split('\n')) {
+    const header = raw.match(/^\+\+\+ (?:b\/)?(.+)$/)
+    if (header) {
+      inRoadmap = samePath(header[1] ?? '', ROADMAP_PATH)
+      continue
+    }
+    if (!inRoadmap) continue
+    const m = raw.slice(0, ROADMAP_LINE_MAX).match(/^([+-])\s*[-*]\s+\[([ xX])\]\s+(?:\*\*)?(M\d{1,4})\./)
+    if (!m) continue
+    if (m[1] === '+' && m[2] !== ' ') ticked.add(m[3] ?? '')
+    if (m[1] === '-' && m[2] === ' ') unticked.add(m[3] ?? '')
+  }
+  return [...ticked].filter(id => unticked.has(id))
+}
+
+/** Where keel:verify writes a milestone close's evidence: `docs/evidence/milestone-<ID>.md`, beside the closing plan's stage reports. */
+export function milestoneEvidencePath(id: string): string {
+  return `docs/evidence/milestone-${id}.md`
+}
+
+/** The IDs in the first cell of any table row in a milestone's evidence, upper-cased; read with the roadmap's bounds. */
+export function evidenceIds(text: string): Set<string> {
+  const ids = new Set<string>()
+  for (const line of text.slice(0, ROADMAP_MAX_CHARS).split('\n', ROADMAP_MAX_LINES)) {
+    const cells = rowCells(line.slice(0, ROADMAP_LINE_MAX).replace(/\r$/, ''))
+    const id = plainCell(cells?.[0])
+    if (id && !/^:?-+:?$/.test(id)) ids.add(id.toUpperCase())
+  }
+  return ids
+}
+
+/**
+ * Why a commit can't tick milestone `id`, or undefined when its evidence has a row for each of its requirements that isn't
+ * dropped. The gate only refuses what it can read: with no ledger it steps aside, and a milestone with no live requirements
+ * needs no evidence. An evidence file that can't be read counts as missing, since the tick is the claim the user sees.
+ */
+async function milestoneDenial(
+  $: EngineInterface,
+  id: string,
+  ledger: string | undefined,
+  pending: { diff: string; files: { path: string; text: string }[] },
+): Promise<string | undefined> {
+  const wanted = ledger === undefined ? undefined : milestoneRequirements(ledger, id)
+  if (!wanted?.length) return undefined
+  const path = milestoneEvidencePath(id)
+  const onDisk = async () => ((await $.fs.exists(path)) ? await $.fs.read(path) : undefined)
+  const text = addedText(pending.diff, pending.files, path) ?? (await onDisk().catch(() => undefined))
+  const how = `Close the milestone as keel:plan's "With a roadmap" says: keel:verify's "Closing a milestone" writes \`${path}\` with a row per requirement (full suite, coverage, a fresh agent's evidence-fit sample), then keel:review's milestone review. Tick the box only once all pass.`
+  if (typeof text !== 'string')
+    return [`keel blocked this commit: it ticks milestone ${id} in \`${ROADMAP_PATH}\`, but its evidence \`${path}\` is neither in the commit nor in the working tree.`, how].join('\n')
+  const have = evidenceIds(text)
+  const missing = wanted.filter(r => !have.has(r.toUpperCase()))
+  if (!missing.length) return undefined
+  const list = missing.slice(0, 12).join(', ') + (missing.length > 12 ? `, and ${missing.length - 12} more` : '')
+  return [
+    `keel blocked this commit: it ticks milestone ${id} in \`${ROADMAP_PATH}\`, but \`${path}\` has no row for ${missing.length === 1 ? 'requirement' : 'requirements'} ${list}.`,
+    `Give each of ${id}'s requirements that isn't dropped a row, its ID in the first cell.`,
+    how,
+  ].join('\n')
+}
+
 /**
  * Stage n's checks as the committed plan lists them, for a session that never saw stage n in `## Now`
  * (a fresh session after `## Now` moved on): only when HEAD's plan still has stage n in `## Now`.
@@ -1039,6 +1151,16 @@ export const register: Register = on => {
           const missing = await evidenceDenial($, plan.path, n, committed?.count ?? s.checkCounts[n], pending)
           if (missing) return { deny: missing }
         }
+    // a commit that ticks a milestone needs its close's evidence; the ledger is read only when one is ticked
+    for (const pending of pendings) {
+      const ids = tickedMilestones(pending.diff)
+      if (!ids.length) continue
+      const ledger = await roadmapText($)
+      for (const id of ids) {
+        const missing = await milestoneDenial($, id, ledger, pending)
+        if (missing) return { deny: missing }
+      }
+    }
     return next(e)
   }).catch(($, e, next) => {
     if (next.called) return next(e)

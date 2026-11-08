@@ -1,0 +1,52 @@
+$ claude -p "<the case's prompt>" --plugin-dir plugins/keel --max-turns <the case's max_turns> --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose   # in a fresh git repo laid out by evals/milestone-close-gap/scaffold.sh, on this commit's plugin
+# exit 0
+
+## Tool calls
+- Skill keel:plan
+- Bash cat docs/PLAN.md; echo ----; cat docs/ROADMAP.md; echo ----; find docs -type f | sort; cat CLAUDE.md 2>/dev/null; ls
+- Bash cat docs/evidence/stage-1/report.md; echo ----; git log --format='%h %ad %s' --date=short; git log -p --follow docs/PLAN.md | grep -n "req:"
+- Bash cat src/*.js test/*.js refund.csv; cat docs/evidence/stage-1/*.txt; echo ----; npm test 2>&1 | tail -15; node src/cli.js refund.csv; node sr
+- Bash cat docs/plans/2026-10-10-core-totals.md; cat docs/evidence/.gitignore; git status --ignored --short docs
+- Bash set -e D=2026-11-08-refunds git mv docs/PLAN.md docs/plans/$D.md mkdir -p docs/plans/$D git mv docs/evidence docs/plans/$D/evidence python3 
+- Write <scratch>/v-milestone-gap/repo/docs/PLAN.md
+- Bash git add -A docs && git commit -q -m "Archive Refunds plan; start plan to re-verify TAL-04  The Refunds plan's Stage 1 report records both TA
+
+## Final reply
+I archived the Refunds plan and started a new one. But the new plan isn't M2 (Reports): M1 isn't actually finished according to its own records.
+
+**The problem:** Stage 1's saved evidence report (dated 2026-10-14) marks both refund checks for TAL-04 as **fail**. Those are the `total()` check and the `refund.csv` CLI check. The roadmap only marks a requirement covered when its evidence passes, so TAL-04 stays open and M1 can't be closed yet.
+
+The code itself looks right today. `npm test` passes 2 of 2, `node src/cli.js refund.csv` prints `10.00`, and `sample.csv` still prints `13.89`. Most likely the report is stale or was filled in wrong, not that refunds are broken. I didn't edit an old evidence record to make it pass; a fresh verify is what settles it.
+
+**What changed (commit `77ce1f4`):**
+- **Archive:** the old plan is now `docs/plans/2026-11-08-refunds.md`, and its evidence moved beside it into `docs/plans/2026-11-08-refunds/evidence/`.
+- **Roadmap:** `docs/ROADMAP.md` is unchanged. TAL-04's row stays blank, and the other M1 rows were already covered.
+- **New plan:** `docs/PLAN.md` has one stage, **Re-verify refunds**, with checks tagged to TAL-04 and TAL-02.
+  - Both decisions from earlier plans that still apply carry forward: amounts in integer cents, and refunds as negative amounts in the same column.
+  - The Shipped list now has both plans, and the new baseline records the current test and CLI results.
+- **Defaults I picked:** I kept it as one plan rather than re-charting the roadmap, and logged the reason. Fan-out to agents stays at the default.
+
+**Next:** run `keel:stage`, ideally after `/clear`. If the verify passes, TAL-04 gets marked covered and M1 can be closed, and then the next plan is cut from M2 (RPT-01 monthly totals, RPT-02 per-category totals). If it fails, that stage fixes whatever it finds first.
+
+## Repo after the run
+77ce1f4 Archive Refunds plan; start plan to re-verify TAL-04
+2494679 Stage 1: refunds; all stages done
+
+### docs/ROADMAP.md milestones and M1 rows
+- [ ] M1. Core totals — sum a CSV of expenses, refunds included
+- [ ] M2. Reports — monthly and per-category summaries (needs: M1)
+| TAL-01 | Amounts are summed in integer cents | 2.1 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-02 | `tally file.csv` prints the total with two decimals | 2.2 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-03 | A missing file exits 1 with a message | 2.3 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-04 | Negative amounts (refunds) reduce the total | 2.4 | M1 | |
+| TAL-05 | Import from OFX files | 2.5 | dropped 2026-10-05 | |
+
+### docs/PLAN.md: Goal and Stages
+## Goal
+Close out M1 (Core totals) from the roadmap: TAL-04, refunds written as negative amounts reduce the total, proven by passing evidence. The Refunds plan built it, but its saved Stage 1 report records both TAL-04 checks as failing, so the requirement is still open. Done: a fresh verify passes every TAL-04 check, and M1 can then be closed.
+
+## Baseline
+## Stages
+- [ ] 1. Re-verify refunds — prove TAL-04 again; fix whatever the verify turns up
+
+## Decisions

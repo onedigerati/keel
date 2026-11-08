@@ -1,0 +1,186 @@
+$ claude -p "<the case's prompt>" --plugin-dir plugins/keel --max-turns <the case's max_turns> --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose   # in a fresh git repo laid out by evals/milestone-close/scaffold.sh, on this commit's plugin
+# exit 0
+
+## Tool calls
+- Skill keel:plan
+- Bash Read plan, roadmap and docs layout
+- Bash Read evidence report and check requirement tags
+- Bash Read previous archived plan for format
+- Bash Archive plan and evidence, fill ledger, run tests
+- Bash Keep archived plan unchanged except evidence line
+- Write <scratch>/v-milestone-close/repo/docs/PLAN.md
+- Bash Commit the plan switch
+- Skill keel:verify
+- Bash Run suite and audit, read M1 evidence reports
+- Agent M1 evidence-fit sample
+- Bash cd <scratch>/v-milestone-close/repo; ls -R src test *.csv
+- Bash cd <scratch>/v-milestone-close/repo; git status --short; 
+- Bash cd <scratch>/v-milestone-close/repo; git log --all --onel
+- SubagentHandback 
+- Bash Save CLI re-run and write milestone close evidence
+- Bash Save CLI re-run from repo root
+- Write <scratch>/v-milestone-close/repo/docs/evidence/milestone-
+- Bash Tick the three proven close checks
+- Skill keel:review
+- Bash Size the review scope
+- Agent M1 milestone review
+- Skill code-review
+- Bash git log --oneline && ls -la && cat -n src/cli.js src/tally.js test/tally.test.js package.json && cat -A sample.csv refund.csv && ls node_mod
+- Bash Show diff for src
+- Bash Read source for triage
+- Bash mkdir -p /tmp/claude-1000/m1-review && cd /tmp/claude-1000/m1-review && R=/tmp/claude-1000/-home-jonah-repos-keel/fd9f25f5-1af2-41e6-8d51-20
+- Bash cd /tmp/claude-1000/m1-review && R=<scratch>/v-milestone-
+- SubagentHandback 
+- Bash Reproduce reviewer findings
+- Bash Record milestone review findings
+- Write <scratch>/v-milestone-close/repo/docs/PLAN.md
+- Bash Commit close attempt and new stage
+
+## Final reply
+I archived the Refunds plan and tried to close milestone M1. The close failed its review, so M1 is still open and I've planned a fix stage instead of moving on to M2.
+
+**Archive** (commit `128f885`)
+- The finished plan is now `docs/plans/2026-11-08-refunds.md`, with its evidence folder beside it.
+- The roadmap now marks TAL-04 as covered by that plan, so every live M1 requirement is covered.
+- A new `docs/PLAN.md` keeps both standing decisions (integer cents; refunds are negative amounts) and adds the Refunds line under Shipped.
+
+**M1 close** (commit `5142612`, evidence in `docs/evidence/milestone-M1.md`)
+- **Test suite:** passes 2/2. The dependency audit doesn't apply because there are no dependencies.
+- **Coverage:** TAL-01 to TAL-04 each link to a plan whose report passes them.
+- **Evidence check:** a separate agent confirmed each requirement works on well-formed input.
+- **Milestone review: failed.** I reproduced each of these myself:
+  - A blank line in the middle of a CSV prints `NaN` and exits 0.
+  - A CSV without a header row silently loses its first row.
+  - Amounts go through floating point, against your integer-cents decision: `1.005` prints `1.00` and `0x10` prints `16.00`.
+  - Passing a directory or an unreadable file crashes with a stack trace.
+  - No test covers the CLI itself: the two-decimal output and the missing-file exit have only been checked by hand.
+
+M1 stays unticked. The fix is the new **Stage 1 · Input hardening** (risk: user input, money):
+- Amounts are converted from their decimal text straight to whole cents.
+- A bad row exits 1 and names the line.
+- Blank lines are skipped, and the first line is treated as a header only when it doesn't hold a number.
+- Read errors give a short `tally:` message instead of a stack trace.
+- New tests cover the CLI.
+
+After that stage, M1 gets closed again, and then this plan's M2 stages get cut.
+
+**Defaults I chose:**
+- A bad amount is an error, never skipped silently.
+- An amount with more than two decimal places is rejected, not rounded.
+
+**Waiting on your call** (logged as open questions; none blocks M1):
+- Should quoted CSV fields be supported, and which column holds the amount?
+- Should an empty file print `0.00` or be an error?
+- Should extra arguments be an error?
+
+New stages only start on your go, so I haven't started Stage 1. Shall I start it (`keel:stage`)? It's best to `/clear` first; the plan and git history carry everything over.
+
+## Repo after the run
+5142612 M1 close attempt: review fails on bad input; plan Stage 1 hardening
+128f885 Archive Refunds plan; TAL-04 covered; next plan closes M1
+3c53452 Stage 1: refunds; all stages done
+
+### docs/ROADMAP.md milestones and M1 rows
+- [ ] M1. Core totals — sum a CSV of expenses, refunds included
+- [ ] M2. Reports — monthly and per-category summaries (needs: M1)
+| TAL-01 | Amounts are summed in integer cents | 2.1 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-02 | `tally file.csv` prints the total with two decimals | 2.2 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-03 | A missing file exits 1 with a message | 2.3 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-04 | Negative amounts (refunds) reduce the total | 2.4 | M1 | [Refunds](plans/2026-11-08-refunds.md) |
+| TAL-05 | Import from OFX files | 2.5 | dropped 2026-10-05 | |
+
+### docs/evidence/milestone-M1.md
+# Milestone M1 · Core totals — close
+Verified 2026-11-08 on 128f885, plus uncommitted changes (this evidence only)
+
+## 1. Full suite
+Tests 2/2 pass ([milestone-M1-tests.txt](milestone-M1-tests.txt)) · no type check, lint or build configured
+Audit: `npm audit --omit=dev` not applicable: no dependencies and no lockfile ([milestone-M1-audit.txt](milestone-M1-audit.txt))
+
+## 2. Coverage
+| ID | Covered by | Evidence row | Result |
+|---|---|---|---|
+| TAL-01 | [Core totals](../plans/2026-10-10-core-totals.md) | [stage-1](../plans/2026-10-10-core-totals/evidence/stage-1/report.md): total() of 0.29 and 1.10 is 139 cents (req: TAL-01) | pass |
+| TAL-02 | [Core totals](../plans/2026-10-10-core-totals.md) | [stage-1](../plans/2026-10-10-core-totals/evidence/stage-1/report.md): `node src/cli.js sample.csv` prints 13.89 (req: TAL-02) | pass |
+| TAL-03 | [Core totals](../plans/2026-10-10-core-totals.md) | [stage-1](../plans/2026-10-10-core-totals/evidence/stage-1/report.md): `node src/cli.js nope.csv` exits 1 with a message (req: TAL-03) | pass |
+| TAL-04 | [Refunds](../plans/2026-11-08-refunds.md) | [stage-1](../plans/2026-11-08-refunds/evidence/stage-1/report.md): total() of 10.00 and -2.50 is 750 cents (req: TAL-04) | pass |
+
+TAL-05 is dropped (2026-10-05) and has no row. Nothing was backfilled, and no failing re-run is tagged with any of these IDs.
+
+## 3. Evidence fit
+A fresh agent that built nothing judged this.
+Sample: all four requirements (fewer than five; TAL-02 and TAL-03 were proven only by hand).
+Re-run by the agent: `npm test` (2/2), `node src/cli.js sample.csv` → 13.89 exit 0, `refund.csv` → 10.00 exit 0, `nope.csv` → `tally: no such file: nope.csv` exit 1, plus scratch CSVs: 0.1+0.2+0.7 → 1.00, 1.00−3.25 → -2.25. My own re-run is in [milestone-M1-cli-rerun.txt](milestone-M1-cli-rerun.txt).
+
+| ID | Delivered as written | Notes |
+|---|---|---|
+| TAL-01 | yes | Converts each row to cents and then sums. The only test (0.29+1.10) would also pass with rounding at the end, so the proof is weak. |
+| TAL-02 | yes | `toFixed(2)`; whole and negative totals print correctly. Proven by hand only, with no CLI test. |
+| TAL-03 | yes | Message on stderr, exit 1. Proven by hand only. |
+| TAL-04 | yes | Unit test and refund.csv both show it. |
+
+Notes beyond the requirements: a blank line in the middle of a CSV prints `NaN` with exit 0. A directory as the argument gives a raw stack trace (exit 1). The archived reports name commits (`1a2b3c4`, `5d6e7f8`) that are not in this history.
+
+Result: pass (each requirement is delivered on well-formed input; section 4 covers bad input)
+
+## 4. Milestone review
+Reviewer: a fresh general-purpose agent with correctness and security lenses, over all M1 code (src/, test/). The built-in `code-review` had no diff to review, since all M1 code is committed. I reproduced each fix-now finding before triage.
+
+| # | Finding | Triage |
+|---|---|---|
+| 1 | src/cli.js:8: an unparseable amount (blank line mid-file, `abc`, `$12.50`, a missing column) prints `NaN` with exit 0. Reproduced: blank line → `NaN`, exit 0 | fix now |
+| 2 | src/cli.js:8: the first line is always dropped as a header. Reproduced: a CSV with no header loses its first row and prints `1.39`, exit 0 | fix now |
+| 3 | Totals over 2^53 cents lose cents silently | fix now (error rather than a wrong total) |
+| 4 | src/cli.js:4-8: a directory or unreadable file gives a raw stack trace; an unreadable parent directory reports "no such file". Reproduced: `/tmp` → EISDIR trace | fix now |
+| 5 | src/tally.js:2: amounts pass through a float (`1.005` → `1.00`, `0x10` → `16.00`, spaces → 0), against the integer-cents decision. Reproduced | fix now (parse decimal strings to cents exactly; reject anything else) |
+| 6 | Tests cover only `total()` on numbers that are already parsed: no test for parsing, the header, formatting (TAL-02) or the missing-file exit (TAL-03), and the TAL-01 test can't detect rounding at the end | fix now (tests accompany the fixes) |
+| 7 | Extra arguments are silently ignored | defer |
+| 8 | Quoted fields and an amount column other than index 1 aren't supported | defer (the CSV format needs a decision) |
+| 9 | An empty file prints `0.00`, exit 0 | defer (unspecified) |
+| 10 | Security: the argv path is echoed raw to stderr (ANSI escapes) | reject: it is the user's own argument on a local CLI |
+| 11 | Security: stack traces leak the install path | covered by finding 4 |
+| 12 | Archived reports name commits not in this history | reject: historical record, and today's re-runs on HEAD match |
+
+Result: **fail**. Six fix-now findings keep M1 open; the plan's Stage 1 fixes them, then M1 is re-verified and closed again.
+
+### docs/PLAN.md: Goal and Stages
+## Goal
+Close milestone M1 (Core totals): every live requirement (TAL-01–TAL-04) is covered by a shipped plan. The first close attempt (2026-11-08) failed its milestone review: bad input prints a wrong total with exit 0. This plan hardens input handling (rework of TAL-01, TAL-02, TAL-03), closes M1 again, then cuts its next stages from M2 (Reports: RPT-01, RPT-02).
+
+## Now
+Stage 1 of 1 · Input hardening
+Risk: user input, money
+Checks:
+- [ ] Amounts are parsed from their decimal text straight to integer cents: `0.1`+`0.2`+`0.7` is 100 cents, and `1.005`, `0x10`, `abc`, `$12.50`, blanks and `1e400` are rejected (proof: test) (req: TAL-01)
+- [ ] A row with a bad or missing amount makes the CLI exit 1 and name the line; nothing is printed to stdout (proof: test) (req: TAL-01)
+- [ ] Blank lines are skipped; the first line counts as a header only when its amount column isn't a number, so a CSV with no header keeps its first row (proof: test) (req: TAL-02)
+- [ ] The CLI prints two decimals for whole and negative totals (`1.00`, `-2.25`), and sample.csv still prints 13.89 (proof: test) (req: TAL-02)
+- [ ] A total beyond safe integer cents exits 1 with a message, never a wrong total (proof: test) (req: TAL-01)
+- [ ] A missing file, a directory and an unreadable file each exit 1 with a one-line `tally:` message that says which, and no stack trace (proof: test) (req: TAL-03)
+Open: none
+
+## Stages
+## Stages
+- [ ] Close M1 — full suite, coverage, evidence fit, milestone review
+- [ ] Close M1 — full suite, coverage, evidence fit, milestone review
+- [ ] 1. Input hardening — exact cent parsing, bad-row errors, header/blank lines, read errors, CLI tests
+- [ ] 1. Input hardening — exact cent parsing, bad-row errors, header/blank lines, read errors, CLI tests
+
+
+## Decisions
+## Decisions
+- 2026-11-08 · The M1 close fails on the review's six fix-now findings and stays open; the fixes become Stage 1 — see [milestone-M1.md](evidence/milestone-M1.md)
+- 2026-11-08 · A bad amount is an error (exit 1, with the line number), never skipped silently — a total that quietly leaves out a row is wrong money
+- 2026-11-08 · Amounts take at most two decimal places; more is an error, not rounded — sub-cent input means the data isn't what we think it is
+
+## Open questions
+- CSV format: quoted fields, and which column holds the amount (it is always index 1 today) — the user decides; blocks nothing in M1
+- Should an empty file print `0.00` or error? And should extra arguments error? — the user decides; deferred from the M1 review
+
+## Standing decisions
+- 2026-10-02 · Amounts are summed and stored in integer cents — floats drift (from [Core totals](plans/2026-10-10-core-totals.md))
+- 2026-10-12 · Refunds are negative amounts in the same column, not a separate type — the user's bank export writes them that way (from [Refunds](plans/2026-11-08-refunds.md))
+
+## Shipped
+- 2026-10-10 · Core totals: total() in cents, the CLI and its missing-file error — [plan](plans/2026-10-10-core-totals.md) · [evidence](plans/2026-10-10-core-totals/evidence/)
+- 2026-11-08 · Refunds: negative amounts reduce the total, in total() and the CLI (TAL-04) — [plan](plans/2026-11-08-refunds.md) · [evidence](plans/2026-11-08-refunds/evidence/)

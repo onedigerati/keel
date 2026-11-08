@@ -37,6 +37,8 @@ Do **not** tell it what you believe is fine, what you already checked, or what y
 
 For a milestone, or a stage handling money, auth or personal data, also run the built-in `security-review` skill (and `code-review` for a broad correctness sweep) rather than rebuilding them here.
 
+A milestone review comes when `keel:plan` closes a roadmap milestone, after `keel:verify`'s coverage check and evidence-fit sample: its change is everything since the previous milestone's box was ticked (or since the roadmap was charted), and `security-review` and `code-review` run over it as above. Findings go in the milestone's evidence file (`docs/evidence/milestone-<ID>.md`) beside verify's; a fix-now finding keeps the milestone open: its box stays unticked, and the fix becomes the plan's next stages (fix, re-verify, close again).
+
 ## 3. Triage
 
 Reviewers are wrong too. For each finding, check it yourself against the code (and reproduce it when you can), then put it in one of three piles:
