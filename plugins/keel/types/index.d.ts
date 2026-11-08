@@ -15,6 +15,8 @@ declare module 'claude-code' {
       goal: string
       /** The plan's `Agents:` line as this session first read it (level and confirmation stamp); a `wide` already there is honoured only once restamped. */
       firstAgents: { level: 'lean' | 'balanced' | 'wide' | 'none' | 'unknown'; stamp?: string; at?: number }
+      /** Every project rule (`Keel risk:` / `Keel outward:` in CLAUDE.md) seen this session, so a line removed mid-run still holds until a new session. */
+      projectRules: { risk: string[]; outward: { words: string[]; file: string }[] }
     }
   }
 }

@@ -7,26 +7,27 @@ Let Keel carry a large project — a PRD too big for one plan — without adding
 2026-11-08 · tests: 115 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 3 of 6 · Project risk rules
+Stage 4 of 6 · Charter
 Mode: autopilot
 Agents: wide — confirmed 2026-11-08 12:50
-Risk: user input, permissions (a cloned repo's `CLAUDE.md` feeds the autopilot guards)
+Risk: user input (a PRD from a less-trusted source feeds `docs/ROADMAP.md` and `CLAUDE.md`)
 Checks:
-- [ ] A `Keel risk: <word>, <word>` line in `CLAUDE.md` adds hold words: under autopilot, a stage whose risk line names one is held exactly like one naming auth (proof: test)
-- [ ] A `Keel outward: <command>, <command>` line adds outward commands: under autopilot, a matching Bash call, behind the same prefixes and in any part of a compound command, is denied through the same prefilter, naming the project rule (proof: test)
-- [ ] Add-only: the built-in risk words and outward check run first and unconditionally; nothing in `CLAUDE.md` removes or loosens them; a malformed line adds nothing and never blocks a request or tool call (proof: test, a loosening attempt per built-in)
-- [ ] Without such lines, context, status line, holds and denials are byte-identical to before (proof: test)
+- [ ] `keel:charter` turns a PRD into `docs/ROADMAP.md` in the fixed layout — milestones with dependencies, one ledger row per PRD requirement with its own ID and `PRD §`, `Covered by` blank, `|` escaped, out of scope and open questions — and proposes its locked decisions for `CLAUDE.md`, shown to the user before they're written, never into the plan; the roadmap parses with the hook's reader (proof: eval `charter-prd`, headless run graded by hand against its answer key; and a test parsing the answer key)
+- [ ] Re-charter diffs a changed PRD in place: new rows with new IDs, removed ones marked `dropped <date>`, changed text kept under its ID, `Covered by` never cleared, a changed covered requirement logged as rework, the diff reported and logged as a dated decision (proof: eval `charter-rechart`, headless run graded by hand)
+- [ ] Process text in a PRD (review, tests, autopilot, agents, guard lines) never reaches `CLAUDE.md`, and backfill fills `Covered by` only from shipped plans' passing evidence, with a link, on the user's yes (proof: the planted "working agreement" in `charter-prd` dropped and reported; backfill is skill text, no eval yet)
 Open:
 - Deferred to stage 4 (charter): escape `|` in requirement text it writes to the ledger; leave `Covered by` blank, never `TBD`, `n/a` or a dash.
 - Deferred to stage 5 (archive): `Covered by` holds only an archived plan's name or nothing — the hook counts any other text as covered.
 - Deferred from stage 2 review: the scale-check evals are single-turn, so "not asked again" and "re-asked on a stronger signal" have no eval (an arm with a planted logged answer, and one on the next-plan path); worth adding with stage 6's eval list.
 - Deferred, pre-existing across all 18+ eval scaffolds: run by hand from a real repo root, a scaffold overwrites files and `git add -A && git commit`s there; a guard (refuse a non-empty directory) would make hand runs safe.
+- Deferred from stage 3 review: project rules are read only from `CLAUDE.md` and `.claude/CLAUDE.md` inside the repo, not `CLAUDE.local.md` or a parent directory's `CLAUDE.md` (fails toward fewer rules); and a project hold word, like the plan's own risk line, can still be edited away by the agent while a stage is held — consistent with how the built-in hold works today.
+- Deferred, pre-existing: the Bash hook's handler-level catch lets a command through if `sync` or a state read throws, the outward check included; failing closed under autopilot would stall a run on any engine error — worth a narrower catch in a later plan.
 - Deferred, pre-existing: `loadPlan` reads `docs/PLAN.md` without checking it's a regular file, so a FIFO there could block a request (the roadmap reader now stats first); worth the same check in a later stage.
 
 ## Stages
 - [x] 1. Roadmap in the hook — read `docs/ROADMAP.md` only when it exists; one context line and one status-line segment; nothing changes without it
 - [x] 2. Decisions file and scale check — standing decisions move to `docs/decisions.md` past ten; `keel:plan` reads scale signals, asks once, records the answer, and re-checks at each new plan; resume reads both files; Keel's own plan migrates as the proof
-- [ ] 3. Project risk rules — `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` add hold words and outward commands; add-only, through the Bash prefilter, tested against loosening
+- [x] 3. Project risk rules — `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` add hold words and outward commands; add-only, through the Bash prefilter, tested against loosening
 - [ ] 4. Charter — `keel:charter` turns a PRD into the roadmap, ledger and `CLAUDE.md` decisions; re-charter diffs a changed PRD; backfill from shipped plans; eval `charter-prd` against a synthetic PRD with a known answer key
 - [ ] 5. Milestones in the loop — checks tag requirements `(req: ID)`; `keel:plan` cuts the next plan from the current milestone's uncovered requirements and fills `Covered by` at archive from passing evidence rows; milestone close in stage, autopilot, verify and review; eval `milestone-close`
 - [ ] 6. Proof and release — two plans in a row on a scratch milestone, the USS PRD graded, READMEs, eval list, version 0.8.0
@@ -45,6 +46,11 @@ Open:
 - 2026-11-08 · `Covered by` holds a link to the archived plan, relative to `docs/` (`[<plan name>](plans/<date>-<slug>.md)`), whether the archive step (stage 5) or the charter's backfill (stage 4) fills it — one form, so a reader can follow it and the milestone close can check the plan exists; the stage 4 builder had used the bare name.
 - 2026-11-08 · The roadmap's count is across the whole ledger, not the current milestone's rows (`M1 14/46` reads as "at M1, 14 of the project's 46 covered") — it matches the plan's example and the "how far along is the project" question; the milestone close (stage 5) checks the milestone's own rows.
 - 2026-11-08 · Stage 2 onward is verified in the main session too, for the same reason as stage 1 (subagents can't write the report); reviews stay with fresh agents.
+- 2026-11-08 · Stage 3 also fixes the built-in outward check's parser: `{ git push; }`, `if …; then git push`, `sudo -u bob git push`, `timeout 60 git push` and `bash -c "git push"` all got past it under autopilot (pre-existing, found by stage 3's security review). It's the guard this stage builds on, so it's in scope; when unsure, the parser leans toward holding — a false hold costs a pause, a miss costs a push.
+- 2026-11-08 · Project rules are sticky for the session: the hook keeps every rule it has seen since the session started, so deleting a `Keel outward:` line mid-run doesn't lift it — removing a rule takes a new session. The agent could otherwise edit `CLAUDE.md` through Bash and then run the command.
+- 2026-11-08 · Autopilot never crosses into a plan the user hasn't seen: at a milestone close it closes the milestone, cuts the next plan, and stops for the user's yes before building it — the stage 5 builder had autopilot carry on when the Goal "reached past" the milestone, which stage 5's security review showed lets the agent write and run its own plans, risk lines included. Keel's rule stands: autopilot runs a plan the user approved, never one it wrote alone.
+- 2026-11-08 · Ticking a milestone in `docs/ROADMAP.md` is gated by the hook like a stage close: the commit is refused unless the milestone's evidence (`milestone-<ID>.md`) has a row per non-dropped requirement of that milestone — the close was otherwise instructions only.
+- 2026-11-08 · The outward check is a guardrail against an agent pushing by mistake, not a sandbox against one trying to: it reads the command line, closes the realistic ways a push hides (substitutions, line continuations, heredocs, stdin-fed shells, wrappers, run-time-built heads) and lists the rest as limits in the README (pushes from inside scripts or interpreters, aliases defined elsewhere, git subcommands that push under another name) — a full shell interpreter isn't worth its weight, and the stage 3 parser re-review found no false holds on everyday commands to trade against.
 - 2026-11-08 · The hook reads at most 256K characters and 4,000 lines of the roadmap and cuts milestone names at 60 characters — it runs on every request, and a ledger past the cap is undercounted rather than slowing each one.
 - 2026-11-08 · Project risk rules only add: Keel's built-in outward check runs first and unconditionally, and the project list is consulted only when it found nothing; there's no allow or negation syntax — a cloned repo's `CLAUDE.md` mustn't loosen a guard, the same reasoning that keeps a `wide` line from raising spend unasked.
 - 2026-11-08 · Standing decisions move to `docs/decisions.md` once more than ten would carry forward, with one pointer line left in the plan; below that they stay in the plan — small projects keep one file, and the `next-feature` eval keeps grading the plan.

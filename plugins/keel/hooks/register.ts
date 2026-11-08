@@ -1,4 +1,5 @@
 import type { EngineInterface, Register } from 'claude-code'
+import { keptRules, loadProjectRules, mergeRules, NO_RULES, projectOutward, projectRisky, type ProjectRules } from './project.ts'
 import { findSecrets, type Finding } from './secrets.ts'
 import { addScope, commitScope, gitCall, joinPath, outwardReason, parseCommands, type Command } from './shell.ts'
 
@@ -35,6 +36,8 @@ interface Stage {
   number: string | undefined
   /** What the risk line names that holds autopilot, e.g. `auth, personal data`; empty when nothing does. */
   risky: string[]
+  /** The risk line's text after `Risk:`, for the project's own hold words; empty without one. */
+  riskLine: string
   checks: { text: string; done: boolean }[]
 }
 
@@ -56,12 +59,32 @@ interface Plan {
   current: string | undefined
 }
 
-async function loadPlan($: EngineInterface): Promise<Plan | undefined> {
+/** The plan as written, without the project's own hold words: for hooks that don't look at what a stage risks. */
+async function readPlan($: EngineInterface): Promise<Plan | undefined> {
   for (const path of PLAN_PATHS) {
     if (!(await $.fs.exists(path))) continue
     return parsePlan(path, await $.fs.read(path))
   }
   return undefined
+}
+
+/** The plan with the project's hold words added; `rules` is the hook call's own reader, so `CLAUDE.md` is read once a call. */
+async function loadPlan($: EngineInterface, rules = sessionRules($)): Promise<Plan | undefined> {
+  const plan = await readPlan($)
+  return plan && withProjectRisk(plan, rules)
+}
+
+/**
+ * The plan with the project's own hold words (`Keel risk:` in `CLAUDE.md`) added after the built-in ones its risk line
+ * names: the built-in `RISKY` match stays as parsed, so the project can only add. Read only when it could matter, a
+ * Mode line and a non-empty risk line, so a plan without them never touches `CLAUDE.md`.
+ */
+async function withProjectRisk(plan: Plan, read: () => Promise<ProjectRules>): Promise<Plan> {
+  const stage = plan.stage
+  if (!plan.mode || !stage?.riskLine.trim()) return plan
+  const rules = await read()
+  const added = projectRisky(stage.riskLine, rules.risk).filter(w => !stage.risky.includes(w))
+  return added.length ? { ...plan, stage: { ...stage, risky: [...stage.risky, ...added] } } : plan
 }
 
 /**
@@ -123,7 +146,7 @@ export function parsePlan(path: string, text: string): Plan {
       .map(l => l.match(/^\s*[-*]\s+\[([ xX])\]\s+(.*)$/))
       .filter(m => m !== null)
       .map(m => ({ text: (m[2] ?? '').trim(), done: m[1] !== ' ' }))
-    stage = { key, number: key.match(/\bstage\s+(\d+)/i)?.[1], risky, checks }
+    stage = { key, number: key.match(/\bstage\s+(\d+)/i)?.[1], risky, riskLine: risk, checks }
   }
 
   const stageKey = [...sections.keys()].find(k => k.includes('stage'))
@@ -305,6 +328,30 @@ const OPEN_CHECKS = { plugin: 'keel', key: 'openChecks' } as const
 const GOAL = { plugin: 'keel', key: 'goal' } as const
 const CHECK_COUNTS = { plugin: 'keel', key: 'checkCounts' } as const
 const FIRST_AGENTS = { plugin: 'keel', key: 'firstAgents' } as const
+const PROJECT_RULES = { plugin: 'keel', key: 'projectRules' } as const
+
+/**
+ * The project's rules for one hook call, read on first use and at most once: `CLAUDE.md`'s rules now, joined with every
+ * rule seen earlier this session (kept in session state, within the same caps). So an edit adds a rule at once, but a
+ * rule removed mid-session (by the agent under autopilot, say) still holds until a new session. Never throws.
+ */
+function sessionRules($: EngineInterface): () => Promise<ProjectRules> {
+  let rules: Promise<ProjectRules> | undefined
+  return () => (rules ??= stickyRules($))
+}
+
+async function stickyRules($: EngineInterface): Promise<ProjectRules> {
+  const [fresh, kept] = await Promise.all([
+    loadProjectRules($).catch(() => NO_RULES),
+    $.state.get(PROJECT_RULES).then(
+      r => keptRules(r.value),
+      () => NO_RULES,
+    ),
+  ])
+  const all = mergeRules([kept, fresh])
+  if (all.risk.length > kept.risk.length || all.outward.length > kept.outward.length) await $.state.set(PROJECT_RULES, all).catch(() => undefined)
+  return all
+}
 
 interface Session {
   armed: boolean
@@ -779,12 +826,31 @@ async function committedChecks($: EngineInterface, planPath: string, stage: stri
   return { count: now.checks.length, open: now.checks.filter(c => !c.done).map(c => c.text) }
 }
 
+const outwardDenial = (reason: string) =>
+  `keel autopilot holds outward-facing steps for the user (${reason}). Commit what's finished, set the Mode line to \`paused — <what you want to run and why>\`, and ask the user.`
+
+/** Why a project rule holds one of these commands, naming the rule and its file, or undefined. `root` is the repo root, for path rules. */
+function projectReason(rules: ProjectRules, commands: Command[], root?: string): string | undefined {
+  if (!rules.outward.length) return undefined
+  for (const cmd of commands) {
+    const rule = projectOutward(rules, cmd, root)
+    if (rule) return `${rule.words.join(' ')}, a \`Keel outward:\` rule in ${rule.file}`
+  }
+  return undefined
+}
+
+/** What a Bash line might do that the hook looks at without autopilot: a commit, or a command the built-in check names. */
+const PREFILTER = /\bgit\b|\b(gh|npm|pnpm|yarn|bun|cargo|twine|gem|poetry|uv|docker|podman|vercel|netlify|fly|flyctl|firebase|serverless|sls|wrangler|railway|cdk|terraform|tofu|pulumi|kubectl|helm|gcloud|az|aws|curl)\b/
+
 export const register: Register = on => {
   // the plan's current position rides in the system prompt, so it survives compaction and long runs
   on('prompt.compose', async ($, e, next) => {
     const composed = await next(e)
-    const plan = await loadPlan($).catch(() => undefined)
+    const rules = sessionRules($)
+    const plan = await loadPlan($, rules).catch(() => undefined)
     const s = await sync($, plan)
+    // while autopilot drives, each request notes the project's rules before any tool runs, so one removed mid-run still holds
+    if (driving(plan, s)) await rules()
     // the roadmap rides with the plan: without a plan there is no section to carry it
     const roadmap = plan ? await loadRoadmap($) : undefined
     $.ui.status(plan ? statusLine(plan, s, roadmap) : undefined)
@@ -801,7 +867,7 @@ export const register: Register = on => {
 
   // tell the summarizer what must survive
   on('session.compact', async ($, e, next) => {
-    if (e.agentId || e.instructions?.includes(KEEP) || !(await loadPlan($).catch(() => undefined))) return next(e)
+    if (e.agentId || e.instructions?.includes(KEEP) || !(await readPlan($).catch(() => undefined))) return next(e)
     return next({ ...e, instructions: e.instructions ? `${e.instructions}\n\n${KEEP}` : KEEP })
   }).catch(($, e, next) => next(e))
 
@@ -896,7 +962,7 @@ export const register: Register = on => {
   // lean runs one agent at a time: the main loop starts no agent while one it started is still working, and an agent starts none of its own
   on('tool.call', { tool: 'Agent' }, async ($, e, next) => {
     if (e.agentId) {
-      const plan = await loadPlan($)
+      const plan = await readPlan($)
       if (effectiveAgents(plan, undefined) !== 'lean') return next(e)
       // a subagent starting a child would make two running agents
       return { deny: "keel: the plan's Agents line is lean, which allows one agent at a time, and you are that agent: do this work yourself rather than starting another." }
@@ -916,7 +982,7 @@ export const register: Register = on => {
     next.signal.addEventListener('abort', release)
     if (next.signal.aborted) release()
     try {
-      const plan = await loadPlan($)
+      const plan = await readPlan($)
       if (effectiveAgents(plan, undefined) !== 'lean') return await next(e)
       if (before === 0 && !(await backgroundBusy($))) return await next(e)
       return {
@@ -928,20 +994,24 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    if (!/\bgit\b|\b(gh|npm|pnpm|yarn|bun|cargo|twine|gem|poetry|uv|docker|podman|vercel|netlify|fly|flyctl|firebase|serverless|sls|wrangler|railway|cdk|terraform|tofu|pulumi|kubectl|helm|gcloud|az|aws|curl)\b/.test(e.command))
-      return next(e)
+    const prefiltered = PREFILTER.test(e.command)
+    // the plan as written: its Mode line says whether autopilot could drive, and only then is CLAUDE.md read
+    const plan = await readPlan($).catch(() => undefined)
+    if (!prefiltered && plan?.mode?.kind !== 'autopilot') return next(e)
     const commands = parseCommands(e.command)
-    const plan = await loadPlan($).catch(() => undefined)
     const s = await sync($, plan)
 
-    // while autopilot drives, outward-facing steps wait for the person
+    // while autopilot drives, outward-facing steps wait for the person: Keel's own check first, over every command the
+    // line runs whatever words it holds, then the project's only when it found nothing
     if (driving(plan, s)) {
       const reason = commands.map(outwardReason).find(Boolean)
-      if (reason)
-        return {
-          deny: `keel autopilot holds outward-facing steps for the user (${reason}). Commit what's finished, set the Mode line to \`paused — <what you want to run and why>\`, and ask the user.`,
-        }
+      if (reason) return { deny: outwardDenial(reason) }
+      const rules = await sessionRules($)()
+      const root = rules.outward.length ? await $.session.cwd().catch(() => undefined) : undefined
+      const project = projectReason(rules, commands, root)
+      if (project) return { deny: outwardDenial(project) }
     }
+    if (!prefiltered) return next(e)
 
     const commits = commands.flatMap((c, i) => {
       const call = gitCall(c)

@@ -1,0 +1,137 @@
+$ claude plugin test <scratch copy of plugins/keel>   # one change per run, on the final code; the tests named must fail
+
+=== mutation: project hold words replace the built-in ones (check 1, 3)
+--- in hooks/register.ts replaced: risky: [...stage.risky, ...added]
+--- with: risky: added
+(fail) a held stage names the built-in words first, then the project ones [30.71ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: auth [54.70ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: authentication [56.09ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: login [47.96ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: log-in [60.55ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: password [48.70ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: money [55.49ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: payment [49.60ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: billing [64.39ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: personal data [50.25ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: pii [57.22ms]
+ 220 pass
+ 11 fail
+
+=== mutation: project hold words ignored (check 1)
+--- in hooks/register.ts replaced: const added = projectRisky(stage.riskLine, rules.risk)
+--- with: const added: string[] = []; void projectRisky
+(fail) a risky stage is held until the person speaks to it [41.45ms]
+(fail) a stage whose risk line names auth is held, and the person clears it (the pattern project words follow) [31.64ms]
+(fail) a Keel risk line in CLAUDE.md adds hold words, held exactly like auth [35.97ms]
+(fail) a Keel risk line in .claude/CLAUDE.md adds hold words too [38.05ms]
+(fail) a held stage names the built-in words first, then the project ones [48.65ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: auth [34.29ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: authentication [36.32ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: login [27.93ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: log-in [44.20ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: password [37.17ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: money [28.15ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: payment [45.19ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: billing [28.34ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: personal data [34.44ms]
+(fail) nothing in CLAUDE.md loosens the built-in risk word: pii [38.76ms]
+(fail) a CLAUDE.md that is unreadable, no regular file, too big or outside the repo adds nothing and blocks nothing [86.29ms]
+(fail) without Keel lines in CLAUDE.md, context, band, holds and denials are byte-identical [35.91ms]
+(fail) a project risk word matches its plural [42.46ms]
+(fail) a rule present when a request starts holds even if removed before the first Bash call [42.84ms]
+ 212 pass
+ 19 fail
+
+=== mutation: project outward rules ignored (check 2)
+--- in hooks/register.ts replaced: if (project) return { deny: outwardDenial(project) }
+--- with: void project
+(fail) a Keel outward line holds matching commands under autopilot, naming the project rule [35.91ms]
+(fail) a CLAUDE.md that is unreadable, no regular file, too big or outside the repo adds nothing and blocks nothing [76.51ms]
+(fail) under autopilot, hidden pushes and hidden project commands are denied through the hook [39.33ms]
+(fail) a project rule skips the options, settings and values between its words [46.40ms]
+(fail) a rule naming a path matches the same file however the command reaches it [36.72ms]
+(fail) project rules seen this session hold until a new session, whatever the file says now [35.14ms]
+(fail) a rule present when a request starts holds even if removed before the first Bash call [35.78ms]
+(fail) CLAUDE.md is read from the path its checks resolved, and the text is held to the cap once read [44.53ms]
+(fail) under autopilot, bypasses through the parser are denied through the hook [30.58ms]
+ 222 pass
+ 9 fail
+
+=== mutation: built-in check skipped when the project has rules (check 3)
+--- in hooks/register.ts replaced: if (reason) return { deny: outwardDenial(reason) }
+--- with: if (reason && !(await sessionRules($)()).outward.length) return { deny: outwardDenial(reason) }
+(fail) Keel's own outward check runs first: a line both match names the built-in reason [37.81ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: git push [33.92ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: gh writes [35.22ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: gh api [44.39ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: npm publish [40.85ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: pnpm publish [33.15ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: cargo publish [50.65ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: twine upload [41.51ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: gem push [49.28ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: poetry publish [33.72ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: uv publish [39.93ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: docker push [38.74ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: vercel deploy [43.97ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: netlify deploy [32.95ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: fly deploy [38.66ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: firebase deploy [39.62ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: wrangler deploy [50.04ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: railway up [34.61ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: cdk deploy [37.20ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: terraform apply [42.15ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: pulumi up [36.75ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: kubectl apply [45.71ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: helm install [37.65ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: gcloud deploy [37.81ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: az delete [44.54ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: aws write [32.33ms]
+(fail) nothing in CLAUDE.md loosens the built-in outward check: curl sending data [37.17ms]
+(fail) under autopilot, hidden pushes and hidden project commands are denied through the hook [36.59ms]
+(fail) under autopilot, bypasses through the parser are denied through the hook [38.15ms]
+ 202 pass
+ 29 fail
+
+=== mutation: rules not sticky: only the file as it is now (review fix)
+--- in hooks/register.ts replaced: const all = mergeRules([kept, fresh])
+--- with: const all = mergeRules([fresh]); void kept
+(fail) project rules seen this session hold until a new session, whatever the file says now [32.28ms]
+(fail) a rule present when a request starts holds even if removed before the first Bash call [40.10ms]
+ 229 pass
+ 2 fail
+
+=== mutation: shell keywords not stripped: { git push; } and if/then (review fix)
+--- in hooks/shell.ts replaced: if (ASSIGNMENT.test(w) || KEYWORDS.has(w)) i++
+--- with: if (ASSIGNMENT.test(w)) i++
+(fail) the built-in check sees an outward command behind grouping, keywords, wrappers and shell strings [0.40ms]
+(fail) a project rule is seen behind the same grouping, keywords, wrappers and shell strings [0.14ms]
+(fail) under autopilot, hidden pushes and hidden project commands are denied through the hook [39.47ms]
+(fail) more wrappers are looked through [0.58ms]
+ 227 pass
+ 4 fail
+
+=== mutation: opaque commands trusted: too deep, built at run time, stdin-fed shells (review fix)
+--- in hooks/shell.ts replaced: if (cmd.opaque) return cmd.why ?? DEEP
+--- with: if (cmd.opaque) return undefined
+(fail) a shell string nested past the depth limit is held, not trusted [0.49ms]
+(fail) a shell reading its script from standard input is held, unless the heredoc or here-string that feeds it shows the script [0.14ms]
+(fail) a command built at run time is held when the line names an outward command; everyday ones are not [0.28ms]
+(fail) more wrappers are looked through [0.50ms]
+(fail) the other reading of a wrapper past the depth limit is held, not dropped [0.12ms]
+(fail) long pathological lines parse in well under 100 ms [110.47ms]
+(fail) under autopilot, bypasses through the parser are denied through the hook [50.47ms]
+ 224 pass
+ 7 fail
+
+=== mutation: line continuation kept as a newline (parser re-review)
+--- in hooks/shell.ts replaced: if (c === '\\' && s[i + 1] === '\n') {
+      // a line continuation is no character at all
+      i += 2
+--- with: if (c === '\\' && s[i + 1] === '\n') {
+      // a line continuation is no character at all
+      i += 1
+(fail) a backslash-newline joins the words around it [0.19ms]
+(fail) under autopilot, bypasses through the parser are denied through the hook [40.10ms]
+ 229 pass
+ 2 fail
+
