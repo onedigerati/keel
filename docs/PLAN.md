@@ -7,15 +7,8 @@ Let Keel carry a large project — a PRD too big for one plan — without adding
 2026-11-08 · tests: 115 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 6 of 6 · Proof and release
-Mode: autopilot
+All stages done. The plan's goal is met: keel 0.8.0, ready for the user's review before any push or publish.
 Agents: wide — confirmed 2026-11-08 12:50
-Risk: UI only (docs, version and proof runs; no new hook code)
-Checks:
-- [ ] Two plans in a row on a scratch roadmap: the first plan, cut from M1, takes on part of M1, is built, verified and archived, and its tagged evidence fills `Covered by` for exactly those IDs; the second plan is cut from M1's remaining requirements only (proof: headless runs on a scratch project, graded by hand; a test can't run a plan)
-- [ ] `keel:charter` on the USS PRD matches its v1.0 phase list and v1.1 requirement list closely enough to plan from: every listed requirement has a row, milestones follow the phases (proof: headless run graded against the local answer key, scores only in the evidence; blocked on the files — see Open questions)
-- [ ] The README gives large projects a prominent section near the top (scale question, charter, one plan at a time, coverage from evidence, milestone close and its gate, the roadmap line), the eval list names the six new cases, and the version is 0.8.0 everywhere it's declared (proof: validate, and the README read against the skills)
-- [ ] At the plan's last stage, every earlier stage's hand-proven check re-runs and still passes (proof: keel:verify's re-run rows)
 Open:
 - Deferred to stage 4 (charter): escape `|` in requirement text it writes to the ledger; leave `Covered by` blank, never `TBD`, `n/a` or a dash.
 - Deferred to stage 5 (archive): `Covered by` holds only an archived plan's name or nothing — the hook counts any other text as covered.
@@ -32,7 +25,7 @@ Open:
 - [x] 3. Project risk rules — `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` add hold words and outward commands; add-only, through the Bash prefilter, tested against loosening
 - [x] 4. Charter — `keel:charter` turns a PRD into the roadmap, ledger and `CLAUDE.md` decisions; re-charter diffs a changed PRD; backfill from shipped plans; eval `charter-prd` against a synthetic PRD with a known answer key
 - [x] 5. Milestones in the loop — checks tag requirements `(req: ID)`; `keel:plan` cuts the next plan from the current milestone's uncovered requirements and fills `Covered by` at archive from passing evidence rows; milestone close in stage, autopilot, verify and review; eval `milestone-close`
-- [ ] 6. Proof and release — two plans in a row on a scratch milestone, the USS PRD graded, READMEs, eval list, version 0.8.0
+- [x] 6. Proof and release — two plans in a row on a scratch milestone, ~~the USS PRD graded~~ (dropped), READMEs, eval list, version 0.8.0
 
 ## Decisions
 - 2026-11-08 · The large-project layer is files that only take effect when present: no `docs/ROADMAP.md` means no roadmap line, no ledger and no milestone checks — the user wants large projects handled without overhead for the ones that aren't, and absence-as-off needs no setting.
@@ -54,15 +47,16 @@ Open:
 - 2026-11-08 · Ticking a milestone in `docs/ROADMAP.md` is gated by the hook like a stage close: the commit is refused unless the milestone's evidence (`milestone-<ID>.md`) has a row per non-dropped requirement of that milestone — the close was otherwise instructions only.
 - 2026-11-08 · The outward check is a guardrail against an agent pushing by mistake, not a sandbox against one trying to: it reads the command line, closes the realistic ways a push hides (substitutions, line continuations, heredocs, stdin-fed shells, wrappers, run-time-built heads) and lists the rest as limits in the README (pushes from inside scripts or interpreters, aliases defined elsewhere, git subcommands that push under another name) — a full shell interpreter isn't worth its weight, and the stage 3 parser re-review found no false holds on everyday commands to trade against.
 - 2026-11-08 · At archive, an ID counts as taken on by the plan when it's tagged on one of the plan's checks or named in its Goal, and it's filled only with a passing tagged row in that plan's own stage reports and no failing re-run after it — a finished plan's `## Now` no longer holds its checks, so the Goal is the durable record; the evidence row is still required.
+- 2026-11-08 · `keel:charter` runs only when the user asks to chart (or set up a roadmap, or re-chart) or says yes to `keel:plan`'s scale question; a request to plan or build goes through `keel:plan`, which asks first — the final regression run found the charter's "a project too big for one plan" trigger taking a plain "plan the build" request and charting without asking.
 - 2026-11-08 · The hook reads at most 256K characters and 4,000 lines of the roadmap and cuts milestone names at 60 characters — it runs on every request, and a ledger past the cap is undercounted rather than slowing each one.
 - 2026-11-08 · Project risk rules only add: Keel's built-in outward check runs first and unconditionally, and the project list is consulted only when it found nothing; there's no allow or negation syntax — a cloned repo's `CLAUDE.md` mustn't loosen a guard, the same reasoning that keeps a `wide` line from raising spend unasked.
 - 2026-11-08 · Standing decisions move to `docs/decisions.md` once more than ten would carry forward, with one pointer line left in the plan; below that they stay in the plan — small projects keep one file, and the `next-feature` eval keeps grading the plan.
 - 2026-11-08 · Deferred, not built: a "decide" stage type, more than one active plan, and a debug workflow — a decision can be a stage whose check is a prototype and a logged decision; parallel plans bring back state sync; the built-in debugging tools already cover investigation.
 - 2026-11-08 · Agents: wide, from the user ("go wide so we can finish this quickly"). Stages 1, 2 and 3 start together in their own worktrees (1 and 3 both touch `register.ts`, in different functions, and merge in order); 4 and 5 start once 1 is committed, since both build on the roadmap layout and the hook's reading of it.
-- 2026-11-08 · The USS PRD and its v1.0/v1.1 phase and requirement lists are used only as a local, uncommitted answer key — it's a work project's document, and the plugin repo is public-facing; only the scores go in the evidence. The repo's own proof is the synthetic `charter-prd` eval.
+- 2026-11-08 · ~~The USS PRD and its v1.0/v1.1 phase and requirement lists are used only as a local, uncommitted answer key — it's a work project's document, and the plugin repo is public-facing; only the scores go in the evidence. The repo's own proof is the synthetic `charter-prd` eval.~~
+- 2026-11-08 · The USS PRD check is dropped from stage 6, on the user's word: the files aren't on this machine, and the synthetic `charter-prd` eval with its answer key stands as the charter's proof. Grading against a real PRD is left for when one is to hand.
 
 ## Open questions
-- Where are the USS PRD (`docs/CLAUDE-PRD-Opus.md`) and its v1.0 phase / v1.1 requirement lists? They aren't on this machine — the user copies them somewhere local, or stage 6 grades on the synthetic PRD only. Blocks only stage 6's USS check.
 - Committed screenshots get no secret scan (the guard skips binary files); the docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.
 - No eval covers masking yet (a case whose output holds a fake DB URL and email, graded for `[masked]`) — deferred from the last plan's stage 1 review; worth adding in a later plan.
 - A `wide` (or `Mode: autopilot`) line that arrives mid-session from git — a checkout or pull of someone else's branch, or a plan that couldn't be read at the session's first look — counts as a change and is honoured without asking; the Mode line already behaves this way. Closing it (move the baseline when the line matches the plan at HEAD, or count only edits made in the user's turn) is a design change for the user to weigh — found in stage 1 review.

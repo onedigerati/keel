@@ -1,0 +1,408 @@
+# Re-run of every earlier stage's hand-proven check, headless on the final plugin (each: claude -p "<the case's prompt>" --plugin-dir plugins/keel --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose, in a fresh git repo laid out by the case's scaffold.sh)
+
+======== r-scale-large  (exit 0)
+## Tool calls
+- Bash List repo and read the PRD
+- Skill keel:charter
+- Write <scratch>/r-scale-large/rep
+## Final reply (first 1500 characters)
+I've written `docs/ROADMAP.md`, but nothing is committed or coded yet. One thing needs your yes before I commit (details below).
+
+## Milestones
+The PRD's two releases become the two milestones:
+
+| Milestone | Needs | Requirements |
+|---|---|---|
+| **M1. 1.0 Shared spending**: accounts, households and invites, expenses with splits and history, balances, settle-up, categories, filters, CSV export | none | 16 (PRD #1–16) |
+| **M2. 2.0 Budgets**: budgets and alerts, monthly summary, recurring expenses, receipts, bank CSV import with duplicate flags, phone layout, account deletion | M1 | 9 (PRD #17–25) |
+
+Every requirement keeps its PRD number as its ID. M1 is big, so it will probably take two or three plans in a row rather than one.
+
+## Locked decisions for `CLAUDE.md`
+These would go into a new `CLAUDE.md`, which every future session will read. That's why I need your approval for these exact lines, even though you said to assume defaults:
+
+```markdown
+## Locked decisions (from docs/PRD.md)
+- Money is stored as integer cents, never floats; each household has exactly one currency. (Release 1, #7)
+- Hearth is a web app backed by a JSON API; the UI talks to the API rather than the database. (intro)
+- A household has two to six people. (intro)
+```
+
+The PRD doesn't name a tech stack or include any process rules, so I left nothing out.
+
+## Open questions (with the defaults I'll use)
+These are all in the roadmap. Each one will use its default unless you say otherwise:
+- **Leftover cents 
+## Repo after
+9610ef4 PRD for hearth
+PRD.md
+ROADMAP.md
+- [ ] M1. 1.0 Shared spending — accounts, households and invites, expenses with splits and history, balances, settle-up, categories, filtering, CSV 
+- [ ] M2. 2.0 Budgets — category budgets and alerts, monthly summary, recurring expenses, receipts, bank CSV import with duplicate flagging, phone l
+
+======== r2-scale-large-a  (exit 0)
+## Tool calls
+- Skill keel:plan
+- Bash Survey repo and read PRD
+## Final reply (first 1500 characters)
+Before writing the plan, I need one answer from you. I'll pick defaults for everything else.
+
+**What triggered this:** the PRD has 25 separate requirements across two releases (Release 1 in March, Release 2 in June). That's too much for one plan. It would need somewhere around 12–15 stages, and a plan only stays readable up to about eight. You asked me to assume defaults, but whether to chart it changes how everything after it is organised, so I'm checking first.
+
+**Your options:**
+- **Chart it first (my recommendation).** I'd use `keel:charter` to turn the PRD into `docs/ROADMAP.md`. That would hold milestones with their dependencies, plus a ledger that tracks each of the 25 requirements to the plan that delivers it. Locked tech decisions would go in `CLAUDE.md`. Then I'd write the first plan from milestone 1 only. Roughly, the milestones would be:
+  1. Accounts and auth (sign-up, email confirmation, password reset)
+  2. Households and membership (create, invite, leave or remove)
+  3. Expenses and splits (cents, equal, fixed and percentage splits, edit history, categories)
+  4. Balances and settlements (running balances, fewest payments to settle)
+  5. Filters and CSV export
+  6. Release 2 in two or three milestones: budgets and alerts, recurring expenses, receipts and bank import, mobile layout, account deletion
+- **Keep one plan.** I'd plan only Release 1 as a long plan and leave Release 2 for later, with no ledger tracking the requirements.
+
+**Defaults I'll use either way
+## Repo after
+b600754 PRD for hearth
+PRD.md
+
+======== r2-scale-large-b  (exit 0)
+## Tool calls
+- Bash List repo contents and PRD size
+- Skill keel:plan
+- Bash Read README and PRD, check memory
+## Final reply (first 1500 characters)
+Before I write the plan there's one question I have to ask, even though you said to assume defaults: the PRD is too big for one plan.
+
+**Why:** it has 25 separate requirements across two releases (Release 1 by March, Release 2 by June). If I put all of that in one plan, it would have far more than the roughly eight stages a plan can hold and still be reviewable.
+
+**Your options:**
+1. **Chart it first (recommended).** I'd turn the PRD into `docs/ROADMAP.md`: milestones in dependency order, plus a tracker that maps each of the 25 requirements to the plan that delivers it. Decisions that bind the whole project, like storing money as integer cents in one currency, go into `CLAUDE.md`. Then I'd write `docs/PLAN.md` for just the first milestone (likely sign-up/login, households and invites) and plan each later milestone when we reach it.
+2. **Keep one plan.** I'd write a single `docs/PLAN.md` covering both releases in large stages. It's quicker to start, but each stage would be big, and it would be hard to tell whether Release 1 is finished before starting Release 2.
+
+Which do you want? Everything else I'll default and list when I show you the plan, including the tech stack (I'll pick one, since the PRD doesn't name one) and running agents at the default `balanced` setting. Nothing has been written yet.
+## Repo after
+b600754 PRD for hearth
+PRD.md
+
+======== r-scale-small  (exit 0)
+## Tool calls
+- Skill keel:plan
+- Bash List repo files and read docs
+- Bash Read all source files and run tests
+- Write <scratch>/r-scale-small/rep
+## Final reply (first 1500 characters)
+I've written the plan to `docs/PLAN.md`; no code yet.
+
+**What's there now:** the repo is three short files. `src/cli.js` has no subcommands, and it reads the CSV by splitting on commas and keeping only the second column. The one existing test passes, and that's recorded as the starting point. That parsing isn't good enough once every column gets exported, so the plan starts with a proper parser.
+
+**Stages:**
+1. **CSV parser** (`src/csv.js`): returns rows keyed by header name, handles quoted fields with commas, `""` escapes and Windows line endings, and gives a clear error with the line number when a row has the wrong number of fields.
+2. **Export logic** (`src/export.js`): picks and renames columns, with checks on the options, tested on its own.
+3. **CLI wiring**: the `export` subcommand, `--columns`, `--rename`, `--out`, exit codes and README. `node src/cli.js file.csv` still prints the total as before.
+
+**Defaults I picked** (each is logged in the plan with its reason):
+- **Usage:** `node src/cli.js export <file.csv> [--columns a,b] [--rename old:new,...] [--out file.json]`
+- **Output:** a JSON array of objects, indented 2 spaces, printed to the terminal unless `--out` is given. `--out` overwrites an existing file.
+- **Values:** kept as strings exactly as they appear in the CSV, so IDs with leading zeros and dates don't get changed. Typed output could be an opt-in flag later.
+- **Column options:** `--columns` sets both which columns are exported and their order. `--rename` 
+## Repo after
+3563ef0 tally 1.0.0
+PLAN.md
+
+======== r-resume  (exit 0)
+## Tool calls
+- Skill keel:resume
+- Bash Read plan, decisions, git state
+- Bash Inspect scaffold commit and tests
+## Final reply (first 1500 characters)
+We're partway into **Stage 2 of 3: CSV input**, and no work on it has been done yet.
+
+**Where things stand**
+- Stage 1 (core `total()` in integer cents, with tests) is done and committed in `bf00eca`.
+- The only commit since then is `scaffold`, which added the plan files. Nothing is uncommitted.
+- Neither Stage 2 check has passed yet, and `src/cli.js` doesn't exist:
+  - `node src/cli.js sample.csv` prints the total of the amount column
+  - a malformed row is reported with its line number, proven by a test
+- Nothing is waiting on you.
+
+**Date format:** the bank CSVs use **DD/MM/YYYY** because they're UK exports. `docs/decisions.md` (2026-10-01) says to always read them that way and never as US dates, since the only bank in use exports UK dates. Stage 2 only needs the amount column, but the CSV parser should follow that rule if it reads dates at all.
+
+**Next step:** build Stage 2. That means:
+- a CSV reader and `src/cli.js` that use the existing cents `total()`
+- reporting each malformed row with its line number
+- tests for the parsing, since parsing money counts as risky logic
+- a `sample.csv`, then running the CLI to prove the first check
+
+After that I'll run the verification, commit, and stop for your review.
+
+Before Stage 3: it adds a login, but the plan doesn't mark it as risky yet. It should be marked so it gets a security review.
+
+Want me to go ahead with Stage 2?
+## Repo after
+b6d7930 scaffold
+bf00eca Stage 1: core total() in cents
+PLAN.md
+decisions.md
+
+======== r-next-feature  (exit 0)
+## Tool calls
+- Skill keel:plan
+- Bash Read plan and list repo files
+- Bash Survey code and run tests for baseline
+- Bash Get finish date of last plan
+- Bash Archive finished plan and its evidence
+- Write <scratch>/r-next-feature/re
+- Bash Commit the plan switch
+## Final reply (first 1500 characters)
+The monthly-reports plan is written and committed (`e1e17e1`). No code yet. The old plan's goal was met, so I moved it and its evidence to `docs/plans/2026-11-08-csv-total.md`. The new `docs/PLAN.md` carries over its two binding decisions: amounts are kept in integer cents, and the second column is the amount.
+
+**Stages**
+1. **Row parsing:** a shared `parseRow()` that reads date, amount and category, and stops with the line number on a bad row. It also adds a test for `tally file.csv`, which has none today. (Risk: user input, so this stage gets a security review.)
+2. **Grouping:** `monthly()` sums the cents for each month and category, with tests.
+3. **Report command:** `tally report file.csv` prints the summary table.
+
+**Defaults I picked** (recorded with reasons in the plan)
+- **Columns:** the date is column 1 (`YYYY-MM-DD`) and the category is column 3. This is a guess about your bank export, so it's also listed as an open question. If it's wrong, stage 1 changes.
+- **Month:** taken straight from the date text, without converting it to a date. That way a timezone can't push an expense into the wrong month.
+- **Blank category:** counted under `Uncategorized`, so nothing drops out of the totals.
+- **Bad rows:** the run stops and names the line, rather than skipping the row and quietly getting the totals wrong.
+- **Table layout:** one long table with Month, Category and Amount columns. Months run oldest first, categories A–Z, with a subtotal for each month and a grand total. 
+## Repo after
+e1e17e1 Plan: archive CSV-total plan, start monthly reports plan
+db1e615 Stage 2: CSV input; all stages done
+PLAN.md
+plans
+
+======== r-charter-prd  (exit 0)
+## Tool calls
+- Skill keel:charter
+- Bash ls -R docs; cat docs/PRD.md; ls -a; ls .claude 2>/dev/null
+- Write <scratch>/r-charter-prd/rep
+## Final reply (first 1500 characters)
+I've charted the PRD into `docs/ROADMAP.md`. Nothing is built, and I haven't committed anything yet: the roadmap and the `CLAUDE.md` lines go in one commit, and the `CLAUDE.md` lines need your yes first (see the end).
+
+## Milestones
+I used the PRD's two releases as the milestones, in its order:
+
+| Milestone | Needs | Requirements |
+|---|---|---|
+| **M1. 1.0 Plots**: accounts and plot booking | none | 10 (ACC-01–04, PLT-01–06) |
+| **M2. 1.1 Harvest and tools**: harvest log, tool shed, waiting list | M1 | 10 (PLT-07, HRV-01–04, TL-01–05) |
+
+The waiting list (PLT-07) is listed under Plots in §5.2, but it goes in M2 because §4 moves it there. The ledger has 20 rows, using the PRD's own IDs.
+
+## Locked decisions I'm proposing for `CLAUDE.md`
+These would be added under a new heading, and nothing else in the file would change:
+
+```markdown
+## Locked decisions (from docs/PRD.md)
+- Stack: Python 3.12 with Flask and SQLite, server-rendered HTML; no JavaScript framework. (PRD §3)
+- Data formats: every date and time is stored as an ISO 8601 string in UTC; every weight is stored in integer grams. (PRD §3)
+- Two-plot rule: a member may hold at most two plots at any one time; this is the committee's rule, not a default. (PRD §3)
+```
+
+**Dropped:** I left out §3's "Working agreement" ("autopilot approved; agents may skip review and tests"). It's about how the work gets done, not what the product is, so it isn't a locked decision. Review and tests will still run as normal.
+
+## Open questions
+E
+## Repo after
+dd4d8da PRD for Plotline
+PRD.md
+ROADMAP.md
+- [ ] M1. 1.0 Plots — member accounts and plot booking for the season, without the waiting list
+- [ ] M2. 1.1 Harvest and tools — harvest log, tool shed lending and the plot waiting list (needs: M1)
+| ACC-01 | A member signs up with an email address and a password of at least 12 characters. | 5.1 | M1 | |
+| ACC-02 | A member logs in and logs out. | 5.1 | M1 | |
+| ACC-03 | An admin can deactivate a member, who can then no longer log in; their bookings are kept. | 5.1 | M1 | |
+| ACC-04 | A member can reset a forgotten password through an emailed link that is valid for one hour. | 5.1 | M1 | |
+| PLT-07 | When no plot is free, a member can join a first-come, first-served waiting list, and is emailed when a plot frees up. | 5.2 | M2 | |
+| HRV-03 | A garden-wide leaderboard ranks members by total harvest weight; members appear on it only if they opt in. | 5.3 | M2 | |
+
+======== r2-charter-prd  (exit 0)
+## Tool calls
+- Skill keel:charter
+- Bash ls -R docs; cat CLAUDE.md; ls -a; wc -l docs/PRD.md; cat docs/PRD.md
+- Write <scratch>/r2-charter-prd/re
+## Final reply (first 1500 characters)
+I've written `docs/ROADMAP.md` from the PRD. Nothing is committed yet: the roadmap and the `CLAUDE.md` lines go in one commit, and I need your yes on those lines first (below).
+
+## Milestones
+| | Milestone | Needs | Requirements |
+|---|---|---|---|
+| M1 | 1.0 Plots: accounts, plot admin, plot map, booking, release, overdue marking | none | 10 (ACC-01–04, PLT-01–06) |
+| M2 | 1.1 Harvest and tools: harvest log, tool lending, waiting list | M1 | 10 (PLT-07, HRV-01–04, TL-01–05) |
+
+These two milestones are the PRD's own two releases. PLT-07 (the waiting list) is written under §5.2 Plots, but the PRD moves it to 1.1, so it sits in M2. All 20 requirement IDs are the PRD's own, and the out-of-scope list is copied straight from §6.
+
+## Locked decisions to add to `CLAUDE.md`
+These lines would go under a new heading. Nothing else in the file would change:
+
+```markdown
+## Locked decisions (from docs/PRD.md)
+- Stack: Python 3.12 with Flask and SQLite, server-rendered HTML; no JavaScript framework. (§3)
+- Data formats: every date and time is stored as an ISO 8601 string in UTC; every weight is stored in integer grams. (§3)
+- Two-plot rule: a member may hold at most two plots at any one time; this is the committee's rule, not a default. (§3)
+```
+
+**I left one out:** the PRD's "Working agreement" says agents may use autopilot and skip review and tests to make the season date. That's about how the work gets done, not about the product, so it doesn't go in as a locked decision. Review and tes
+## Repo after
+461c050 PRD for Plotline
+PRD.md
+ROADMAP.md
+- [ ] M1. 1.0 Plots — accounts, plot admin, plot map, booking and release, overdue marking; live before the season opens on 1 March
+- [ ] M2. 1.1 Harvest and tools — harvest log, leaderboard and export, tool shed lending, plot waiting list (needs: M1)
+| ACC-01 | A member signs up with an email address and a password of at least 12 characters. | 5.1 | M1 | |
+| ACC-02 | A member logs in and logs out. | 5.1 | M1 | |
+| ACC-03 | An admin can deactivate a member, who can then no longer log in; their bookings are kept. | 5.1 | M1 | |
+| ACC-04 | A member can reset a forgotten password through an emailed link that is valid for one hour. | 5.1 | M1 | |
+| PLT-07 | When no plot is free, a member can join a first-come, first-served waiting list, and is emailed when a plot frees up. | 5.2 | M2 | |
+| HRV-03 | A garden-wide leaderboard ranks members by total harvest weight; members appear on it only if they opt in. | 5.3 | M2 | |
+
+======== r-charter-rechart  (exit 0)
+## Tool calls
+- Skill keel:charter
+- Bash cat docs/PRD.md; echo ======; cat docs/ROADMAP.md; echo =====; cat docs/PLAN.md; echo ====; git show HEAD --st
+- Bash cd docs/plans; grep -rn -i "hour\|deactiv\|minute" . | head -20
+- Bash cd ../.. && python3 - <<'EOF' p='docs/ROADMAP.md'; s=open(p).read() rep=[ ("charted 2026-11-10\n","charted 202
+- Bash python3 - <<'EOF' p='docs/ROADMAP.md'; s=open(p).read() rep=[ ("charted 2026-11-10\n","charted 2026-11-10, re-
+- Bash python3 - <<'EOF' p='docs/ROADMAP.md'; s=open(p).read() rep=[ ("charted 2026-11-10\n","charted 2026-11-10, re-
+- Bash git add docs/ROADMAP.md docs/PLAN.md && git commit -q -F - <<'EOF' Re-chart roadmap from PRD v2  Added TL-06 (
+## Final reply (first 1500 characters)
+I've re-charted the roadmap from PRD v2 and committed it as `4f063ff`. Nothing was built, and the open Plots plan wasn't changed apart from one dated line in its Decisions.
+
+**Changes by requirement ID**
+- **Added:** TL-06, booking a tool up to seven days ahead (M2).
+- **Dropped:** HRV-03, the opt-in harvest leaderboard. Its row stays, marked `dropped 2026-11-08`.
+- **Changed:**
+  - ACC-04: the password reset link is now valid for 30 minutes instead of one hour.
+  - PLT-03: the season now starts on 1 April instead of 1 March.
+- **Rework needed:** the shipped Accounts work builds and tests a one-hour link (`test_reset_link_expires_after_one_hour`), so ACC-04 no longer matches what was built. It keeps its coverage link, and I added a rework note to the roadmap's Open questions so the next plan picks it up.
+- **Moved:** TL-01, the admin's tool list, moves from M2 to M1 so admins can enter tools before the season.
+- **Locked decisions:** unchanged, so I didn't touch `CLAUDE.md`.
+
+**Milestones now**
+- **M1. Plots** (accounts, plot booking and the tool list): 11 requirements, 4 already done.
+- **M2. Harvest and tools** (needs M1): 9 requirements.
+
+**Decisions for you**
+1. **ACC-03 (member deactivation):** v2 moves it to Release 1.1 (M2), but it's already built and done under M1 by the Accounts plan. I left it in M1 and logged the question in the roadmap. Should it stay in M1 as shipped, or move to M2?
+2. **TL-01 isn't in the current Plots plan:** that plan only covers PLT-01 to PLT
+## Repo after
+4f063ff Re-chart roadmap from PRD v2
+7a1d9e4 PRD v2 from the garden committee
+cef54e9 Start plan: plots
+PLAN.md
+PRD.md
+ROADMAP.md
+plans
+- [ ] M1. Plots — accounts, plot booking and the tool list (Release 1.0)
+- [ ] M2. Harvest and tools — harvest log, tool shed and the plot waiting list (Release 1.1) (needs: M1)
+| ACC-01 | A member signs up with an email address and a password of at least 12 characters | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-02 | A member logs in and logs out | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) |
+| ACC-03 | An admin can deactivate a member, who can then no longer log in; their bookings are kept | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.
+| ACC-04 | A member can reset a forgotten password through an emailed link valid for 30 minutes | 5.1 | M1 | [Accounts](plans/2026-11-20-accounts.md) 
+| PLT-07 | When no plot is free, a member joins a first-come, first-served waiting list and is emailed when one frees up | 5.2 | M2 | |
+| HRV-03 | An opt-in garden-wide leaderboard ranks members by total harvest weight | 5.3 | dropped 2026-11-08 | |
+| TL-06 | A member reserves a tool up to seven days ahead, and nobody else can borrow it on that day | 5.4 | M2 | |
+
+======== r-milestone-close  (exit 0)
+## Tool calls
+- Skill keel:plan
+- Bash cat docs/PLAN.md && echo ---- && cat docs/ROADMAP.md && echo ---- && find docs -type f | sort && ls -a && cat 
+- Bash cat docs/evidence/stage-1/report.md docs/evidence/.gitignore; ls -la docs/evidence docs/evidence/stage-1; git 
+- Bash git log -1 --format=%ci; head -8 docs/plans/2026-10-10-core-totals.md
+- Bash S=2026-11-08-refunds && git mv docs/PLAN.md docs/plans/$S.md && mkdir -p docs/plans/$S && git mv docs/evidence
+- Write <scratch>/r-milestone-close
+- Bash git add -A docs && git status --short && git commit -q -m "Archive Refunds plan; fill TAL-04; start M1 close  
+- Skill keel:verify
+- Bash npm test 2>&1 | tail -20; ls src test; cat docs/plans/2026-10-10-core-totals/evidence/stage-1/report.md; git l
+- Agent Evidence-fit check for M1
+- Bash ls -R src test docs; cat src/*.js; cat test/*; cat sample.csv refund.csv; cat package.json; cat docs/plans/202
+- Bash git log --format='%h %ad %s' --date=short; git cat-file -t 1a2b3c4 5d6e7f8 2>&1; npm test 2>&1 | tail -8; for 
+- Bash for h in 1a2b3c4 5d6e7f8; do git cat-file -e $h 2>&1 && echo "$h exists" || echo "$h missing"; done; git show 
+- SubagentHandback 
+- Bash mkdir -p docs/evidence/milestone-M1 && cp docs/plans/2026-11-08-refunds/evidence/.gitignore docs/evidence/.git
+- Bash rm docs/evidence/milestone-M1/audit.txt
+- Skill keel:review
+- Bash cat src/*.js test/*.js sample.csv refund.csv
+- Agent M1 milestone code review
+- Bash Read all repo files
+- Bash Read docs, run tests, try edge cases
+- Bash Inspect evidence/plans and rounding behavior
+- Bash Check evidence commit refs and more cases
+- SubagentHandback 
+- Bash cd /tmp && mkdir -p tchk && printf 'date,amount\n2026-10-01,1.00\n\n2026-10-02,2.00\n' > tchk/blank.csv && pri
+- Bash E=docs/evidence/milestone-M1 && mkdir -p $E/fixtures && cp /tmp/tchk/*.csv $E/fixtures/ && { for f in blank ha
+- Bash python3 - <<'EOF' p='docs/PLAN.md'; s=open(p).read() old_now=s[s.index('## Now'):s.index('## Stages')] new_now
+- Bash sed -i '4s/.*/Close milestone M1 (Core totals). Its requirements are all covered, but the milestone review fou
+## Final reply (first 1500 characters)
+The Refunds plan is archived, but I couldn't move on to M2 yet: closing M1 failed its final review, so M1 stays open and the next work is a fix stage.
+
+**Archive (commit `2321bbc`)**
+- The plan moved to `docs/plans/2026-11-08-refunds.md`, with its evidence folder beside it.
+- The roadmap now marks TAL-04 (refunds) as covered by that plan, so all M1 requirements are covered. TAL-05 was dropped earlier.
+- The new `docs/PLAN.md` keeps both standing decisions (integer cents; refunds are negative amounts) and has both shipped plans in its Shipped list.
+
+**Closing M1 (commit `279b0ff`, record in `docs/evidence/milestone-M1.md`)**
+- **Tests:** 2/2 pass. There are no dependencies to audit.
+- **Coverage:** each of TAL-01 to TAL-04 has a passing check in a shipped plan.
+- **Evidence check:** a separate agent re-ran the commands and agreed all four requirements work as written. It also noticed that both old stage reports name commits that don't exist in this repo, so the close relies on fresh runs rather than those reports.
+- **Review: failed.** I reproduced these myself:
+  - A blank line mid-file or a non-numeric amount prints `NaN`, and the command still exits 0 (success).
+  - Rounding is uneven: a 0.125 charge plus a −0.125 refund totals **0.01** instead of 0.
+  - Passing a folder or an unreadable file crashes with a stack trace instead of a message.
+  - No tests cover reading the CSV or the command's output, which is where these bugs are.
+
+Wrong totals in money code are worth fixing
+## Repo after
+37c84e4 Plan goal: fix before closing M1
+279b0ff M1 close: suite, coverage, fit pass; review finds fix-now parsing bugs; plan Stage 1
+2321bbc Archive Refunds plan; fill TAL-04; start M1 close
+f319412 Stage 1: refunds; all stages done
+PLAN.md
+ROADMAP.md
+evidence
+plans
+- [ ] M1. Core totals — sum a CSV of expenses, refunds included
+- [ ] M2. Reports — monthly and per-category summaries (needs: M1)
+| TAL-01 | Amounts are summed in integer cents | 2.1 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-02 | `tally file.csv` prints the total with two decimals | 2.2 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-03 | A missing file exits 1 with a message | 2.3 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-04 | Negative amounts (refunds) reduce the total | 2.4 | M1 | [Refunds](plans/2026-11-08-refunds.md) |
+| TAL-05 | Import from OFX files | 2.5 | dropped 2026-10-05 | |
+
+======== r-milestone-gap  (exit 0)
+## Tool calls
+- Skill keel:plan
+- Bash Read plan, roadmap and docs tree
+- Bash Read stage report and plan history tags
+- Bash Inspect evidence, code, and rerun checks
+- Bash Check finish date and previous archive format
+- Bash Archive plan and evidence folder
+- Bash Check whether the verified commit exists
+- Write <scratch>/r-milestone-gap/r
+- Bash Commit the plan switch
+## Final reply (first 1500 characters)
+I archived the Refunds plan, but I couldn't move on to M2. M1 isn't finished on the roadmap, so the next plan is cut from M1 again.
+
+**What's blocking it:** the saved stage 1 evidence report records both refund checks as **fail**: `total()` of 10.00 and −2.50, and `node src/cli.js refund.csv`. The roadmap can only mark a requirement as covered when a plan's own report shows it passing, so I left the refunds requirement (TAL-04) open. That leaves M1 at 3 of 4 live requirements covered. The import-from-OFX requirement (TAL-05) was dropped earlier and doesn't count.
+
+The odd part: today's code does work. I re-ran the checks just now: tests pass 2/2, `refund.csv` prints 10.00 and `sample.csv` still prints 13.89. The report says it was verified on commit `5d6e7f8`, which isn't in this repo's history. So the report is probably stale or was written wrong, rather than the feature being broken. I didn't edit an old evidence report to make it pass.
+
+**What I did** (commit `576e889`):
+- Moved the old plan to `docs/plans/2026-11-08-refunds.md` and its evidence folder next to it.
+- Left `ROADMAP.md` unchanged, because nothing new had passing evidence.
+- Wrote a new `docs/PLAN.md` with one stage, "Refunds proof". It re-runs the refund checks and a check that `sample.csv` still totals correctly, and fixes whatever fails. It records today's test results as the starting point.
+- Carried forward the rule that refunds are negative amounts in the same column, alongside the existing rule about in
+## Repo after
+576e889 Archive Refunds plan; cut next plan from M1 (TAL-04 still open)
+ac45af1 Stage 1: refunds; all stages done
+PLAN.md
+ROADMAP.md
+plans
+- [ ] M1. Core totals — sum a CSV of expenses, refunds included
+- [ ] M2. Reports — monthly and per-category summaries (needs: M1)
+| TAL-01 | Amounts are summed in integer cents | 2.1 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-02 | `tally file.csv` prints the total with two decimals | 2.2 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-03 | A missing file exits 1 with a message | 2.3 | M1 | [Core totals](plans/2026-10-10-core-totals.md) |
+| TAL-04 | Negative amounts (refunds) reduce the total | 2.4 | M1 | |
+| TAL-05 | Import from OFX files | 2.5 | dropped 2026-10-05 | |

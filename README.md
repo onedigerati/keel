@@ -15,11 +15,13 @@ Long work with Claude drifts in similar ways. Context gets summarized and the cu
 
 ## What it does
 
+- **Large projects (new in 0.8.0).** When a PRD is too big for one plan, `keel:plan` asks once whether to chart it, and `keel:charter` turns it into `docs/ROADMAP.md`: milestones with dependencies and a ledger of the PRD's requirements. Plans are cut from the current milestone one at a time, and coverage fills in from passing evidence when a plan is archived. A milestone closes, in the next plan and before its stages are cut, only on the full suite, a coverage check, a fresh agent's evidence-fit sample and a milestone review, and a hook refuses a commit that ticks it unless `docs/evidence/milestone-<ID>.md` has a row for each of its requirements. A project without a roadmap works exactly as before.
 - **One plan file plus git** hold all the state. The current stage rides in Claude's context, so it survives long sessions and compaction.
 - **Staged work.** Each stage is verified against the running product, reviewed when risky, and committed. A stage's risk line is checked against what its code actually touches before review is decided.
 - **Autopilot** runs an approved plan stage after stage. It pauses, enforced by hooks, before risky stages and anything outward-facing.
 - **Evidence.** Verifying a stage saves a per-check report and the output behind it to `docs/evidence/`, committed with the stage. A stage can't be closed without its report.
 - **Agents level.** An `Agents: lean | wide` line in the plan sets how widely work fans out to subagents, trading tokens for wall-clock time; no line is balanced. `lean` is held to one running agent by a hook, and a `wide` line already in the plan when a session starts isn't honoured until you confirm it.
+- **Project risk rules.** `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` add a project's own hold words and outward commands. They only add to Keel's built-ins, never loosen them.
 - **Secret guard:** commits that would carry a secret are blocked.
 
 ## Install

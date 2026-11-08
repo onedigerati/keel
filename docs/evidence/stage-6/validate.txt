@@ -1,0 +1,38 @@
+$ claude plugin validate plugins/keel
+Validating plugin manifest: /home/jonah/repos/keel/plugins/keel/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: keel.armed, keel.seenMode, keel.cleared, keel.openChecks, keel.checkCounts, keel.goal, keel.firstAgents, keel.projectRules
+
+Validating hooks: /home/jonah/repos/keel/plugins/keel/hooks/hooks.json
+
+  ❯ ./register.ts hooks: prompt.compose, session.compact, turn.start, prompt.submit, turn.complete, tool.call{tool=Skill}, tool.call, tool.call{tool=Agent}, tool.call{tool=Bash}
+  ❯ ./register.ts gating hook with .catch: session.compact
+  ❯ ./register.ts gating hook with .catch: prompt.submit
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Skill}
+  ❯ ./register.ts gating hook with .catch: tool.call
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Agent}
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Bash}
+  ❯ ./register.ts calls: $.agent.list (via backgroundBusy), $.clock.after, $.clock.now (via clockNow), $.fs.exists, $.fs.read (via evidenceDenial, loadProjectRules, milestoneDenial, pendingChanges, readPlan, roadmapText), $.fs.stat (via loadProjectRules, roadmapText), $.process.run (via git), $.prompt.submit (via carryOn), $.session.compact (via carryOn), $.session.cwd, $.session.usage (via carryOn), $.state.get (via readSession, stickyRules, sync), $.state.set, $.ui.notify, $.ui.status, $.ui.toast
+  ❯ ./register.ts state writes: keel.armed, keel.checkCounts, keel.cleared, keel.firstAgents, keel.goal, keel.openChecks, keel.projectRules, keel.seenMode
+  ❯ ./register.ts state reads: keel.armed, keel.checkCounts, keel.cleared, keel.firstAgents, keel.goal, keel.openChecks, keel.projectRules, keel.seenMode
+
+Plugin directory checks for /home/jonah/repos/keel/plugins/keel. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+⚠ Found 1 plugin directory warning:
+
+  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin. The validator looked for `icon` in plugin.json and for a file at .claude-plugin/icon.png or .svg, assets/icon.png or .svg, or a similar path.
+    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png, or set `icon` in plugin.json to the path of a square PNG or JPEG in the plugin: 512 to 2048 px on each side, under 2 MB. SVG and WebP are not accepted. That file may become the listing icon only once: the first time the plugin is saved or submitted in the developer portal. Adding or changing it later does not change the icon.
+
+About these checks:
+
+  ❯ hooks/hooks.json names a hooks module (a code file listed under `modules`). The plugin directory has rules of its own for such code, and these checks apply none of them, so passing here does not mean the directory accepts the plugin. The developer portal's own validation applies those rules.
+
+These plugin directory checks do not change the result below.
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+Digest: sha256-3/klXDM7ioXuNlskOH8XjvaB5XpknRdYHFIBlnJOyh0=
+
+✔ Validation passed
+exit: 0

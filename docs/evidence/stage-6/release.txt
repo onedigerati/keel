@@ -1,0 +1,46 @@
+$ grep -rn "\"version\"" plugins/keel/.claude-plugin/plugin.json .claude-plugin/marketplace.json; ls plugins/keel/evals; grep -n "^## " plugins/keel/README.md
+plugins/keel/.claude-plugin/plugin.json:3:  "version": "0.8.0",
+
+agents-lean
+agents-wide
+agents-wide-unconfirmed
+brownfield-plan
+charter-prd
+charter-rechart
+feature-within-goal
+fixtures
+milestone-close
+milestone-close-gap
+next-feature
+regression-caught
+risk-recheck
+risky-stage-held
+scale-check-large
+scale-check-small
+security-caught
+stale-autopilot
+trigger-autopilot
+trigger-plan
+trigger-resume
+trigger-stage
+verify-evidence
+verify-honest
+
+5:New in 0.8.0: large projects. A PRD too big for one plan is charted into a roadmap of milestones and a requirement ledger, plans are cut from it one at a time, and a milestone closes only on evidence that its requirements are covered (see [Large projects](#large-projects)). A project without a roadmap works exactly as before.
+7:## Large projects
+27:## Milestones
+32:## Requirements
+44:## Skills
+58:## How a project flows
+64:## Agents level
+74:## Hooks
+100:## Evidence
+116:## Install
+134:## Development
+
+scale-check-large in README eval list: 2
+scale-check-small in README eval list: 2
+charter-prd in README eval list: 2
+charter-rechart in README eval list: 2
+milestone-close in README eval list: 2
+milestone-close-gap in README eval list: 2
