@@ -105,7 +105,7 @@ function engine(
   on: On,
   plan: { text: string; files?: Record<string, string>; untracked?: Record<string, string>; broken?: string[] },
   percent = 20,
-  agents: { status: string }[] = [],
+  agents: { status: string; parentId?: string }[] = [],
 ) {
   const sent = { prompts: [] as string[], compactions: [] as (string | undefined)[], notes: [] as string[] }
   on('agent.list', () => ({ value: agents.map((a, i) => ({ id: `a${i}`, description: 'build', type: 'general-purpose', ...a })) as never }))
@@ -927,4 +927,88 @@ test('the same time written without its colon confirms nothing', async ($, on) =
 
 test('text added or changed after the stamp confirms nothing', async ($, on) => {
   stillAsking(await readAs($, on, 'Agents: wide — confirmed 2026-11-01 09:00', 'Agents: wide — confirmed 2026-11-01 09:00 by jonah', 'Agents: wide — confirmed 2026-11-01 09:00 (ok)'))
+})
+
+/** The deny an Agent call gets, with the plan's `## Now` carrying `line` and the main loop's agents in `agents`. */
+async function agentCall($: Engine, on: On, line: string, agents: { status: string; parentId?: string }[], agentId?: string) {
+  engine(on, { text: planWith(line) }, 20, agents)
+  on('tool.call', () => ({ result: { text: 'started' } }))
+  return (await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2', ...(agentId ? { agentId } : {}) } as never)).deny
+}
+
+test('under lean, an Agent call is refused while an agent the main loop started is running', async ($, on) => {
+  const deny = await agentCall($, on, 'Agents: lean', [{ status: 'running' }])
+  expect(deny).toContain('lean, which allows one agent at a time')
+  expect(deny).toContain('its report starts the next turn')
+  expect(deny).toContain('ask the user to change the Agents line')
+})
+
+test('under lean, a pending agent holds the next one back', async ($, on) => {
+  expect(await agentCall($, on, 'Agents: lean', [{ status: 'pending' }])).toContain('one agent at a time')
+})
+
+test('under lean, a waiting agent holds the next one back', async ($, on) => {
+  expect(await agentCall($, on, 'Agents: lean', [{ status: 'completed' }, { status: 'waiting' }])).toContain('one agent at a time')
+})
+
+test('under lean, an Agent call goes through when no agent is running', async ($, on) => {
+  expect(await agentCall($, on, 'Agents: lean', [])).toBeUndefined()
+})
+
+test('under lean, finished agents do not count', async ($, on) => {
+  expect(await agentCall($, on, 'Agents: lean', [{ status: 'completed' }, { status: 'failed' }, { status: 'killed' }])).toBeUndefined()
+})
+
+test('under lean, agents a subagent started do not count', async ($, on) => {
+  expect(await agentCall($, on, 'Agents: lean', [{ status: 'completed' }, { status: 'running', parentId: 'a0' }])).toBeUndefined()
+})
+
+const RUNNING = [{ status: 'running' }, { status: 'pending' }]
+
+test('balanced never caps the agents', async ($, on) => {
+  expect(await agentCall($, on, 'Agents: balanced', RUNNING)).toBeUndefined()
+})
+
+test('a confirmed wide never caps the agents', async ($, on) => {
+  expect(await agentCall($, on, 'Agents: wide — confirmed 2026-11-08 14:05', RUNNING)).toBeUndefined()
+})
+
+test('with no Agents line the agents are never capped', async ($, on) => {
+  expect(await agentCall($, on, 'Open: none', RUNNING)).toBeUndefined()
+})
+
+test("under lean, a subagent's own Agent call is refused: it is the one agent", async ($, on) => {
+  const deny = await agentCall($, on, 'Agents: lean', [{ status: 'running' }], 'a0')
+  expect(deny).toContain('lean, which allows one agent at a time, and you are that agent')
+  expect(deny).toContain('do this work yourself rather than starting another')
+})
+
+test("under balanced, a subagent's own Agent call is left alone", async ($, on) => {
+  expect(await agentCall($, on, 'Agents: balanced', [{ status: 'running' }], 'a0')).toBeUndefined()
+})
+
+test("under a confirmed wide, a subagent's own Agent call is left alone", async ($, on) => {
+  expect(await agentCall($, on, 'Agents: wide — confirmed 2026-11-08 14:05', [{ status: 'running' }], 'a0')).toBeUndefined()
+})
+
+test("with no Agents line, a subagent's own Agent call is left alone", async ($, on) => {
+  expect(await agentCall($, on, 'Open: none', [{ status: 'running' }], 'a0')).toBeUndefined()
+})
+
+test("under an unconfirmed wide, a subagent's own Agent call is left alone", async ($, on) => {
+  const plan = { text: planWith('Agents: wide') }
+  engine(on, plan, 20, [{ status: 'running' }])
+  on('tool.call', () => ({ result: { text: 'started' } }))
+  const compose = composeKeel($, on)
+  expect((await compose()).text).toContain('set before this session')
+  expect((await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2', agentId: 'a0' } as never)).deny).toBeUndefined()
+})
+
+test('an unconfirmed wide line is not capped either', async ($, on) => {
+  const plan = { text: planWith('Agents: wide') }
+  engine(on, plan, 20, [{ status: 'running' }])
+  on('tool.call', () => ({ result: { text: 'started' } }))
+  const compose = composeKeel($, on)
+  expect((await compose()).text).toContain('set before this session')
+  expect((await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2' } as never)).deny).toBeUndefined()
 })
