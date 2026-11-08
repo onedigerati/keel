@@ -19,6 +19,7 @@ Long work with Claude drifts in similar ways. Context gets summarized and the cu
 - **Staged work.** Each stage is verified against the running product, reviewed when risky, and committed. A stage's risk line is checked against what its code actually touches before review is decided.
 - **Autopilot** runs an approved plan stage after stage. It pauses, enforced by hooks, before risky stages and anything outward-facing.
 - **Evidence.** Verifying a stage saves a per-check report and the output behind it to `docs/evidence/`, committed with the stage. A stage can't be closed without its report.
+- **Agents level.** An `Agents: lean | wide` line in the plan sets how widely work fans out to subagents, trading tokens for wall-clock time; no line is balanced. `lean` is held to one running agent by a hook, and a `wide` line already in the plan when a session starts isn't honoured until you confirm it.
 - **Secret guard:** commits that would carry a secret are blocked.
 
 ## Install

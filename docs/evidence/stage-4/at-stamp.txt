@@ -1,0 +1,15 @@
+$ node --experimental-strip-types <scratchpad>/s4-at-stamp2.mts   (calls stampIn, firstAgentsOf and effectiveAgents from plugins/keel/hooks/register.ts; level parsed as parsePlan does; session first reads the plan at 23:00 on 2026-11-08)
+# README: "A date-only, past or future stamp never confirms, nor does a planted one kept or rewritten with its date and time intact"
+1 planted `at 23:59`, kept, now 23:59:30            -> balanced
+2 same, rewritten dropping `at` (README limit bullet) -> wide
+3 planted timed stamp kept                            -> balanced
+4 same, reformatted 2026/11/01 10.00 (digits intact)  -> balanced
+5 date-only stamp written in session                  -> balanced
+6 clock unreadable at first read (at undefined)       -> balanced
+7 future stamp 23:45 written at 23:30, read at 23:30  -> balanced
+8 same future stamp, read again at 23:45              -> wide
+# README: "a change to `wide` made during the session, from no line, `lean` or `balanced`, is honoured without a stamp"
+9 first read no line, now `Agents: wide`             -> wide
+10 first read `lean`, now `Agents: wide`             -> wide
+11 first read `wide`, edited to lean, then back to wide (from lean) -> balanced
+12 first read `Agents: turbo`, now `Agents: wide`    -> balanced

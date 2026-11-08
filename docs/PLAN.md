@@ -7,14 +7,13 @@ Let the user choose how widely Keel fans work out to subagents, trading tokens f
 2026-11-08 · tests: 57 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Mode: autopilot
-Stage 4 of 4 · Docs and release — both READMEs, eval list, version 0.7.0 (built in a worktree; checks written when it's verified)
+All stages done — the goal is met (keel 0.7.0). Next: `keel:plan` archives this plan and starts a fresh one.
 
 ## Stages
 - [x] 1. Agents line — parse the level, inject it into the working rules, show it in the status line, distrust an earlier session's `wide`
 - [x] 2. Skills follow it — plan sets and records the level; stage, autopilot, review and verify say what each level does; evals `agents-lean` and `agents-wide`
 - [x] 3. Lean cap — the hook refuses an `Agent` call under `lean` while another agent the main loop started is still running
-- [ ] 4. Docs and release — both READMEs, eval list, version 0.7.0
+- [x] 4. Docs and release — both READMEs, eval list, version 0.7.0
 
 ## Decisions
 - 2026-11-08 · Three levels: `lean` (build and verify in the main session, one agent at a time), `balanced` (today's behaviour, and the default when there's no line), `wide` (fan out every independent leaf in its own worktree, a fresh agent verifies, correctness and security reviewers run in parallel) — named levels are easier to say and remember than a number, and `balanced` keeps existing projects unchanged.
@@ -34,6 +33,7 @@ Stage 4 of 4 · Docs and release — both READMEs, eval list, version 0.7.0 (bui
 - 2026-11-08 · On an unconfirmed `wide`, keel:stage asks before building and autopilot asks and carries on at balanced; the stamp's time comes from a `date` call, the hook's offered stamp only when there's no shell — the stage 2 re-review found stage, the hook rule and the safety eval disagreeing on building while waiting, and a grader that might not see the hook's stamp.
 - 2026-11-08 · Under `lean`, the hook counts main-loop `Agent` calls still in flight as well as running agents, so parallel calls in one message can't all pass — stage 3 review found each call checked the agent list before any spawn registered.
 - 2026-11-08 · Stage 4 (docs and release) started in its own worktree while stage 3 was being verified — it touches only the READMEs and the version, and the behaviour it documents was settled.
+- 2026-11-08 · The marketplace description is synced to plugin.json's at this release — stage 4 review found it had lagged since before autopilot and evidence; it pins no version.
 
 ## Open questions
 - Committed screenshots get no secret scan (the guard skips binary files); the docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.

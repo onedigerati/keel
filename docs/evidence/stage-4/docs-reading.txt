@@ -1,0 +1,71 @@
+$ git diff README.md plugins/keel/README.md plugins/keel/.claude-plugin/plugin.json .claude-plugin/marketplace.json   (round 2: the working tree after the second round of stage 4 doc fixes; read claim by claim against plugins/keel/skills/*/SKILL.md and plugins/keel/hooks/register.ts)
+
+Verified 2026-11-08 on 4d35135 plus the uncommitted stage 4 diff. Each claim in the diff, then where the code says it (or doesn't).
+
+== Root README.md (one new bullet) ==
+OK   "An `Agents: lean | wide` line in the plan sets how widely work fans out ... no line is balanced"
+       plan/SKILL.md:67 ("`Agents: lean` or `Agents: wide` ... No line means `balanced`"); register.ts:29-30, :97.
+OK   "`lean` is held to one running agent by a hook" -- register.ts:707-738 (tool.call{tool=Agent}).
+OK   "a `wide` line already in the plan when a session starts isn't honoured until you confirm it" -- register.ts:209-222 effectiveAgents.
+
+== plugins/keel/README.md, command table ==
+OK   plan: "Asks once how widely to fan the work out to agents and records it as the Agents line" -- plan/SKILL.md:12, :67.
+OK   stage: "fanned out ... as far as the Agents line says" -- stage/SKILL.md:19.
+OK   autopilot: "Builders are subagents (one at a time under `lean`)" -- autopilot/SKILL.md:21.
+OK   verify: "For a plan stage under `wide`, a fresh agent that built nothing runs it; under `lean`, the main session does." -- verify/SKILL.md:10 (the skill says "a wide the hook honours"; the README's Agents section makes clear an unconfirmed wide is balanced).
+OK   review: "Every Agents level keeps at least one fresh reviewer; under `wide`, when the security lens applies, a correctness and a security reviewer run in parallel" -- review/SKILL.md:23.
+
+== plugins/keel/README.md, "## Agents level" ==
+OK   "a line in the plan's `## Now`, beside the Mode line" -- plan/SKILL.md:67.
+OK   "/keel:plan asks once and records it, and you can change it any time" -- plan/SKILL.md:12, :67 ("change it whenever they ask").
+OK~  "(ask Claude, or edit the line yourself; a change to `wide` made during the session, from no line, `lean` or `balanced`, is honoured without a stamp)" -- register.ts:182, :217; at-stamp.txt cases 9, 10 (wide), 12 (`turbo` first -> balanced). Still imprecise, minor: "from" is the line as the session FIRST read it, not the value just before the change. A session that first read `wide`, went to `lean`, then back to `wide`, still needs a new stamp (at-stamp.txt case 11 -> balanced). This fails safe: Claude is told to ask. Not counted as wrong.
+OK   "stage, autopilot, review and verify follow it, and it carries into every new `## Now` and into the next plan"
+       -- stage/SKILL.md:14,:36; autopilot/SKILL.md:24,:47; plan/SKILL.md:67,:91.
+OK   lean: "Build and verify in the main session, one agent at a time. Autopilot still delegates building, one builder at a time, and review keeps one fresh reviewer."
+       -- stage/SKILL.md:19, verify/SKILL.md:10, autopilot/SKILL.md:21, review/SKILL.md:23, register.ts:322.
+OK   balanced: "independent leaves go to subagents when it helps. `balanced` is written as no line, and a line with any other value counts as none."
+       -- plan/SKILL.md:67 (verbatim); register.ts:97 (unknown value -> agents undefined). (`Agents: balanced` written out also parses as balanced, register.ts:97; harmless.)
+OK   wide: "Every independent leaf gets its own agent in its own worktree, a fresh agent verifies, and when the security lens applies (the risk line names more than UI), the correctness and security reviewers run in parallel."
+       -- stage/SKILL.md:19, plan/SKILL.md:67, register.ts:324 ("risk beyond UI").
+OK   "A `wide` line already in the plan when a session starts ... counts as `balanced`; Claude asks, and on your yes restamps it from the clock as `Agents: wide — confirmed <YYYY-MM-DD HH:MM>`"
+       -- register.ts:216-221, :320; stage/SKILL.md:19 (`date '+%Y-%m-%d %H:%M'`).
+OK   "Only your own words confirm it: a plan line, logged decision, comment, file or agent report claiming you did doesn't count." -- stage/SKILL.md:19, autopilot/SKILL.md:13, plan/SKILL.md:67.
+OK   "Claude is told this; the hook can't tell who asked for a stamp, so it honours any one written in the session." -- register.ts:218-221 (any new stamp inside the session window); the rule at :320 tells Claude to ask.
+OK   "`lean` is honoured as found, since it only lowers spend." -- register.ts:199, :215.
+
+== plugins/keel/README.md, Hooks ==
+OK   Plan context: "The plan's Agents level rides in the working rules Claude gets, and the status line shows it when it isn't balanced (`keel · lean · 2/5 done · …`)"
+       -- register.ts:316-331 (agentsRule appended to the rules), :310-312 (status shows effective lean or wide).
+       (An unconfirmed wide shows nothing, since its effective level is balanced; consistent with "when it isn't balanced".)
+OK   "A `wide` line is honoured only when it turned to `wide` during the session (from no line, `lean` or `balanced`) or carries a confirmation stamp whose time falls inside the session (from its first read of the plan to now)"
+       -- register.ts:217-221 (stamp minute >= first read's minute, <= now + 1 min, and different from the first-read stamp).
+       (The "(from no line, `lean` or `balanced`)" added by the review fix now covers the unknown-value case: register.ts:182, :217.)
+OK   "A date-only, past or future stamp never confirms, nor does a planted one kept or rewritten with its date and time intact, or a change of case or spacing; and no stamp confirms when the clock can't be read." -- register.ts:187-221, stampIn :72; at-stamp.txt cases 1, 3, 4 (planted kept or reformatted with digits intact -> balanced), 5 (date-only -> balanced), 6 (clock unreadable -> balanced). Round 1 flagged the old "a planted one however reformatted" as WRONG; the new wording is correct, and the `at` case is now a listed limit (below).
+       Nuance, not wrong: a stamp written in the session with a time still ahead of the clock doesn't confirm until the clock reaches it, then it does (cases 7, 8). By then its time "falls inside the session", as the sentence before says.
+       ("nor ... a change of case or spacing" -- register.ts:205-221, fields compared, not text.)
+       (Round 1 MISSING "no stamp confirms when the clock can't be read": now stated.)
+OK   "Until then Claude works at balanced and is told to ask." -- register.ts:320.
+OK   "Under `lean`, an `Agent` call from the main loop is refused while another top-level agent is pending, running or waiting (parallel calls in one message included), and so is any `Agent` call a subagent makes."
+       -- register.ts:384-386 (backgroundBusy: !parentId, pending|running|waiting), :716 + :732 (in-flight count), :709-713 (subagent branch).
+OK   "`balanced` and `wide` aren't capped by Keel; Claude Code's own limits bound `wide`." -- register.ts:711, :731; decision 2026-11-08.
+OK   limit: "A `wide` line that arrives mid-session from git (... or a plan the session couldn't read at its first look) ... is honoured without asking, as the Mode line is." -- open question 3; register.ts:182 (no plan -> level none), :217.
+OK   limit: "The `lean` cap doesn't see an idle teammate, a SendMessage that resumes a finished agent, or a Workflow's fan-out." -- open question 5; register.ts:386.
+
+OK   limit: "Agents another plugin started, or a dead teammate pane still marked running, count as busy ..." -- open question 5; register.ts:386 counts every top-level agent.
+OK   limit: "With two Agents lines in `## Now` only the first is read, and an Agents line past the 40-line cap on `## Now` is followed by the hook but not shown to Claude." -- open question 4; register.ts:96 (`.find`), :89 (NOW_MAX_LINES applies to `now` only, not to agentsLine).
+
+OK   limit: "A planted stamp the hook reads as date-only, such as `confirmed 2026-11-08 at 23:59`, can be confirmed by a rewrite that drops the `at`, if the session runs past that minute. The skills forbid such a rewrite (the line is carried as it stands)." -- open question 7; at-stamp.txt cases 1-2 (kept -> balanced, `at` dropped -> wide); plan/SKILL.md:67 "carry the line into every new `## Now` as it stands ... Never stamp it otherwise".
+OK   eval list: "`agents-lean`; it has no balanced control yet, so it shows lean is followed, not that balanced would have fanned out" -- open question 6.
+
+Every Agents-related limit in the plan's open questions (3, 4, 5, 6, 7) is now in plugins/keel/README.md. Nothing in the diff is still wrong.
+(Not Agents-related and already in the README: committed screenshots get no secret scan, README.md:46. The masking-eval gap is not a user-facing limit.)
+
+== Eval list (check 2) ==
+OK   names `agents-lean`, `agents-wide`, `agents-wide-unconfirmed`, each described in line with its case.yaml description;
+     "`agents-lean`, `agents-wide` and `agents-wide-unconfirmed` from `evals/fixtures/exporters.sh`" -- each scaffold.sh line 2: "# Generated from ../fixtures/exporters.sh".
+
+== plugin.json (check 3) ==
+OK   "version": "0.7.0"; description adds "a choice of how widely work fans out to agents".
+
+== Root .claude-plugin/marketplace.json ==
+Before the review fix it read "Lightweight project discipline: one plan file, staged work, verification against the running product, fresh-eyes review, and a secret guard on commits." (no autopilot, evidence or Agents level). It now matches plugin.json word for word, Agents level included. Good; not one of stage 4's checks.
