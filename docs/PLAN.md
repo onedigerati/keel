@@ -7,7 +7,7 @@ Close two gaps a reviewer found in keel 0.8.0, which is already published to the
 2026-11-09 · tests: 252 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-All stages done. The plan's goal is met: keel 0.9.0, committed locally and not pushed; 0.8.0 is still what the marketplace serves.
+All stages done. The plan's goal is met: keel 0.9.0, pushed to origin/main on 2026-11-09 (8e22553), so the marketplace serves it.
 Agents: wide — confirmed 2026-11-09 08:18
 Open: none
 
