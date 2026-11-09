@@ -7,17 +7,8 @@ Close two gaps a reviewer found in keel 0.8.0, which is already published to the
 2026-11-09 · tests: 252 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 2 of 2 · Secret formats
-Risk: secrets (what the commit guard catches)
-Mode: autopilot
+All stages done. The plan's goal is met: keel 0.9.0, committed locally and not pushed; 0.8.0 is still what the marketplace serves.
 Agents: wide — confirmed 2026-11-09 08:18
-Checks:
-- [x] JWTs, `Authorization: Bearer <long token>`, `glpat-`, `npm_`, `pypi-` and SendGrid `SG.` tokens are each flagged by kind, never by value (proof: test)
-- [x] Ordinary code still passes: `Bearer ${token}`, a bare `eyJ` prefix, `Authorization: [masked]`, `Bearer [masked]` and short example values (proof: test)
-- [x] In a file under `docs/evidence/` at any depth, an `Authorization`, `Cookie` or `Set-Cookie` header whose value isn't `[masked]` refuses the commit, in a `curl -H` command line too; the same header outside `docs/evidence/` is not flagged by this rule (proof: test)
-- [x] A short password (`password = "hunter2"`) is still not flagged (proof: test)
-- [x] README's secret-guard list names the new formats and the evidence rule; the version is 0.9.0 in `plugin.json`, with a "new in 0.9" note in the root README (proof: `claude plugin validate`, a test can't judge the wording)
-- [x] Live: a headless commit of an evidence file with an unmasked cookie is refused, and one with `[masked]` goes through (proof: headless run on the installed plugin, a unit test can't show the installed hook)
 Open: none
 
 ## Stages
