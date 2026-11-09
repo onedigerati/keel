@@ -9,7 +9,7 @@ Close two gaps a reviewer found in keel 0.8.0, which is already published to the
 ## Now
 Stage 1 of 2 · Explicit approval
 Risk: auth (who may release a held stage)
-Mode: paused — stage 1's risk line names auth; waiting for the user's go on the plan and the stage
+Mode: autopilot
 Agents: wide — confirmed 2026-11-09 08:18
 Checks:
 - [ ] Under autopilot, a held stage stays held after the user asks "what's the status?" or says "go ahead and tell me where we are": edits outside the plan and builder agents are still denied, and the band still shows `autopilot held` (proof: test)
@@ -40,6 +40,8 @@ Stage 2 checks (they move into `## Now` when it starts):
 - 2026-11-09 · No short-password detection. A rule that flags `password = "hunter2"` would also fire on fixtures, docs and examples, and a guard people learn to bypass protects nothing. The hard-coded credential rule keeps its 24-character floor.
 - 2026-11-09 · The evidence header rule applies only under `docs/evidence/`, where verify already must mask these headers. Elsewhere a header line is ordinary code (`Authorization: Bearer ${token}`).
 - 2026-11-09 · Agents: wide, from the user ("let's go autopilot and let's go wide"). Stage 1's hook and stage 2's scanner are separate files, but stage 2's version bump and README edits touch shared docs, so the stages run in order, each fanning out internally.
+
+- 2026-11-09 · The user approved the plan and stage 1 ("Approved.") — building it under autopilot.
 
 ## Open questions
 - Committed screenshots get no secret scan (the guard skips binary files); the docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.
