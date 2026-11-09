@@ -7,18 +7,17 @@ Close two gaps a reviewer found in keel 0.8.0, which is already published to the
 2026-11-09 · tests: 252 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 1 of 2 · Explicit approval
-Risk: auth (who may release a held stage)
+Stage 2 of 2 · Secret formats
+Risk: secrets (what the commit guard catches)
 Mode: autopilot
 Agents: wide — confirmed 2026-11-09 08:18
 Checks:
-- [x] Under autopilot, a held stage stays held after the user asks "what's the status?" or says "go ahead and tell me where we are": edits outside the plan and builder agents are still denied, and the band still shows `autopilot held` (proof: test)
-- [x] An approval releases it: "yes", "Go.", "approve", "proceed — build it", "yes, use the session cookie" and `/keel:approve` each clear the stage, in any case (proof: test)
-- [x] While the plan is paused on a risky stage, a non-approval message does not pre-clear it (proof: test)
-- [x] Only the user's own prompt releases a hold: a prompt from a plugin origin, Claude invoking the `keel:approve` skill, or an approval word in a file or agent report clears nothing (proof: test)
-- [x] The held notice, the deny text and the working rules each tell the user the exact reply that releases the stage (proof: test)
-- [x] `keel:approve` exists as a skill and validates; README and the autopilot skill describe approval, not "until the user speaks" (proof: `claude plugin validate`, a test can't judge the wording)
-- [x] Live: a headless autopilot session on a held auth stage stays held after "what's the status?" and builds after "approve" (proof: headless run on the installed plugin, a unit test can't show a real session)
+- [ ] JWTs, `Authorization: Bearer <long token>`, `glpat-`, `npm_`, `pypi-` and SendGrid `SG.` tokens are each flagged by kind, never by value (proof: test)
+- [ ] Ordinary code still passes: `Bearer ${token}`, a bare `eyJ` prefix, `Authorization: [masked]`, `Bearer [masked]` and short example values (proof: test)
+- [ ] In a file under `docs/evidence/` at any depth, an `Authorization`, `Cookie` or `Set-Cookie` header whose value isn't `[masked]` refuses the commit, in a `curl -H` command line too; the same header outside `docs/evidence/` is not flagged by this rule (proof: test)
+- [ ] A short password (`password = "hunter2"`) is still not flagged (proof: test)
+- [ ] README's secret-guard list names the new formats and the evidence rule; the version is 0.9.0 in `plugin.json`, with a "new in 0.9" note in the root README (proof: `claude plugin validate`, a test can't judge the wording)
+- [ ] Live: a headless commit of an evidence file with an unmasked cookie is refused, and one with `[masked]` goes through (proof: headless run on the installed plugin, a unit test can't show the installed hook)
 Open: none
 
 ## Stages
