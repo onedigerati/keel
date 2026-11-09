@@ -9,7 +9,7 @@ Close two gaps a reviewer found in keel 0.8.0, which is already published to the
 ## Now
 Stage 1 of 2 · Explicit approval
 Risk: auth (who may release a held stage)
-Mode: paused — the user interrupted stage 1 to ask how it changes autopilot; waiting for their go on the approval rule as planned, or a change to it
+Mode: autopilot
 Agents: wide — confirmed 2026-11-09 08:18
 Checks:
 - [ ] Under autopilot, a held stage stays held after the user asks "what's the status?" or says "go ahead and tell me where we are": edits outside the plan and builder agents are still denied, and the band still shows `autopilot held` (proof: test)
@@ -42,6 +42,8 @@ Stage 2 checks (they move into `## Now` when it starts):
 - 2026-11-09 · Agents: wide, from the user ("let's go autopilot and let's go wide"). Stage 1's hook and stage 2's scanner are separate files, but stage 2's version bump and README edits touch shared docs, so the stages run in order, each fanning out internally.
 
 - 2026-11-09 · The user approved the plan and stage 1 ("Approved.") — building it under autopilot.
+
+- 2026-11-09 · The approval rule stays as planned (an approval word opening the reply, or `/keel:approve`), on the user's word after weighing a looser "word anywhere in a short reply" — the looser rule would count "should I approve this?".
 
 ## Open questions
 - Committed screenshots get no secret scan (the guard skips binary files); the docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.
