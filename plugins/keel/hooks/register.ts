@@ -744,12 +744,26 @@ async function pendingChanges($: EngineInterface, root: string, commands: Comman
     diffs.push(await git($, ['diff', ...DIFF, '--', ...add.paths], addDir))
     if (!add.untracked) continue
     const listed = await git($, ['ls-files', '--others', ...(add.ignored ? [] : ['--exclude-standard']), '--', ...add.paths], addDir)
-    for (const path of listed.split('\n').filter(Boolean).slice(0, 500 - files.length)) {
+    const paths = listed.split('\n').filter(Boolean).slice(0, 500 - files.length)
+    // ls-files prints paths relative to the directory it ran in; findSecrets judges them (the evidence rule) by their
+    // repo-root path, so label each with the directory's prefix (`evidence/x.txt` from `docs/` is `docs/evidence/x.txt`)
+    const prefix = paths.length ? (await git($, ['rev-parse', '--show-prefix'], addDir)).trim() : ''
+    for (const path of paths) {
       const text = await $.fs.read(joinPath(addDir, path)).catch(() => undefined)
-      if (typeof text === 'string' && !text.includes('\u0000')) files.push({ path, text })
+      if (typeof text === 'string' && !text.includes('\u0000')) files.push({ path: repoPath(prefix, path), text })
     }
   }
   return { diff: diffs.join('\n'), files, dir }
+}
+
+/** A path relative to a repo subdirectory (`../x`, `./y`), as a repo-root path, given the directory's prefix (`docs/`). */
+function repoPath(prefix: string, path: string): string {
+  const parts: string[] = []
+  for (const part of `${prefix}/${path}`.split('/')) {
+    if (part === '..') parts.pop()
+    else if (part && part !== '.') parts.push(part)
+  }
+  return parts.join('/')
 }
 
 /**
@@ -789,12 +803,18 @@ function secretDenial(found: Finding[]): string {
     .map(f => `  - ${f.file}${f.line ? `:${f.line}` : ''}: ${f.kind}`)
     .join('\n')
   const more = found.length > 8 ? `\n  - …and ${found.length - 8} more` : ''
-  return [
-    `keel blocked this commit: it would include what looks like a secret.`,
-    list + more,
-    `Move the value into an environment variable or an ignored file, and rotate it if it was ever pushed or shared.`,
-    `If a line is a placeholder or a false positive, add the comment \`keel:allow-secret\` on that line and commit again.`,
-  ].join('\n')
+  const inEvidence = (f: Finding) => f.kind.endsWith(' header in evidence')
+  const lines = [`keel blocked this commit: it would include what looks like a secret.`, list + more]
+  if (found.some(inEvidence))
+    lines.push(
+      `For a header in evidence, replace the value with \`[masked]\`, as keel:verify masks evidence, and commit again. Only if the line is a false positive, add the comment \`keel:allow-secret\` on it.`,
+    )
+  if (!found.every(inEvidence))
+    lines.push(
+      `Move the value into an environment variable or an ignored file, and rotate it if it was ever pushed or shared.`,
+      `If a line is a placeholder or a false positive, add the comment \`keel:allow-secret\` on that line and commit again.`,
+    )
+  return lines.join('\n')
 }
 
 function checksDenial(stage: string, open: string[]): string {

@@ -26,6 +26,14 @@ const AWS = 'AKIA' + 'Q'.repeat(16)
 const GH = 'ghp_' + 'a1B2'.repeat(9)
 const ANT = 'sk-' + 'ant-' + 'x'.repeat(30)
 const PEM = '-----BEGIN ' + 'PRIVATE KEY-----'
+const JWT = ['eyJ' + 'hbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', 'eyJ' + 'zdWIiOiIxMjM0NTY3ODkwIn0', 'Sf' + 'lKxwRJ4SMeKKF2QT4fwpMeJf36POk6yJV'].join('.')
+const BEARER = 'Bear' + 'er ' + 'tk_' + 'Z9x8'.repeat(6)
+const GLPAT = 'glp' + 'at-' + 'aB3d'.repeat(5)
+const NPM = 'np' + 'm_' + 'aB3d'.repeat(9)
+const PYPI = 'py' + 'pi-AgEIcHlwaS5vcmc' + 'Q2x'.repeat(20)
+const SENDGRID = 'S' + 'G.' + 'aB3d'.repeat(5) + 'xy' + '.' + 'cD4e'.repeat(10) + 'zzz'
+const SID = 's3ss' + '10n'.repeat(6)
+const B64 = 'dXNl' + 'cjpwYXNzd29yZA=='
 
 const diffOf = (file: string, ...lines: string[]) =>
   [`diff --git a/${file} b/${file}`, `--- a/${file}`, `+++ b/${file}`, `@@ -3,0 +4,${lines.length} @@`, ...lines].join('\n')
@@ -36,8 +44,22 @@ test('finds keys on added lines, with file, line and kind', () => {
 })
 
 test('recognizes each common format', () => {
-  const kinds = [GH, ANT, PEM].map(v => findSecrets(diffOf('x.txt', `+${v}`))[0]?.kind)
-  expect(kinds).toEqual(['a GitHub token', 'an Anthropic API key', 'a private key'])
+  const kinds = [GH, ANT, PEM, JWT, `Authorization: ${BEARER}`, `curl -H "${BEARER}"`, GLPAT, NPM, PYPI, SENDGRID].map(
+    v => findSecrets(diffOf('x.txt', `+${v}`))[0]?.kind,
+  )
+  expect(kinds).toEqual([
+    'a GitHub token',
+    'an Anthropic API key',
+    'a private key',
+    'a JWT',
+    'a bearer token',
+    'a bearer token',
+    'a GitLab token',
+    'an npm token',
+    'a PyPI token',
+    'a SendGrid API key',
+  ])
+  expect(JSON.stringify(findSecrets(diffOf('x.txt', `+${JWT}`)))).not.toContain(JWT.slice(0, 20))
 })
 
 test('ignores removed lines, context and allow-marked lines', () => {
@@ -57,8 +79,196 @@ test('scans whole new files', () => {
 })
 
 test('ordinary code passes', () => {
-  const diff = diffOf('a.ts', '+const password = form.get("password")', '+fetch(`https://api.example.com/v1`)')
-  expect(findSecrets(diff)).toEqual([])
+  const lines = [
+    'const password = form.get("password")',
+    'fetch(`https://api.example.com/v1`)',
+    'headers: { Authorization: `Bearer ${token}` }',
+    'curl -H "Authorization: Bearer $TOKEN" https://api.example.com',
+    'Authorization: Bearer {{access_token}}',
+    'Authorization: Bearer <your-token-here>',
+    'Authorization: Bearer YOUR_ACCESS_TOKEN_HERE',
+    'const prefix = "eyJ"',
+    'eyJhbGciOi.eyJzdWIi.abc',
+    'Authorization: [masked]',
+    'curl -H "Authorization: Bearer [masked]"',
+    'Bearer abc123',
+    'NPM_TOKEN=npm_xxxx',
+    'GITLAB_TOKEN=glpat-xxxx',
+    'PYPI_TOKEN=pypi-AgEI...',
+    'SENDGRID_API_KEY=SG.xxxx.yyyy',
+    'password = "hunter2"',
+  ]
+  expect(findSecrets(diffOf('a.ts', ...lines.map(l => `+${l}`)))).toEqual([])
+})
+
+test('an unmasked credential header in evidence is flagged at any depth, by kind', () => {
+  const diff = [
+    diffOf('docs/evidence/stage-2/http.txt', `+Authorization: Basic ${SID}`, `+set-cookie: sid=${SID}; Path=/; HttpOnly`),
+    diffOf('app/docs/evidence/stage-1/curl.txt', `+$ curl -s -H "Cookie: sid=${SID}" https://localhost:3000/me`, `+  "authorization": "Token ${SID}",`),
+  ].join('\n')
+  const found = findSecrets(diff)
+  expect(found).toEqual([
+    { file: 'docs/evidence/stage-2/http.txt', line: 4, kind: 'an unmasked Authorization header in evidence' },
+    { file: 'docs/evidence/stage-2/http.txt', line: 5, kind: 'an unmasked Set-Cookie header in evidence' },
+    { file: 'app/docs/evidence/stage-1/curl.txt', line: 4, kind: 'an unmasked Cookie header in evidence' },
+    { file: 'app/docs/evidence/stage-1/curl.txt', line: 5, kind: 'an unmasked Authorization header in evidence' },
+  ])
+  expect(JSON.stringify(found)).not.toContain(SID)
+  // a new, untracked evidence file is read whole
+  expect(findSecrets('', [{ path: 'docs/evidence/stage-2/http.txt', text: `GET /me HTTP/1.1\nCookie: theme=dark; sid=${SID}` }])).toEqual([
+    { file: 'docs/evidence/stage-2/http.txt', line: 2, kind: 'an unmasked Cookie header in evidence' },
+  ])
+})
+
+test('a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files', () => {
+  const masked = [
+    'Authorization: [masked]',
+    'curl -H "Authorization: Bearer [masked]" -H \'Cookie: sid=[masked]; theme=[masked]\'',
+    '"Authorization": "Basic [masked]",',
+    'Set-Cookie: sid=[masked]; Path=/; HttpOnly; Max-Age=3600',
+    'Cookie:',
+    'Authorization: Bearer',
+    'curl -H "Authorization: Bearer $TOKEN" http://localhost:3000',
+    `Cookie: sid=${SID} // keel:allow-secret`,
+    'X-Request-Id: 12345',
+  ]
+  expect(findSecrets(diffOf('docs/evidence/stage-2/http.txt', ...masked.map(l => `+${l}`)))).toEqual([])
+  const plain = [`Cookie: sid=${SID}`, `Authorization: Basic ${SID}`]
+  for (const file of ['src/client.ts', 'docs/notes.txt', 'mydocs/evidence/x.txt'])
+    expect(findSecrets(diffOf(file, ...plain.map(l => `+${l}`)), [{ path: file, text: plain.join('\n') }])).toEqual([])
+  // one plain value among masked cookies still leaks the session
+  expect(findSecrets(diffOf('docs/evidence/a.txt', `+Cookie: theme=[masked]; sid=${SID}`))[0]?.kind).toBe('an unmasked Cookie header in evidence')
+})
+
+const kindsIn = (file: string, lines: string[]) => lines.map(l => findSecrets('', [{ path: file, text: l }])[0]?.kind)
+
+test('in evidence, a header passes when masking and placeholders leave no credential-like run', () => {
+  const pass = [
+    '| 4 | Cookie: sid=[masked] | pass |',
+    '| 2 | `Authorization: Bearer <long token>` is flagged by kind, never by value | pass | tests.txt |',
+    '| 3 | `Authorization: [masked]` passes, and so does stage2-check-1234567890 | pass |',
+    'The request had no Authorization: it was refused with a 401.',
+    'the Cookie: header is set by the login route',
+    'src/api/client.ts:12:  headers: { Authorization: `Bearer ${token}` },',
+    'src/cli.ts:40:    Authorization: token,',
+    'curl -s -H "Authorization: Bearer \\"$TOKEN\\"" http://localhost:3000/api/v1/me',
+    'curl -s -H "Authorization: Bearer $(gh auth token)" https://api.github.com/user',
+    'authorization: undefined',
+    'authorization: null,',
+    '  "cookie": [],',
+    '* [HTTP/2] [1] [authorization: Bearer [masked]]',
+    'Authorization: Digest username="[masked]", realm="api", nonce="[masked]", uri="/v1/me", response="[masked]"',
+    'Authorization: Bearer ****',
+    'Cookie: sid=(redacted); theme=dark',
+    'Proxy-Authorization: Basic [masked]',
+    'Authorization: Bearer {{access_token_2026_11}}',
+    'Authorization: Bearer <token-from-step-3-of-the-login-flow>',
+    'Set-Cookie: sid=[masked]; Path=/; Domain=api2.example-company.com; Max-Age=31536000; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Secure; HttpOnly; SameSite=Lax; Partitioned; Priority=High',
+    'HTTP_COOKIE=sid=[masked]',
+    'HTTP_AUTHORIZATION: Bearer [masked]',
+    '$ curl -b "sid=[masked]" http://localhost:3000/me',
+    '$ curl -b cookies-2026-11-09-stage2.txt http://localhost:3000/me',
+    '$ git checkout -b stage-2-secret-formats-2026',
+    '{"name":"Cookie","value":"sid=[masked]"}',
+    '{"value":"Bearer [masked]","name":"Authorization"}',
+    '"{\\"Cookie\\":\\"sid=[masked]\\",\\"X-Trace\\":\\"abcdef1234567890abcdef\\"}"',
+  ]
+  expect(kindsIn('docs/evidence/stage-2/report.md', pass)).toEqual(pass.map(() => undefined))
+})
+
+test('in evidence, a header still holding a credential-like value is flagged, in every form', () => {
+  const header = (name: string) => `an unmasked ${name} header in evidence`
+  const cases: [string, string][] = [
+    [`Authorization: Basic ${B64}`, header('Authorization')],
+    [`Proxy-Authorization: Basic ${B64}`, header('Proxy-Authorization')],
+    [`Cookie: theme=dark; _ga=[masked]; csrftoken=${SID}`, header('Cookie')],
+    [`Cookie: token=${JWT}`, 'a JWT'],
+    [`Set-Cookie: a=[masked]; Path=/, sessionid=${SID}; HttpOnly`, header('Set-Cookie')],
+    [`Set-Cookie: a=; sessionid=${SID}; Path=/`, header('Set-Cookie')],
+    [`curl -H "Cookie: a=\\"x\\"; sid=${SID}" http://localhost:3000`, header('Cookie')],
+    [`log: "{\\"Cookie\\":\\"sid=${SID}\\"}"`, header('Cookie')],
+    [`HTTP_COOKIE=sid=${SID}`, header('Cookie')],
+    [`HTTP_AUTHORIZATION: Basic ${B64}`, header('Authorization')],
+    [`$ curl -b "sid=${SID}" http://localhost:3000/me`, header('Cookie')],
+    [`$ curl --cookie sid=${SID} http://localhost:3000/me`, header('Cookie')],
+    [`$ curl --cookie=theme=dark;sid=${SID} http://localhost:3000/me`, header('Cookie')],
+    [`{"name":"Cookie","value":"sid=${SID}"}`, header('Cookie')],
+    [`{"value":"Basic ${B64}","name":"Authorization"}`, header('Authorization')],
+    [`| 4 | Cookie: sid=${SID} | pass |`, header('Cookie')],
+    [`Authorization: Bearer {{token}} ${SID}`, header('Authorization')],
+  ]
+  expect(kindsIn('docs/evidence/stage-2/http.txt', cases.map(c => c[0]))).toEqual(cases.map(c => c[1]))
+})
+
+test('the evidence rule covers any case and archived plans; a rename into an archive adds no lines', () => {
+  for (const file of ['Docs/Evidence/stage-2/http.txt', 'docs/plans/0.8.0/evidence/stage-1/http.txt', 'app/docs/plans/v2/evidence/x.txt'])
+    expect(kindsIn(file, [`Cookie: sid=${SID}`])).toEqual(['an unmasked Cookie header in evidence'])
+  expect(kindsIn('docs/plans/evidence.txt', [`Cookie: sid=${SID}`])).toEqual([undefined])
+  const rename = [
+    'diff --git a/docs/evidence/stage-1/http.txt b/docs/plans/0.8.0/evidence/stage-1/http.txt',
+    'similarity index 100%',
+    'rename from docs/evidence/stage-1/http.txt',
+    'rename to docs/plans/0.8.0/evidence/stage-1/http.txt',
+  ].join('\n')
+  expect(findSecrets(rename)).toEqual([])
+})
+
+test('the evidence scan stays linear on long lines', () => {
+  const file = 'docs/evidence/stage-2/http.txt'
+  for (const text of ['Cookie: x' + ' '.repeat(1_000_000) + 'y', 'Set-Cookie: a=[masked]; '.repeat(20_000)]) {
+    const start = Date.now()
+    expect(findSecrets('', [{ path: file, text }])).toEqual([])
+    expect(Date.now() - start).toBeLessThan(500)
+  }
+})
+
+test('format edges: GitLab token kinds, npm, PyPI and SendGrid boundaries', () => {
+  const sg = (middle: number, tail: number) => 'S' + 'G.' + 'aB3d'.repeat(6).slice(0, middle) + '.' + 'cD4e'.repeat(11).slice(0, tail)
+  const hits = [
+    'glp' + 'tt-' + 'a1b2c3d4e5'.repeat(4),
+    'gl' + 'dt-' + 'aB3d'.repeat(5),
+    'gl' + 'rt-' + 'aB3d'.repeat(5),
+    'glc' + 'bt-' + '64_' + 'aB3d'.repeat(5),
+    'glo' + 'as-' + 'aB3d'.repeat(16),
+    'np' + 'm_' + 'X'.repeat(36),
+    'py' + 'pi-AgENdGVzdC5weXBpLm9yZw' + 'Q2x'.repeat(20),
+    sg(22, 43),
+    JWT,
+  ]
+  expect(kindsIn('x.txt', hits)).toEqual([
+    ...Array(5).fill('a GitLab token'),
+    'an npm token',
+    'a PyPI token',
+    'a SendGrid API key',
+    'a JWT',
+  ])
+  const misses = [
+    'glp' + 'tt-' + 'xyz'.repeat(14),
+    'glo' + 'as-' + 'aB3d'.repeat(15),
+    'np' + 'm_' + 'aB3d'.repeat(9).slice(0, 35),
+    'np' + 'm_' + 'aB3d'.repeat(10).slice(0, 37),
+    'py' + 'pi-AgEFdGVzdC5weXBpLm9yZw' + 'Q2x'.repeat(20),
+    sg(21, 43),
+    sg(23, 43),
+    sg(22, 43) + 'x',
+    sg(22, 42),
+  ]
+  expect(kindsIn('x.txt', misses)).toEqual(misses.map(() => undefined))
+})
+
+test('format edges: where a JWT and a bearer token may start', () => {
+  const jwt = [`%20${JWT}`, `%22${JWT}`, `"line one\\n${JWT}"`, `x${JWT}`, `-${JWT}`, `x20${JWT}`]
+  expect(kindsIn('x.txt', jwt)).toEqual(['a JWT', 'a JWT', 'a JWT', undefined, undefined, undefined])
+  const tk = 'tk_' + 'Z9x8'.repeat(6)
+  const bearer = [
+    `Authorization=Bear` + `er%20${tk}`,
+    `Authorization: Bear` + `er ${'a1b2c3d4'.repeat(5)}`,
+    'Authorization: Bearer ' + 'token-based-auth-flow-v2',
+    'Authorization: Bearer ' + 'expired-token-1234567890',
+    // a 16-character part could be a real secret, so this one stays flagged; mark a fixture like it with keel:allow-secret
+    'Authorization: Bearer ' + 'test_token_1234567890abcdef',
+  ]
+  expect(kindsIn('src/client.ts', bearer)).toEqual(['a bearer token', 'a bearer token', undefined, undefined, 'a bearer token'])
 })
 
 test('reads a plan with a Now section and a stage checklist', () => {
@@ -399,6 +609,26 @@ test('"add" in a commit message no longer drags in unstaged files', async ($, on
   const ran = fakeGit(on, () => '')
   await $.tool.call({ tool: 'Bash', command: 'git commit -m "Wire add button"' })
   expect(ran.map(r => r.argv)).toEqual(['git diff --cached -U0 --no-color --no-ext-diff'])
+})
+
+test('a commit that adds an unmasked evidence header is denied by kind, never by value', async ($, on) => {
+  fakeGit(on, argv => (argv.includes('--cached') ? diffOf('docs/evidence/stage-2/curl.txt', `+curl -H "Cookie: sid=${SID}" http://localhost:3000`) : ''))
+  const r = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2 evidence"' })
+  expect(r.deny).toContain('docs/evidence/stage-2/curl.txt:4: an unmasked Cookie header in evidence')
+  expect(r.deny).not.toContain(SID)
+})
+
+test('an untracked evidence file added from a subdirectory is judged by its repo path, with a masking hint', async ($, on) => {
+  on('fs.read', (_, e) => ({ value: e.path.endsWith('/repo/docs/evidence/stage-2/http.txt') ? `Cookie: sid=${SID}` : '' }))
+  const ran = fakeGit(on, argv =>
+    argv[1] === 'ls-files' ? 'evidence/stage-2/http.txt\n' : argv[1] === 'rev-parse' && argv[2] === '--show-prefix' ? 'docs/\n' : '',
+  )
+  const r = await $.tool.call({ tool: 'Bash', command: 'cd docs && git add evidence && git commit -m "Stage 2 evidence"' })
+  expect(ran.find(x => x.argv.startsWith('git ls-files'))?.cwd).toBe('/repo/docs')
+  expect(r.deny).toContain('docs/evidence/stage-2/http.txt:1: an unmasked Cookie header in evidence')
+  expect(r.deny).toContain('replace the value with `[masked]`, as keel:verify masks evidence')
+  expect(r.deny).not.toContain('environment variable')
+  expect(r.deny).not.toContain(SID)
 })
 
 test('a git add on the same line is scanned for what it will stage', async ($, on) => {

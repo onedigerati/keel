@@ -1,0 +1,118 @@
+$ (per mutation) edit plugins/keel/hooks/secrets.ts, claude plugin test plugins/keel, restore from scratchpad copy, cmp
+Baseline: 273 pass, 0 fail (tests.txt)
+
+== Mutation: 1. drop the JWT pattern (never matches)
+   replace: ['a JWT', /(?<!
+   with:    ['a JWT', /(?!)(?<!
+   result:  272 pass 1 fail 
+   (fail) recognizes each common format
+   restored: cmp identical
+
+== Mutation: 2. evidence header rule applies to every path
+   replace: (EVIDENCE.test(file) ? evidenceHeader
+   with:    (true ? evidenceHeader
+   result:  271 pass 2 fail 
+   (fail) ordinary code passes
+   (fail) a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files
+   restored: cmp identical
+
+== Mutation: 3. treat any header value as masked
+   replace:   if (hidden(value)) return true
+   with:      return true
+   result:  270 pass 3 fail 
+   (fail) an unmasked credential header in evidence is flagged at any depth, by kind
+   (fail) a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files
+   (fail) a commit that adds an unmasked evidence header is denied by kind, never by value
+   restored: cmp identical
+
+== Mutation: 4. bearer token without the digit requirement
+   replace: s+(?=[A-Za-z0-9._~+/-]*\d)(?=
+   with:    s+(?=
+   result:  272 pass 1 fail 
+   (fail) ordinary code passes
+   restored: cmp identical
+
+== Mutation: 5. Cookie passes when any (not every) value is hidden
+   replace: return checked.every(p
+   with:    return checked.some(p
+   result:  272 pass 1 fail 
+   (fail) a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files
+   restored: cmp identical
+
+== Mutation: 6. Set-Cookie checks every pair, attributes included
+   replace: name === 'set-cookie' ? pairs.slice(0, 1) : pairs
+   with:    pairs
+   result:  272 pass 1 fail 
+   (fail) a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files
+   restored: cmp identical
+
+== Mutation: 7. drop the evidence path anchor (any path containing docs/evidence/)
+   replace: const EVIDENCE = /(?:^|\/)docs
+   with:    const EVIDENCE = /docs
+   result:  272 pass 1 fail 
+   (fail) a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files
+   restored: cmp identical
+
+== Mutation: 8. SendGrid middle segment loosened from exactly 22 to 2+ chars
+   replace: SG\.[A-Za-z0-9_-]{22}
+   with:    SG\.[A-Za-z0-9_-]{2,}
+   result:  273 pass 0 fail 
+   restored: cmp identical
+
+   note: survives. No test has an SG. value with a wrong-length middle segment; the
+   false-positive case in "ordinary code passes" (SG.xxxx.yyyy) fails on the 43-char
+   last segment instead. Minor: the exact length only narrows false positives.
+
+Summary: 7 of 8 mutations caught; each named check-2/3 rule (JWT, evidence path, masked value,
+bearer digit, every-cookie, Set-Cookie first pair, path anchor) has a test that fails without it.
+
+
+########## After review fixes (re-verify, 2026-11-09)
+$ (per mutation) copy the file to the scratchpad, edit plugins/keel/hooks/<file>, claude plugin test plugins/keel, restore from the copy, cmp against the copy and the pre-run original
+Baseline: 280 pass, 0 fail (tests.txt)
+
+== Mutation (a) drop the credential-run requirement: any value left after removing [masked]/placeholders is flagged
+   file:    plugins/keel/hooks/secrets.ts
+   replace: for (const [run] of value.replace(HIDDEN, ' ').matchAll(RUN)) if (/\d/.test(run) && /[A-Za-z]/.test(run)) retu
+   with:    return value.replace(HIDDEN, ' ').trim().length > 0
+   result:  277 pass 3 fail
+   (fail) a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files
+   (fail) in evidence, a header passes when masking and placeholders leave no credential-like run
+   (fail) the evidence scan stays linear on long lines
+   restored: cmp identical
+
+== Mutation (b1) evidence path case-sensitive again
+   file:    plugins/keel/hooks/secrets.ts
+   replace: const EVIDENCE = /(?:^|\/)docs\/(?:plans\/[^/]+\/)?evidence\//i
+   with:    const EVIDENCE = /(?:^|\/)docs\/(?:plans\/[^/]+\/)?evidence\//
+   result:  279 pass 1 fail
+   (fail) the evidence rule covers any case and archived plans; a rename into an archive adds no lines
+   restored: cmp identical
+
+== Mutation (b2) drop the archived plans/ branch
+   file:    plugins/keel/hooks/secrets.ts
+   replace: const EVIDENCE = /(?:^|\/)docs\/(?:plans\/[^/]+\/)?evidence\//i
+   with:    const EVIDENCE = /(?:^|\/)docs\/evidence\//i
+   result:  279 pass 1 fail
+   (fail) the evidence rule covers any case and archived plans; a rename into an archive adds no lines
+   restored: cmp identical
+
+== Mutation (c) drop the subdirectory prefix in pendingChanges
+   file:    plugins/keel/hooks/register.ts
+   replace: files.push({ path: repoPath(prefix, path), text })
+   with:    files.push({ path, text })
+   result:  279 pass 1 fail
+   (fail) an untracked evidence file added from a subdirectory is judged by its repo path, with a masking hint
+   restored: cmp identical
+
+== Mutation (d) only check the first Set-Cookie pair (and only the first Cookie pair)
+   file:    plugins/keel/hooks/secrets.ts
+   replace: return value.split(/[;,]/).some(pair => {
+   with:    return value.split(/[;,]/).slice(0, 1).some(pair => {
+   result:  277 pass 3 fail
+   (fail) an unmasked credential header in evidence is flagged at any depth, by kind
+   (fail) a masked, empty or allow-marked header in evidence passes, and the rule stays out of other files
+   (fail) in evidence, a header still holding a credential-like value is flagged, in every form
+   restored: cmp identical
+
+Summary: 5 of 5 mutations caught (a, b1, b2, c, d); both hook files cmp identical to their pre-run copies afterwards.

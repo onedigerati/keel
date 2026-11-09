@@ -1,0 +1,138 @@
+$ node --experimental-strip-types probe.mts   (scratchpad script; imports findSecrets from plugins/keel/hooks/secrets.ts, values generated at random per run and never printed)
+Each line is scanned as a whole new file at the given path. Kinds only, never values.
+
+label | path | expected | flagged kinds
+JWT HS256, bare line | src/api/client.ts | expect flag | a JWT
+JWT RS256 in JSON access_token field | src/api/client.ts | expect flag | a JWT
+JWT in URL query | docs/guide.md | expect flag | a JWT
+bearer header with JWT, curl -v output (non-evidence) | docs/guide.md | expect flag | a JWT
+bearer header with 40-hex opaque token, curl -H (non-evidence) | docs/guide.md | expect flag | a bearer token
+bearer header with base64 token ending =, (non-evidence) | src/api/client.ts | expect flag | a bearer token
+bearer header, all-letter 32-char token (non-evidence) | src/api/client.ts | expect flag | (none)  <-- MISS
+npm token in .npmrc | src/api/client.ts | expect flag | an npm token
+GitLab PAT classic | src/api/client.ts | expect flag | a GitLab token
+GitLab PAT routable (with .01.) | src/api/client.ts | expect flag | a GitLab token
+PyPI token in .pypirc | src/api/client.ts | expect flag | a PyPI token
+SendGrid key | src/api/client.ts | expect flag | a SendGrid API key
+evidence: response Set-Cookie session, curl -i | docs/evidence/stage-3/http.txt | expect flag | an unmasked Set-Cookie header in evidence
+evidence: HTTP/2 lowercase cookie header | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+evidence: Authorization Basic unmasked | docs/evidence/stage-3/http.txt | expect flag | an unmasked Authorization header in evidence
+evidence: Proxy-Authorization unmasked | docs/evidence/stage-3/http.txt | expect flag | an unmasked Proxy-Authorization header in evidence
+evidence: JSON headers object, second header unmasked | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+evidence: python dict repr cookie | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+evidence: bearer short token (12 chars) in header | docs/evidence/stage-3/http.txt | expect flag | an unmasked Authorization header in evidence
+evidence: masked with *** instead of [masked] | docs/evidence/stage-3/http.txt | expect flag | an unmasked Authorization header in evidence
+evidence: HAR-style name/value cookie object | docs/evidence/stage-3/http.txt | expect flag | (none)  <-- MISS
+evidence: curl -b cookie flag | docs/evidence/stage-3/http.txt | expect flag | (none)  <-- MISS
+evidence: cookie jar file line | docs/evidence/stage-3/http.txt | expect flag | (none)  <-- MISS
+template literal Bearer ${token} | src/api/client.ts | expect pass | (none)
+python f-string Bearer {self.token} | src/api/client.ts | expect pass | (none)
+string concat "Bearer " + token | src/api/client.ts | expect pass | (none)
+docs example YOUR_TOKEN_HERE | docs/guide.md | expect pass | (none)
+docs example <token> | docs/guide.md | expect pass | (none)
+docs placeholder npm_XXXX (36 X) | docs/guide.md | expect pass | an npm token  <-- FALSE POSITIVE
+docs placeholder glpat-xxxx (20 x) | docs/guide.md | expect pass | a GitLab token  <-- FALSE POSITIVE
+base64 JSON blob starting eyJ in config, no dots | src/api/client.ts | expect pass | (none)
+two eyJ blobs joined by a dot (no signature) | src/api/client.ts | expect pass | (none)
+bare eyJ prefix check | src/api/client.ts | expect pass | (none)
+test fixture bearer token with digits | tests/auth.test.ts | expect pass | a bearer token  <-- FALSE POSITIVE
+prose: bearer then long word | docs/guide.md | expect pass | (none)
+evidence: Authorization Basic [masked] | docs/evidence/stage-3/http.txt | expect pass | (none)
+evidence: Bearer [masked] in curl, continued line | docs/evidence/stage-3/http.txt | expect pass | (none)
+evidence: Set-Cookie logout (empty value) | docs/evidence/stage-3/http.txt | expect pass | (none)
+evidence: cookie value quoted [masked] | docs/evidence/stage-3/http.txt | expect pass | (none)
+evidence: placeholder $TOKEN | docs/evidence/stage-3/http.txt | expect pass | (none)
+evidence: header in markdown code span, masked | docs/evidence/stage-3/report.md | expect pass | an unmasked Cookie header in evidence  <-- FALSE POSITIVE
+evidence report row quoting plan check 2 text | docs/evidence/stage-3/report.md | expect pass | an unmasked Authorization header in evidence  <-- FALSE POSITIVE
+evidence prose: header name then colon | docs/evidence/stage-3/report.md | expect pass | an unmasked Cookie header in evidence  <-- FALSE POSITIVE
+evidence: WWW-Authenticate challenge | docs/evidence/stage-3/http.txt | expect pass | (none)
+short password | src/api/client.ts | expect pass | (none)
+
+45 cases, 10 differ from the expectation
+
+$ node --experimental-strip-types scan-tree.mts   (each unticked plan check in ## Now, written as a report.md table row under docs/evidence/stage-2/; plus every existing .txt/.md/.json/.log evidence file, scanned as if under docs/evidence/)
+plan check 1 as a report.md row: an unmasked Authorization header in evidence
+plan check 2 as a report.md row: an unmasked Authorization header in evidence
+plan check 3 as a report.md row: (none)
+plan check 4 as a report.md row: (none)
+plan check 5 as a report.md row: (none)
+plan check 6 as a report.md row: (none)
+stage 2 line from ## Stages as a row: (none)
+(no findings in existing evidence files)
+
+
+########## After review fixes (re-verify, 2026-11-09)
+$ node --experimental-strip-types probe2.mts   (scratchpad script; imports findSecrets from plugins/keel/hooks/secrets.ts; each case scanned as a whole new file at the given path; credential values are random 32-char alphanumerics generated per run and never printed)
+Kinds only, never values. "expect" is the rule as decided on 2026-11-09 (credential-like run after removing [masked] and placeholders).
+
+label | path | expected | flagged kinds
+markdown table row, masked cookie in code span | docs/evidence/stage-3/report.md | expect pass | (none)
+markdown table row, masked Set-Cookie bare | docs/evidence/stage-3/report.md | expect pass | (none)
+backticked masked header followed by text with a long word+digit | docs/evidence/stage-3/report.md | expect pass | (none)
+backticked masked cookie followed by text | docs/evidence/stage-3/report.md | expect pass | (none)
+prose naming the header, no colon | docs/evidence/stage-3/report.md | expect pass | (none)
+prose, header name then colon then a long word+digit | docs/evidence/stage-3/report.md | expect pass | an unmasked Cookie header in evidence  <-- FALSE POSITIVE
+grep output of source: NAMES map line | docs/evidence/stage-3/report.md | expect pass | (none)
+grep output of source: template-literal bearer | docs/evidence/stage-3/report.md | expect pass | (none)
+grep output of source: cookie from a function call | docs/evidence/stage-3/report.md | expect pass | (none)
+grep output of source: header from a variable with digits | docs/evidence/stage-3/report.md | expect pass | (none)
+Authorization: undefined | docs/evidence/stage-3/http.txt | expect pass | (none)
+Cookie: null | docs/evidence/stage-3/http.txt | expect pass | (none)
+JSON headers with null and undefined | docs/evidence/stage-3/http.txt | expect pass | (none)
+curl HTTP/2 verbose, > authorization masked | docs/evidence/stage-3/http.txt | expect pass | (none)
+curl HTTP/2 verbose, > cookie two pairs masked | docs/evidence/stage-3/http.txt | expect pass | (none)
+curl HTTP/2 verbose, < set-cookie masked with attributes | docs/evidence/stage-3/http.txt | expect pass | (none)
+**** redaction, Authorization | docs/evidence/stage-3/http.txt | expect pass | (none)
+**** redaction, Cookie | docs/evidence/stage-3/http.txt | expect pass | (none)
+folded Set-Cookie, second cookie unmasked | docs/evidence/stage-3/http.txt | expect flag | an unmasked Set-Cookie header in evidence
+folded Set-Cookie, first masked, second unmasked | docs/evidence/stage-3/http.txt | expect flag | an unmasked Set-Cookie header in evidence
+escaped quotes inside a -H value | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+escaped quote before the value | docs/evidence/stage-3/http.txt | expect flag | an unmasked Authorization header in evidence
+JSON-escaped header in a logged command | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+JSON-escaped header name and value | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+HTTP_COOKIE env dump | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+HTTP_COOKIE python dict | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+HTTP_AUTHORIZATION env dump | docs/evidence/stage-3/http.txt | expect flag | an unmasked Authorization header in evidence
+curl -b quoted | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+curl --cookie= bare | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+curl -b cookie file name (no =) passes | docs/evidence/stage-3/http.txt | expect pass | (none)
+single-line HAR, name then value | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+single-line HAR, value then name | docs/evidence/stage-3/http.txt | expect flag | an unmasked Authorization header in evidence
+single-line HAR, masked | docs/evidence/stage-3/http.txt | expect pass | (none)
+archived docs/plans/x/evidence/ path | docs/plans/2026-11-01-x/evidence/stage-1/http.txt | expect flag | an unmasked Cookie header in evidence
+Docs/Evidence/ path | Docs/Evidence/stage-1/http.txt | expect flag | an unmasked Cookie header in evidence
+same header outside evidence | docs/guide.md | expect pass | (none)
+two headers, second unmasked | docs/evidence/stage-3/http.txt | expect flag | an unmasked Cookie header in evidence
+Proxy-Authorization unmasked | docs/evidence/stage-3/http.txt | expect flag | an unmasked Proxy-Authorization header in evidence
+short real cookie value (8 chars), accepted miss | docs/evidence/stage-3/http.txt | expect pass | (none)
+pretty-printed HAR (deferred miss) | docs/evidence/stage-3/http.txt | expect pass | (none)
+backslash continuation split (deferred miss) | docs/evidence/stage-3/http.txt | expect pass | (none)
+
+41 cases, 1 differ from the expectation
+
+timing | 1 MB space run after "Cookie:" | 1.00 MB | 25.0 ms | (none)
+timing | 1 MB tab/space run after "Authorization:" | 1.00 MB | 24.7 ms | (none)
+timing | 1 MB whitespace run, no header | 1.00 MB | 19.2 ms | (none)
+timing | 1 MB whitespace run between -b and value | 1.00 MB | 15.9 ms | (none)
+timing | 1 MB whitespace run after a HAR "name" | 1.00 MB | 17.9 ms | (none)
+timing | 20k repeated "Cookie: sid=[masked]; " on one line | 0.42 MB | 25.3 ms | (none)
+timing | 20k repeated "Authorization: Bearer [masked] " on one line | 0.59 MB | 42.4 ms | (none)
+timing | 20k repeated "Set-Cookie: sid=[masked]; Path=/, " on one line | 0.65 MB | 25.7 ms | (none)
+timing | 20k repeated masked HAR entries on one line | 0.78 MB | 21.7 ms | (none)
+timing | 20k masked header lines (one per line) | 0.40 MB | 30.0 ms | (none)
+timing | 20k repeated "<" openers (placeholder bound) | 0.02 MB | 0.5 ms | (none)
+
+$ node --experimental-strip-types probe3.mts   (extra edges, same rules)
+Cookie value of base64 segments split by / every 12 chars | docs/evidence/stage-3/http.txt | (none)
+Cookie value 32 lowercase letters only | docs/evidence/stage-3/http.txt | (none)
+Authorization: Token <random 32 alnum> | docs/evidence/stage-3/http.txt | an unmasked Authorization header in evidence
+Authorization: Basic base64(user:pass) short (12 chars) | docs/evidence/stage-3/http.txt | (none)
+Cookie wrapped in <...> (deferred: shape-only placeholder) | docs/evidence/stage-3/http.txt | (none)
+note: the first two are misses by the stated rule: "/" is not a run character, so a value split by "/" into pieces under 16 never forms a run (a random 32-char base64 value rarely does this), and a letters-only value has no digit. The short Basic value and the <...>-wrapped value are the short-value and <...> exemptions already decided (2026-11-09) or deferred.
+
+$ node --experimental-strip-types report-draft.mts   (a draft docs/evidence/stage-2/report.md: header, a row per ## Now check quoted verbatim with | escaped, a stage-line re-run row, project checks, a History line quoting `Authorization: [masked]` and `Bearer ${token}`; kept only in the scratchpad)
+checks quoted verbatim: 6; draft lines: 17
+findSecrets on docs/evidence/stage-2/report.md (whole new file): no findings
+findSecrets on the same draft as an added diff: no findings
+
+New false positive found: prose in evidence where a header name is followed by a colon and then an identifier-like word of 16+ characters with a digit (case "prose, header name then colon then a long word+digit"). Narrow; the plan checks, table rows, code spans and grep output all pass.
