@@ -9,7 +9,7 @@ Close two gaps a reviewer found in keel 0.8.0, which is already published to the
 ## Now
 Stage 1 of 2 · Explicit approval
 Risk: auth (who may release a held stage)
-Mode: autopilot
+Mode: paused — the user interrupted stage 1 to ask how it changes autopilot; waiting for their go on the approval rule as planned, or a change to it
 Agents: wide — confirmed 2026-11-09 08:18
 Checks:
 - [ ] Under autopilot, a held stage stays held after the user asks "what's the status?" or says "go ahead and tell me where we are": edits outside the plan and builder agents are still denied, and the band still shows `autopilot held` (proof: test)
