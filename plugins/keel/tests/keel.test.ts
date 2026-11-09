@@ -7,6 +7,7 @@ import {
   evidenceIds,
   evidencePath,
   firstAgentsOf,
+  isApproval,
   milestoneEvidencePath,
   milestoneRequirements,
   parsePlan,
@@ -102,6 +103,9 @@ test('finds the stage line when the Mode line sits above it', () => {
   expect(plan.stage?.checks).toEqual([{ text: 'controls work', done: true }])
   expect(plan.mode).toEqual({ kind: 'paused', reason: 'stage 3 touches auth' })
 })
+
+/** The reply every held message names as the one that releases the stage. */
+const RELEASE = '"yes", "go", "approve" or "proceed", alone or followed by a line break or punctuation other than "?" (as in "yes, build it"), or `/keel:approve`'
 
 /** A plan two stages from done, its `## Now` led by `mode`; `tag` makes two plans differ. */
 function planWith(mode: string, tag = '') {
@@ -449,7 +453,7 @@ test('while autopilot drives, outward-facing commands are held for the person', 
   expect(later.deny).toBeUndefined()
 })
 
-test('a risky stage is held until the person speaks to it', async ($, on) => {
+test('a risky stage is held until the person approves it', async ($, on) => {
   const clock = mock.clock(on)
   const plan = { text: planWith('Mode: autopilot\nRisk: auth, user input', ' r') }
   const sent = engine(on, plan)
@@ -465,8 +469,212 @@ test('a risky stage is held until the person speaks to it', async ($, on) => {
   expect((await $.tool.call({ ...edit, file_path: '/repo/src/login.ts' })).deny).toContain('holding Stage 2 of 3')
   expect((await $.tool.call({ ...edit, file_path: '/repo/docs/PLAN.md' })).deny).toBeUndefined()
 
+  // a reply that answers the question but doesn't open with an approval leaves it held
   await $.prompt.submit({ text: 'auth is fine, use the session cookie we already have', origin: { kind: 'composer' } })
+  expect((await $.tool.call({ ...edit, file_path: '/repo/src/login.ts' })).deny).toContain('holding Stage 2 of 3')
+  await $.prompt.submit({ text: 'yes, use the session cookie we already have', origin: { kind: 'composer' } })
   expect((await $.tool.call({ ...edit, file_path: '/repo/src/login.ts' })).deny).toBeUndefined()
+})
+
+test('the approval rule: an approval word opening the reply, then its end or punctuation, or /keel:approve', () => {
+  const approvals = [
+    'yes', 'Go.', 'approve', 'Approved.', 'proceed — build it', 'yes, use the session cookie', 'Yes!!', '/keel:approve',
+    'YES', 'yep', 'Yep, go', 'build it', 'Build it!', 'go;', 'approve: the cookie is fine', 'proceed – carefully', 'yes - ship',
+    'proceed—now', '  approve  ', '/keel:approve stage 1', '/KEEL:APPROVE',
+    'yes\nmore', 'Go.\nthen x', 'approve  \nnotes', 'yes\r\nuse the session cookie', 'approve\r\n…', 'yes\t\nmore', 'build it\nnow',
+    'yes…', 'go… then build it', 'approve。', 'yes，用 cookie', 'Proceed！', 'build it；now', 'yep。',
+  ]
+  const others = [
+    "what's the status?", 'go ahead and tell me where we are', "yesterday's run", 'goal?', 'going', 'no', '', '   ',
+    'approve the auth stage', 'go?', 'yes?', 'should I approve this?', 'build itself', 'yes-man', 'approval', 'proceeding',
+    '/keel:approved', '/keel:approve-all', '/keel:autopilot', 'ok', 'sure, go', '"yes"',
+    'yes more', 'go\tahead', 'go \t ahead', 'no\nyes', 'go？', 'yes？', 'approve ？', '…yes',
+  ]
+  expect(approvals.filter(t => !isApproval(t))).toEqual([])
+  expect(others.filter(t => isApproval(t))).toEqual([])
+})
+
+/** A held auth stage under autopilot, with what to look at: an Edit outside the plan, an Agent call, the band and the rules. */
+async function heldAuthStage($: Engine, on: On, mode = 'Mode: autopilot') {
+  const plan = { text: planWith(`${mode}\nRisk: auth, user input`, ' q') }
+  const sent = engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await arm($, plan)
+  await $.turn.complete(ended('t1'))
+  const edit = async () => (await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/login.ts' })).deny
+  const agent = async () => (await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2' } as never)).deny
+  const say = (text: string, kind: 'composer' | 'bridge' | 'sdk' | 'plugin' = 'composer') =>
+    $.prompt.submit({ text, origin: kind === 'plugin' ? { kind, name: 'other' } : { kind } } as never)
+  const expectHeld = async () => {
+    expect(await edit()).toContain('keel autopilot is holding')
+    expect(await agent()).toContain('keel autopilot is holding')
+    expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+  }
+  const expectBuilding = async () => {
+    expect(await edit()).toBeUndefined()
+    expect(await agent()).toBeUndefined()
+    expect((await compose()).band).toBe('keel · autopilot · 1/3 done · next: 2. Share mode')
+  }
+  return { plan, sent, say, edit, agent, compose, expectHeld, expectBuilding }
+}
+
+test('a status question leaves a held stage held', async ($, on) => {
+  const { say, expectHeld, expectBuilding } = await heldAuthStage($, on)
+  await expectHeld()
+  await say("what's the status?")
+  await expectHeld()
+  await say('go ahead and tell me where we are')
+  await expectHeld()
+  await say('approve')
+  await expectBuilding()
+})
+
+for (const [text, kind] of [
+  ['yes', 'composer'], ['Go.', 'composer'], ['approve', 'composer'], ['proceed — build it', 'bridge'],
+  ['yes, use the session cookie', 'sdk'], ['/keel:approve', 'composer'], ['APPROVED.', 'composer'], ['Build it!', 'composer'],
+] as const)
+  test(`the user's "${text}" (${kind}) releases a held stage`, async ($, on) => {
+    const { say, expectHeld, expectBuilding } = await heldAuthStage($, on)
+    await expectHeld()
+    await say(text, kind)
+    await expectBuilding()
+  })
+
+test('a paused risky stage is not pre-cleared by a non-approval message, and is by an approval', async ($, on) => {
+  const { plan, say, expectHeld, expectBuilding } = await heldAuthStage($, on)
+  plan.text = planWith('Mode: paused — stage 2 touches auth\nRisk: auth, user input', ' q')
+  await $.turn.complete(ended('t2'))
+  await say("what's the status?")
+  await say('go ahead and tell me where we are')
+  plan.text = planWith('Mode: autopilot\nRisk: auth, user input', ' q')
+  await $.turn.complete(ended('t3'))
+  await expectHeld()
+
+  plan.text = planWith('Mode: paused — stage 2 touches auth\nRisk: auth, user input', ' q')
+  await $.turn.complete(ended('t4'))
+  await say('Go.')
+  plan.text = planWith('Mode: autopilot\nRisk: auth, user input', ' q')
+  await $.turn.complete(ended('t5'))
+  await expectBuilding()
+})
+
+test("only the user's own prompt releases a hold: not a plugin's prompt, the keel:approve skill, a file or an agent's report", async ($, on) => {
+  const { say, expectHeld, expectBuilding } = await heldAuthStage($, on)
+  await say('approve', 'plugin')
+  await say('/keel:approve', 'plugin')
+  await expectHeld()
+  // Claude invoking the skill clears nothing, from the main loop or from an agent
+  await $.tool.call({ tool: 'Skill', skill: 'keel:approve' } as never)
+  await $.tool.call({ tool: 'Skill', skill: 'approve' } as never)
+  await $.tool.call({ tool: 'Skill', skill: 'keel:approve', agentId: 'a0' } as never)
+  await expectHeld()
+  // (the Skill calls above guard against a future change that clears the stage when the keel:approve skill runs)
+  // an approval word in an answer Claude or an agent ends a turn with, or in a background agent's report, is not the user's prompt
+  await $.turn.complete({ ...ended('t8'), answer: 'approve' })
+  await $.turn.complete({ ...ended('t9'), answer: 'Approved.', agentId: 'a0' } as never)
+  await $.prompt.submit({ text: 'approve', origin: { kind: 'task-notification' } } as never)
+  await expectHeld()
+  await say('/keel:approve')
+  await expectBuilding()
+})
+
+test('a paused risky stage stays held while autopilot is armed: no edits outside the plan, no agents, until approval', async ($, on) => {
+  const { plan, sent, say, edit, agent, compose } = await heldAuthStage($, on)
+  plan.text = planWith('Mode: paused — stage 2 touches auth\nRisk: auth, user input', ' q')
+  await $.turn.complete(ended('t2'))
+  expect(sent.notes.at(-1)).toBe('Autopilot paused: stage 2 touches auth. Reply "approve" (or /keel:approve) to build it.')
+  const expectPausedHeld = async () => {
+    expect(await edit()).toContain('keel autopilot is holding Stage 2 of 3 · Share mode q')
+    expect(await agent()).toContain('keel autopilot is holding Stage 2 of 3 · Share mode q')
+    expect((await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/docs/PLAN.md' })).deny).toBeUndefined()
+    expect((await compose()).band).toBe('keel · paused · held · 1/3 done · next: 2. Share mode')
+  }
+  await expectPausedHeld()
+  expect(await edit()).toContain(`until the user approves it with ${RELEASE}. The plan is paused: answer the user, and ask them for that reply.`)
+  const { text } = await compose()
+  expect(text).toContain(`Autopilot is paused (stage 2 touches auth), and the current stage is held: its risk line names auth.`)
+  expect(text).toContain(`stays blocked until the user approves it with ${RELEASE}; only that approval releases the stage.`)
+  expect(text).toContain('A question or comment from the user gets its answer while the stage stays held')
+
+  await say("what's the status?")
+  await say('approve the auth stage')
+  await expectPausedHeld()
+  await say('yes, use the session cookie')
+  expect(await edit()).toBeUndefined()
+  expect(await agent()).toBeUndefined()
+  expect((await compose()).band).toBe('keel · paused · 1/3 done · next: 2. Share mode')
+  expect((await compose()).text).toContain('Autopilot is paused (stage 2 touches auth): settle that with the user')
+})
+
+test('a pause that holds nothing adds no release reply to its notice', async ($, on) => {
+  const plan = { text: planWith('Mode: autopilot', ' p') }
+  const sent = engine(on, plan)
+  await arm($, plan)
+  await $.turn.complete(ended('t1'))
+  plan.text = planWith('Mode: paused — which colour scheme?', ' p')
+  await $.turn.complete(ended('t2'))
+  expect(sent.notes).toEqual(['Autopilot paused: which colour scheme?'])
+})
+
+test('an unarmed session with a paused risky plan is not held', async ($, on) => {
+  const plan = { text: planWith('Mode: paused — stage 2 touches auth\nRisk: auth, user input', ' u') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.turn.complete(ended('t1'))
+  expect((await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/login.ts' })).deny).toBeUndefined()
+  expect((await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2' } as never)).deny).toBeUndefined()
+  const { band, text } = await compose()
+  expect(band).toBe('keel · paused · 1/3 done · next: 2. Share mode')
+  expect(text).not.toContain('is held')
+})
+
+test('an approval clears a risky stage in an unarmed session too, so arming through keel:autopilot then builds it', async ($, on) => {
+  const plan = { text: planWith('Mode: autopilot\nRisk: auth, user input', ' v') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.turn.complete(ended('t1'))
+  expect((await compose()).band).toBe('keel · autopilot (not armed) · 1/3 done · next: 2. Share mode')
+  // the user's /keel:approve, then the skill carrying on under keel:autopilot, which arms the session
+  await $.prompt.submit({ text: '/keel:approve', origin: { kind: 'composer' } })
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot' } as never)
+  expect((await compose()).band).toBe('keel · autopilot · 1/3 done · next: 2. Share mode')
+  expect((await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/login.ts' })).deny).toBeUndefined()
+  expect((await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2' } as never)).deny).toBeUndefined()
+})
+
+test('without an approval, arming an unarmed risky stage through keel:autopilot holds it', async ($, on) => {
+  const plan = { text: planWith('Mode: autopilot\nRisk: auth, user input', ' w') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.turn.complete(ended('t1'))
+  await $.prompt.submit({ text: 'resume autopilot', origin: { kind: 'composer' } })
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot' } as never)
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+  expect((await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/login.ts' })).deny).toContain('is holding')
+})
+
+test('the held notice, the deny and the working rules each give the exact reply that releases the stage', async ($, on) => {
+  const clock = mock.clock(on)
+  const plan = { text: planWith('Mode: autopilot\nRisk: auth', ' n') }
+  const sent = engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await arm($, plan)
+  await $.turn.complete(ended('t1'))
+  await clock.advance(1000)
+  const reply = RELEASE
+  expect(sent.notes).toHaveLength(1)
+  expect(sent.notes[0]).toContain('Reply "approve" (or /keel:approve) to build it.')
+  const deny = (await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/a.ts' })).deny
+  expect(deny).toContain(`until the user approves it with ${reply}.`)
+  expect(deny).toContain('ask the user for that reply')
+  const { text } = await compose()
+  expect(text).toContain(`blocked until the user approves it with ${reply}; nothing else releases it.`)
+  expect(text).toContain('ask the user for that reply')
 })
 
 /** Stage 2 of 3 in `## Now` with `checks` under it. */
@@ -1824,8 +2032,8 @@ test('a stage close and a milestone tick in one commit each need their evidence'
 
 /**
  * Runs a held stage the way the risky-stage test does, its risk line `risk`, with `files` beside the plan, and checks
- * every place the hold shows (the notice, the band, the working rules, an Edit's denial) names `word`, then that the
- * person's word clears it. Called for `auth` with no CLAUDE.md and for a project word, so both are held alike.
+ * every place the hold shows (the notice, the band, the working rules, an Edit's denial) names `word`, then that a
+ * message that doesn't open with an approval leaves it held and the person's approval clears it. Called for `auth` with no CLAUDE.md and for a project word, so both are held alike.
  */
 async function expectHeldLikeAuth($: Engine, on: On, word: string, risk: string, files?: Record<string, string>) {
   const clock = mock.clock(on)
@@ -1837,21 +2045,24 @@ async function expectHeldLikeAuth($: Engine, on: On, word: string, risk: string,
   await $.turn.complete(ended('t1'))
   await clock.advance(1000)
   expect(sent.prompts).toEqual([])
-  expect(sent.notes).toEqual([`Autopilot is holding before Stage 2 of 3 · Share mode h: it touches ${word}.`])
+  expect(sent.notes).toEqual([`Autopilot is holding before Stage 2 of 3 · Share mode h: it touches ${word}. Reply "approve" (or /keel:approve) to build it.`])
   const edit = { tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/card.ts' } as const
   expect((await $.tool.call(edit)).deny).toBe(
-    `keel autopilot is holding Stage 2 of 3 · Share mode h: its risk line names ${word}, so it isn't built without the user's word. Commit what's finished, set the Mode line to \`paused — <reason>\`, and ask the user.`,
+    `keel autopilot is holding Stage 2 of 3 · Share mode h: its risk line names ${word}, so it isn't built until the user approves it with ${RELEASE}. Commit what's finished, set the Mode line to \`paused — <reason>\`, and ask the user for that reply.`,
   )
   expect((await $.tool.call({ ...edit, file_path: '/repo/docs/PLAN.md' })).deny).toBeUndefined()
   const held = await compose()
   expect(held.band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
   expect(held.text).toContain(`Autopilot is on, and the current stage is held: its risk line names ${word}. Building it`)
   await $.prompt.submit({ text: 'go ahead with that', origin: { kind: 'composer' } })
+  expect((await $.tool.call(edit)).deny).toContain('is holding')
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+  await $.prompt.submit({ text: 'Approved.', origin: { kind: 'composer' } })
   expect((await $.tool.call(edit)).deny).toBeUndefined()
   expect((await compose()).band).toBe('keel · autopilot · 1/3 done · next: 2. Share mode')
 }
 
-test('a stage whose risk line names auth is held, and the person clears it (the pattern project words follow)', async ($, on) => {
+test('a stage whose risk line names auth is held, and the person approves it (the pattern project words follow)', async ($, on) => {
   await expectHeldLikeAuth($, on, 'auth', 'auth, user input')
 })
 

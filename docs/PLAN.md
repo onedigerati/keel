@@ -12,26 +12,18 @@ Risk: auth (who may release a held stage)
 Mode: autopilot
 Agents: wide — confirmed 2026-11-09 08:18
 Checks:
-- [ ] Under autopilot, a held stage stays held after the user asks "what's the status?" or says "go ahead and tell me where we are": edits outside the plan and builder agents are still denied, and the band still shows `autopilot held` (proof: test)
-- [ ] An approval releases it: "yes", "Go.", "approve", "proceed — build it", "yes, use the session cookie" and `/keel:approve` each clear the stage, in any case (proof: test)
-- [ ] While the plan is paused on a risky stage, a non-approval message does not pre-clear it (proof: test)
-- [ ] Only the user's own prompt releases a hold: a prompt from a plugin origin, Claude invoking the `keel:approve` skill, or an approval word in a file or agent report clears nothing (proof: test)
-- [ ] The held notice, the deny text and the working rules each tell the user the exact reply that releases the stage (proof: test)
-- [ ] `keel:approve` exists as a skill and validates; README and the autopilot skill describe approval, not "until the user speaks" (proof: `claude plugin validate`, a test can't judge the wording)
-- [ ] Live: a headless autopilot session on a held auth stage stays held after "what's the status?" and builds after "approve" (proof: headless run on the installed plugin, a unit test can't show a real session)
+- [x] Under autopilot, a held stage stays held after the user asks "what's the status?" or says "go ahead and tell me where we are": edits outside the plan and builder agents are still denied, and the band still shows `autopilot held` (proof: test)
+- [x] An approval releases it: "yes", "Go.", "approve", "proceed — build it", "yes, use the session cookie" and `/keel:approve` each clear the stage, in any case (proof: test)
+- [x] While the plan is paused on a risky stage, a non-approval message does not pre-clear it (proof: test)
+- [x] Only the user's own prompt releases a hold: a prompt from a plugin origin, Claude invoking the `keel:approve` skill, or an approval word in a file or agent report clears nothing (proof: test)
+- [x] The held notice, the deny text and the working rules each tell the user the exact reply that releases the stage (proof: test)
+- [x] `keel:approve` exists as a skill and validates; README and the autopilot skill describe approval, not "until the user speaks" (proof: `claude plugin validate`, a test can't judge the wording)
+- [x] Live: a headless autopilot session on a held auth stage stays held after "what's the status?" and builds after "approve" (proof: headless run on the installed plugin, a unit test can't show a real session)
 Open: none
 
 ## Stages
-- [ ] 1. Explicit approval — a held risky stage is released only by an approval reply or `/keel:approve`; notices say what to type
+- [x] 1. Explicit approval — a held risky stage is released only by an approval reply or `/keel:approve`; notices say what to type
 - [ ] 2. Secret formats — JWT, bearer, glpat, npm, PyPI and SendGrid patterns; unmasked auth and cookie headers refused in evidence; docs and version 0.9.0
-
-Stage 2 checks (they move into `## Now` when it starts):
-- JWTs, `Authorization: Bearer <long token>`, `glpat-`, `npm_`, `pypi-` and SendGrid `SG.` tokens are each flagged by kind, never by value (proof: test)
-- Ordinary code still passes: `Bearer ${token}`, a bare `eyJ` prefix, `Authorization: [masked]`, `Bearer [masked]` and short example values (proof: test)
-- In a file under `docs/evidence/` at any depth, an `Authorization`, `Cookie` or `Set-Cookie` header whose value isn't `[masked]` refuses the commit, in a `curl -H` command line too. The same header outside `docs/evidence/` is not flagged by this rule (proof: test)
-- A short password (`password = "hunter2"`) is still not flagged (proof: test)
-- README's secret-guard list names the new formats and the evidence rule; the version is 0.9.0 in `plugin.json`, with a "new in 0.9" note in the root README (proof: `claude plugin validate`, a test can't judge the wording)
-- Live: a headless commit of an evidence file with an unmasked cookie is refused, and one with `[masked]` goes through (proof: headless run on the installed plugin)
 
 ## Decisions
 - 2026-11-09 · An approval is the user's message opening with yes, yep, go, approve, approved, proceed or build it, then the end of the message or punctuation (`yes, …`, `Go.`), or a message opening with `/keel:approve`. "go ahead and tell me…" doesn't count, since the word is followed by a space and more text. The hook can't read intent, and a narrow, stated rule that the notices spell out is better than a guess. A "yes, but first…" still releases the stage; the user did open with yes.
@@ -44,8 +36,17 @@ Stage 2 checks (they move into `## Now` when it starts):
 - 2026-11-09 · The user approved the plan and stage 1 ("Approved.") — building it under autopilot.
 
 - 2026-11-09 · The approval rule stays as planned (an approval word opening the reply, or `/keel:approve`), on the user's word after weighing a looser "word anywhere in a short reply" — the looser rule would count "should I approve this?".
+- 2026-11-09 · `keel:approve` sets `disable-model-invocation: true`, the only keel skill that does: Claude can't run it at all, which backs the rule that only the user's typed prompt approves (the hook ignores a self-invoked skill anyway).
+- 2026-11-09 · The user approved stage 1 again ("Approve.") after the new hook, live from the working tree, re-held it — verifying and reviewing it under autopilot.
+
+- 2026-11-09 · Stage 1 review: a plan paused on a risky stage is now held like a driving one (edits outside the plan and builder agents denied until approval) while autopilot is armed in the session. Autopilot's own procedure pauses on a risky stage, and the pause had switched the guard off, so the approval rule protected nothing. Pre-existing, but it's this stage's guard, so it's in scope.
+- 2026-11-09 · Agent tampering with its own plan (dropping a word from the risk line, reusing an approved stage line for a later stage, removing the Mode line) and writes through Bash stay out of the hold, as with the outward check (2026-11-08): the hold is a guardrail against building a sensitive stage by mistake, not a sandbox against an agent trying to. They're listed as open questions.
 
 ## Open questions
+- Armed state doesn't survive `claude --resume` or `--fork-session`: the resumed process starts unarmed, so a plan paused on a risky stage isn't held there until autopilot is armed again (stage 1 re-verify, `docs/evidence/stage-1/headless-paused.txt` lines 191–237). It matches the standing rule that autopilot is armed per session; carrying the armed state across a resume is a design change for the user to weigh.
+- Stage 1 security review, deferred (pre-existing): the hold is keyed on the `## Now` stage line, so an approved line left in place while the next risky stage is built still counts as approved. Key it on stage number plus risk words? The risk line and Mode line are editable while held (already noted for project hold words). Bash writes (`cat >`, `sed -i`, `git apply`), MCP file tools and subagents' Bash aren't held. The plan-path exemption matches by case-insensitive suffix, so `src/x/docs/PLAN.md` is exempt.
+- Stage 1 security review, deferred: `sdk` counts as a user origin, so in a CI host that turns issue text into prompts, whoever writes that text can approve. `composer` also covers text a plugin filled or the engine suggested. Keel clears before `next(e)`, so a prompt a later hook drops still clears. The held notice puts the agent-written stage line in an OS notification with no length cap.
+- An approval isn't tied to the question it answers: while paused on a risky stage, a "yes" to any question Claude asked releases the stage. The autopilot skill tells Claude to ask only the approval question while paused on a risky stage; binding the approval to the hold the hook announced is a later design change.
 - Committed screenshots get no secret scan (the guard skips binary files); the docs state the limit and review should look at committed images. A guard for images is out of scope here — the user decides whether it's worth a later plan.
 - No eval covers masking yet (a case whose output holds a fake DB URL and email, graded for `[masked]`) — deferred from the last plan's stage 1 review; worth adding in a later plan.
 - A `wide` (or `Mode: autopilot`) line that arrives mid-session from git — a checkout or pull of someone else's branch, or a plan that couldn't be read at the session's first look — counts as a change and is honoured without asking; the Mode line already behaves this way. Closing it (move the baseline when the line matches the plan at HEAD, or count only edits made in the user's turn) is a design change for the user to weigh — found in stage 1 review.

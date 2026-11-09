@@ -1,0 +1,118 @@
+Original saved to scratchpad/register.ts.orig before any mutation; each mutation is applied, tested, then restored and checked with cmp.
+=== Mutation 1: isApproval always true
+--- diff
+565c565
+< export const isApproval = (text: string): boolean => APPROVAL.test(text.trim())
+---
+> export const isApproval = (text: string): boolean => true || APPROVAL.test(text.trim())
+$ claude plugin test plugins/keel   (fail lines and totals)
+(fail) a risky stage is held until the person approves it [43.89ms]
+(fail) the approval rule: an approval word opening the reply, then its end or punctuation, or /keel:approve [5.91ms]
+(fail) a status question leaves a held stage held [44.09ms]
+(fail) a paused risky stage is not pre-cleared by a non-approval message, and is by an approval [46.16ms]
+(fail) a stage whose risk line names auth is held, and the person approves it (the pattern project words follow) [65.32ms]
+(fail) a Keel risk line in CLAUDE.md adds hold words, held exactly like auth [50.82ms]
+(fail) a Keel risk line in .claude/CLAUDE.md adds hold words too [57.04ms]
+(fail) a project risk word matches its plural [51.16ms]
+ 257 pass
+ 8 fail
+Ran 265 tests across 1 file. [9.29s]
+restored: cmp identical
+
+=== Mutation 2: drop the user-origin check (a prompt of any origin can clear the hold)
+--- diff
+1015c1015
+<     if (fromUser) {
+---
+>     if (true) {
+$ claude plugin test plugins/keel   (fail lines and totals)
+(fail) only the user's own prompt releases a hold: not a plugin's prompt, the keel:approve skill, a file or an agent's report [59.97ms]
+ 264 pass
+ 1 fail
+Ran 265 tests across 1 file. [10.16s]
+restored: cmp identical
+
+=== Mutation 3: loosen the rule to any prefix (drop the end/punctuation requirement)
+--- diff
+562c562
+< const APPROVAL = /^(?:(?:yes|yep|go|approved?|proceed|build\s+it)(?:$|[.,!;:]|\s*[—–]|\s+-|[ \t]*[\r\n])|\/keel:approve(?![\w:-]))/i
+---
+> const APPROVAL = /^(?:(?:yes|yep|go|approved?|proceed|build\s+it)|\/keel:approve(?![\w:-]))/i
+$ claude plugin test plugins/keel   (fail lines and totals)
+(fail) the approval rule: an approval word opening the reply, then its end or punctuation, or /keel:approve [9.14ms]
+(fail) a status question leaves a held stage held [65.48ms]
+(fail) a paused risky stage is not pre-cleared by a non-approval message, and is by an approval [96.89ms]
+(fail) a stage whose risk line names auth is held, and the person approves it (the pattern project words follow) [61.18ms]
+(fail) a Keel risk line in CLAUDE.md adds hold words, held exactly like auth [48.77ms]
+(fail) a Keel risk line in .claude/CLAUDE.md adds hold words too [52.74ms]
+(fail) a project risk word matches its plural [66.68ms]
+ 258 pass
+ 7 fail
+Ran 265 tests across 1 file. [10.48s]
+restored: cmp identical
+
+=== Mutation 4: drop the reply text from the held notice
+--- diff
+1053c1053
+<         await $.ui.notify(`Autopilot is holding before ${plan.stage?.key}: it touches ${plan.stage?.risky.join(', ')}. Reply "approve" (or /keel:approve) to build it.`, { title: 'keel' })
+---
+>         await $.ui.notify(`Autopilot is holding before ${plan.stage?.key}: it touches ${plan.stage?.risky.join(', ')}.`, { title: 'keel' })
+$ claude plugin test plugins/keel   (fail lines and totals)
+(fail) the held notice, the deny and the working rules each give the exact reply that releases the stage [56.11ms]
+(fail) a stage whose risk line names auth is held, and the person approves it (the pattern project words follow) [37.59ms]
+(fail) a Keel risk line in CLAUDE.md adds hold words, held exactly like auth [46.82ms]
+(fail) a Keel risk line in .claude/CLAUDE.md adds hold words too [48.38ms]
+(fail) a project risk word matches its plural [47.66ms]
+ 260 pass
+ 5 fail
+Ran 265 tests across 1 file. [10.14s]
+restored: cmp identical
+
+
+########## after review fixes (2026-11-09, 270-test suite)
+register.ts copied to <scratchpad>/register.ts before any mutation; each mutation applied, tested, restored and checked with cmp (final cmp identical).
+
+=== Mutation 5 (a): held() back to autopilot-only (a paused plan is not held)
+--- diff
+584c584
+<   s.armed && underAutopilot(plan) && !!plan?.stage?.risky.length && !s.cleared.includes(plan.stage.key)
+---
+>   driving(plan, s) && !!plan?.stage?.risky.length && !s.cleared.includes(plan.stage.key)
+$ claude plugin test plugins/keel   (fail lines and totals)
+(fail) a paused risky stage stays held while autopilot is armed: no edits outside the plan, no agents, until approval [42.96ms]
+ 269 pass
+ 1 fail
+Ran 270 tests across 1 file. [9.51s]
+restored: cmp identical
+
+=== Mutation 6 (b): prompt.submit clears only when armed
+--- diff
+1038c1038
+<         if (stage?.risky.length && underAutopilot(plan) && !s.cleared.includes(stage.key))
+---
+>         if (s.armed && stage?.risky.length && underAutopilot(plan) && !s.cleared.includes(stage.key))
+$ claude plugin test plugins/keel   (fail lines and totals)
+(fail) an approval clears a risky stage in an unarmed session too, so arming through keel:autopilot then builds it [53.67ms]
+ 269 pass
+ 1 fail
+Ran 270 tests across 1 file. [9.48s]
+restored: cmp identical
+
+=== Mutation 7 (c): APPROVAL_REPLY reverted to the first-pass wording
+--- diff
+553c553
+<   '"yes", "go", "approve" or "proceed", alone or followed by a line break or punctuation other than "?" (as in "yes, build it"), or `/keel:approve`'
+---
+>   'a reply that starts with yes, go, approve or proceed, or with `/keel:approve`'
+$ claude plugin test plugins/keel   (fail lines and totals)
+(fail) a paused risky stage stays held while autopilot is armed: no edits outside the plan, no agents, until approval [50.15ms]
+(fail) the held notice, the deny and the working rules each give the exact reply that releases the stage [71.33ms]
+(fail) a stage whose risk line names auth is held, and the person approves it (the pattern project words follow) [42.07ms]
+(fail) a Keel risk line in CLAUDE.md adds hold words, held exactly like auth [49.28ms]
+(fail) a Keel risk line in .claude/CLAUDE.md adds hold words too [33.41ms]
+(fail) a project risk word matches its plural [58.03ms]
+ 264 pass
+ 6 fail
+Ran 270 tests across 1 file. [9.43s]
+restored: cmp identical
+

@@ -18,7 +18,7 @@ const MAX_STALLED_TURNS = 3
 /** How long after a turn ends autopilot waits, so the session is idle when it acts. */
 const SETTLE_MS = 1000
 
-/** What a risk line names that autopilot must not build without the user's word. */
+/** What a risk line names that autopilot must not build until the user approves the stage. */
 const RISKY = /\b(auth\w*|log-?ins?|passwords?|money|payments?|billing|personal data|pii)\b/gi
 
 /** Prompts a person sent, as against a plugin, a background task or another session. */
@@ -548,11 +548,40 @@ async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session
   return session
 }
 
+/** The exact reply that releases a held stage, as every held message spells it out. */
+const APPROVAL_REPLY =
+  '"yes", "go", "approve" or "proceed", alone or followed by a line break or punctuation other than "?" (as in "yes, build it"), or `/keel:approve`'
+
+/** The short form the notifications give. */
+const APPROVAL_NOTE = 'Reply "approve" (or /keel:approve) to build it.'
+
+/**
+ * The approval rule (decided 2026-11-09): the trimmed message, in any case, opens with yes, yep, go, approve, approved,
+ * proceed or build it, followed by the end of the message or punctuation — `.` `,` `!` `;` `:`, their full-width forms
+ * `。` `，` `！` `；`, an ellipsis `…`, or a dash: `—` or `–`
+ * with or without a space before it, or ` -` — or a line break, spaces or tabs before it allowed (`yes\nmore`); or
+ * it opens with `/keel:approve` as a whole word. A `?` is not punctuation here ("go?" asks), and a word followed by a
+ * space or tab and more text on the same line is not an approval ("go ahead and tell me…", "go\tahead", and so
+ * "approve the auth stage" too): the hook can't read intent, so it keeps to a narrow, stated rule.
+ */
+const APPROVAL = /^(?:(?:yes|yep|go|approved?|proceed|build\s+it)(?:$|[.,!;:…。，！；]|\s*[—–]|\s+-|[ \t]*[\r\n])|\/keel:approve(?![\w:-]))/i
+
+/** Whether a message from the user approves the held stage (see `APPROVAL`). */
+export const isApproval = (text: string): boolean => APPROVAL.test(text.trim())
+
 const driving = (plan: Plan | undefined, s: Session) => plan?.mode?.kind === 'autopilot' && s.armed
 
-/** Autopilot is holding the current stage: its risk line names auth, money or personal data and the user hasn't spoken to it. */
+/** The plan's Mode line puts a risky current stage under autopilot's rule: driving or paused, armed or not. */
+const underAutopilot = (plan: Plan | undefined) => plan?.mode?.kind === 'autopilot' || plan?.mode?.kind === 'paused'
+
+/**
+ * Autopilot is holding the current stage: autopilot is armed in this session and driving or paused, the stage's risk
+ * line names auth, money or personal data (or a project hold word), and the user hasn't approved it — only their own
+ * prompt that `isApproval` accepts clears it (see `prompt.submit`). A pause doesn't lift the hold: autopilot pauses on
+ * a risky stage by its own procedure, so the pause is where the hold matters most.
+ */
 const held = (plan: Plan | undefined, s: Session) =>
-  driving(plan, s) && !!plan?.stage?.risky.length && !s.cleared.includes(plan.stage.key)
+  s.armed && underAutopilot(plan) && !!plan?.stage?.risky.length && !s.cleared.includes(plan.stage.key)
 
 // ---- what rides in the system prompt ----
 
@@ -564,7 +593,9 @@ function statusLine(plan: Plan, s: Session, roadmap?: Roadmap): string {
   const mode = !plan.mode
     ? ''
     : plan.mode.kind === 'paused'
-      ? ' · paused'
+      ? held(plan, s)
+        ? ' · paused · held'
+        : ' · paused'
       : !s.armed
         ? ' · autopilot (not armed)'
         : held(plan, s)
@@ -600,8 +631,10 @@ function baseRules(plan: Plan, s: Session): string {
   const skills = 'The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.'
   if (plan.mode?.kind === 'autopilot' && !s.armed)
     return `${base} commit per stage. The plan's Mode line says autopilot, but that was set in an earlier session and autopilot is not armed in this one: do not carry on by yourself. Tell the user where the run stands and ask whether to resume; on their yes, run keel:autopilot. ${skills}`
+  if (plan.mode?.kind === 'paused' && held(plan, s))
+    return `${base} commit per stage. Autopilot is paused (${plan.mode.reason}), and the current stage is held: its risk line names ${plan.stage?.risky.join(', ')}. Building it (file edits outside the plan, builder agents) stays blocked until the user approves it with ${APPROVAL_REPLY}; only that approval releases the stage. A question or comment from the user gets its answer while the stage stays held; then ask for that reply again. Put no other yes/no question to the user while paused here, since their yes would release the stage. ${skills}`
   if (held(plan, s))
-    return `${base} commit per stage. Autopilot is on, and the current stage is held: its risk line names ${plan.stage?.risky.join(', ')}. Building it (file edits outside the plan, builder agents) is blocked until the user okays it: commit what is finished, set the Mode line to \`paused — <reason>\`, and ask. ${skills}`
+    return `${base} commit per stage. Autopilot is on, and the current stage is held: its risk line names ${plan.stage?.risky.join(', ')}. Building it (file edits outside the plan, builder agents) is blocked until the user approves it with ${APPROVAL_REPLY}; nothing else releases it. Commit what is finished, set the Mode line to \`paused — <reason>\`, and ask the user for that reply. ${skills}`
   if (plan.mode?.kind === 'autopilot')
     return `${base} commit per stage. Autopilot is on: you are the project manager under keel:autopilot. Go from stage to stage without stopping for review, delegate the building, and stop only for the reasons keel:autopilot lists, setting the Mode line to paused when you do. Outward-facing commands (push, publish, deploy, sending data out) are blocked while it runs. ${skills}`
   if (plan.mode?.kind === 'paused')
@@ -995,12 +1028,16 @@ export const register: Register = on => {
     lastPromptFromUser = fromUser
     if (fromUser) {
       if (/^\s*\/keel:autopilot\b/.test(e.text)) await $.state.set(ARMED, true)
-      // the person spoke while a risky stage was held or paused: they have the floor, and their word clears it
-      const plan = await loadPlan($).catch(() => undefined)
-      const s = await readSession($)
-      const stage = plan?.stage
-      if (stage?.risky.length && (plan?.mode?.kind === 'paused' || driving(plan, s)) && !s.cleared.includes(stage.key))
-        await $.state.set(CLEARED, [...s.cleared, stage.key])
+      // the person approved a risky stage that was held or paused: only their own prompt opening with an approval
+      // (`isApproval`) clears it — never a question, a plugin's prompt, or a skill Claude can run itself
+      if (isApproval(e.text)) {
+        const plan = await loadPlan($).catch(() => undefined)
+        const s = await readSession($)
+        const stage = plan?.stage
+        // armed or not: an unarmed session's /keel:approve then arms autopilot through the skill, onto a cleared stage
+        if (stage?.risky.length && underAutopilot(plan) && !s.cleared.includes(stage.key))
+          await $.state.set(CLEARED, [...s.cleared, stage.key])
+      }
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -1018,7 +1055,8 @@ export const register: Register = on => {
     lastMode = mode
     if (!plan || mode !== 'autopilot') {
       if (was !== 'autopilot') return result
-      if (plan?.mode?.kind === 'paused') await $.ui.notify(`Autopilot paused: ${plan.mode.reason}`, { title: 'keel' })
+      if (plan?.mode?.kind === 'paused')
+        await $.ui.notify(`Autopilot paused: ${plan.mode.reason}${held(plan, s) ? `${/[.!?]$/.test(plan.mode.reason) ? '' : '.'} ${APPROVAL_NOTE}` : ''}`, { title: 'keel' })
       else if (plan && !plan.current) await $.ui.notify(`All ${plan.total} stages done.`, { title: 'keel' })
       return result
     }
@@ -1028,7 +1066,7 @@ export const register: Register = on => {
     if (held(plan, s)) {
       if (heldNoticeFor !== plan.stage?.key) {
         heldNoticeFor = plan.stage?.key
-        await $.ui.notify(`Autopilot is holding before ${plan.stage?.key}: it touches ${plan.stage?.risky.join(', ')}.`, { title: 'keel' })
+        await $.ui.notify(`Autopilot is holding before ${plan.stage?.key}: it touches ${plan.stage?.risky.join(', ')}. ${APPROVAL_NOTE}`, { title: 'keel' })
       }
       return result
     }
@@ -1059,15 +1097,19 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // a held stage: no building until the person okays it
+  // a held stage, driving or paused: no building until the person approves it
   on('tool.call', async ($, e, next) => {
     if (e.tool !== 'Edit' && e.tool !== 'Write' && e.tool !== 'NotebookEdit' && e.tool !== 'Agent') return next(e)
     const plan = await loadPlan($)
     if (!plan || !held(plan, await sync($, plan))) return next(e)
     const target = 'file_path' in e ? String(e.file_path) : 'notebook_path' in e ? String(e.notebook_path) : ''
     if (target && samePath(target, plan.path)) return next(e)
+    const then =
+      plan.mode?.kind === 'paused'
+        ? 'The plan is paused: answer the user, and ask them for that reply.'
+        : "Commit what's finished, set the Mode line to `paused — <reason>`, and ask the user for that reply."
     return {
-      deny: `keel autopilot is holding ${plan.stage?.key}: its risk line names ${plan.stage?.risky.join(', ')}, so it isn't built without the user's word. Commit what's finished, set the Mode line to \`paused — <reason>\`, and ask the user.`,
+      deny: `keel autopilot is holding ${plan.stage?.key}: its risk line names ${plan.stage?.risky.join(', ')}, so it isn't built until the user approves it with ${APPROVAL_REPLY}. ${then}`,
     }
   }).catch(($, e, next) => next(e))
 
