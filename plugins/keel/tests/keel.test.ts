@@ -957,6 +957,17 @@ test('closing a stage whose checks were never ticked is refused', async ($, on) 
   expect(passed.deny).toBeUndefined()
 })
 
+test('a Fix: commit that also ticks a stage is gated like any stage close (keel:fix)', async ($, on) => {
+  const plan = { text: shareMode('- [x] link opens read-only', '- [ ] controls work on touch'), files: { 'docs/evidence/stage-2/report.md': reportWith(2) } }
+  engine(on, plan)
+  fakeGit(on, () => diffOf('docs/PLAN.md', '-- [ ] 2. Share mode', '+- [x] 2. Share mode', '+## Fixes', '+- 2026-11-10 · Button label reads "Share" — tests pass'), false)
+
+  await $.turn.complete(ended('t1'))
+  const refused = await $.tool.call({ tool: 'Bash', command: 'git commit -m "Fix: share button label"' })
+  expect(refused.deny).toContain('closes stage 2')
+  expect(refused.deny).toContain('controls work on touch')
+})
+
 test('a new Goal starts the per-stage records afresh', async ($, on) => {
   const planFor = (goal: string, check: string) =>
     ['## Goal', goal, '## Now', 'Stage 1 of 2 · Start', 'Checks:', check, '## Stages', '- [ ] 1. Start', '- [ ] 2. Finish'].join('\n')
@@ -1381,7 +1392,7 @@ test('with no Agents line the working rules say nothing new', async ($, on) => {
   const compose = composeKeel($, on)
   const { text } = await compose()
   expect(text).not.toContain('Agents')
-  expect(text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.")).toBe(true)
+  expect(text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, charter, stage, fix, autopilot, verify, review, resume) hold the details.")).toBe(true)
 })
 
 /** The plan section for `planWith('Open: none')` as keel built it before it knew of `docs/decisions.md`. */
@@ -1392,7 +1403,7 @@ const SECTION_WITHOUT_DECISIONS = [
   'Current position (from the plan):',
   'Stage 2 of 3 · Share mode\nOpen: none',
   '',
-  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix's bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone; commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.",
+  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix's bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: say in one line that it fits the bar and why, then keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone; commit per stage and stop for the user's review. The keel skills (plan, charter, stage, fix, autopilot, verify, review, resume) hold the details.",
 ].join('\n')
 
 test('without docs/decisions.md the plan section and status line are unchanged', async ($, on) => {
@@ -1537,7 +1548,7 @@ test('an unknown Agents value adds nothing to the working rules or the band', as
   const r = await readAs($, on, 'Agents: turbo')
   expect(r.band).toBe(BAND)
   expect(r.text.slice(r.text.indexOf('Working rules:'))).not.toContain('Agents')
-  expect(r.text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.")).toBe(true)
+  expect(r.text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, charter, stage, fix, autopilot, verify, review, resume) hold the details.")).toBe(true)
 })
 
 test('the ask to confirm wide carries the current time as the stamp', async ($, on) => {
@@ -1842,7 +1853,7 @@ const PLAN_SECTION_070 = [
   'Stage 2 of 3 · Share mode',
   'Open: none',
   '',
-  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix's bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone; commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.",
+  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix's bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: say in one line that it fits the bar and why, then keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone; commit per stage and stop for the user's review. The keel skills (plan, charter, stage, fix, autopilot, verify, review, resume) hold the details.",
 ].join('\n')
 const BAND_070 = 'keel · 1/3 done · next: 2. Share mode'
 

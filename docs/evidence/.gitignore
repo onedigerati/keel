@@ -1,0 +1,11 @@
+# Screenshots, traces and videos stay local. Delete the image lines to commit screenshots.
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.zip
+*.webm
+*.mp4
+*.trace
+*.har

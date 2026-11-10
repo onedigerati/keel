@@ -1,22 +1,24 @@
 ---
 name: fix
-description: Make a small, low-risk change without a stage — a style or copy tweak, a contained bug fix, a config or docs edit — built in the main session, checked in proportion to its risk, logged as one line in the plan and committed on its own. Use when the request fits the quick-fix bar below, when keel:plan or keel:autopilot recommends it and the user agrees, or when the user asks for a quick fix. Anything that misses the bar goes to keel:plan.
+description: Make a small, low-risk change without a stage — a style or copy tweak, a display bug, a docs or comment edit — built in the main session, checked in proportion to its risk, logged as one line in the plan and committed on its own. Use when the request fits the quick-fix bar below, when keel:plan or keel:autopilot recommends it and the user agrees, or when the user asks for a quick fix. Anything that misses the bar goes to keel:plan.
 ---
 
 # Keel: fix
 
-Most of keel is for work that needs a plan. Some changes don't: moving a glow behind a number, fixing a typo, swapping a default. A stage would cost a plan rewrite, an archive, agents and an evidence folder to prove a twenty-line diff. A fix costs the change, a proportionate check and one line in the plan.
+Most of keel is for work that needs a plan. Some changes don't: moving a glow behind a number, fixing a typo, rewording a message. A stage would cost a plan rewrite, an archive, agents and an evidence folder to prove a twenty-line diff. A fix costs the change, a proportionate check and one line in the plan.
 
 ## 1. Does it fit the bar?
 
 A change is a fix only when all of these hold:
 
-- **Small.** One sitting, a few files, a diff a reviewer reads in a minute or two.
-- **Low risk.** Its risk line would be `UI only`, or it touches no runtime behaviour at all (docs, comments, config that only the build reads). It touches none of: user input handling, auth, money, personal data, secrets, external services, migrations, and no logic that can be quietly wrong (money, dates, parsing, permissions), however small the diff.
+- **Small.** One sitting, a few files, a diff a reviewer reads in a minute or two. Several fixes toward one outcome are a stage, however small each one is.
+- **Low risk.** Its risk line would be `UI only` (what's shown or printed, including a CLI's output text), or it touches no runtime behaviour at all (docs, comments). A bug fix qualifies only when the bug is in UI-only code. It touches none of: user input handling, or rendering user-supplied content or HTML; auth; money; personal data; secrets; external services; migrations; dependencies (adding, removing or bumping one); CI, deploy or container config; build or env config that changes what reaches the client, security headers, CSP or CORS; any word in the project's `Keel risk:` line in `CLAUDE.md`; and no logic that can be quietly wrong (money, dates, parsing, permissions), however small the diff.
 - **No new behaviour to accept.** "It looks or works the way the user asked" is the whole check. A change that needs acceptance checks written down to know it's done is a stage.
 - **Already decided.** The user said what they want (or picked an option). A choice still open, or a change that would go against a decision in the plan or `docs/decisions.md`, is `keel:plan`'s.
 - **Easy to undo.** A revert of its one commit takes it back. No data migrated, nothing published.
-- **Not mid-stage.** It doesn't touch files the current open stage is changing. A fix never runs while autopilot is driving a stage or while a stage is held; ask the user to let the stage close first, or plan the change into it.
+- **Not mid-stage.** It doesn't touch files the current open stage is changing, and the working tree holds no uncommitted stage work (a fix's commit would carry it, and stashing would hide it): if it does, ask the user to let the stage commit first. A fix never runs while autopilot is driving a stage or while a stage is held; ask the user to let the stage close first, or plan the change into it.
+
+When it fits, say so in one line before changing anything, naming what makes it fit (`Fits the quick-fix bar: UI only, already decided, so no stage.`), then go on: the user sees the call before the commit and can stop it.
 
 When unsure, it isn't a fix. Say in one line why it misses the bar, and run `keel:plan`.
 

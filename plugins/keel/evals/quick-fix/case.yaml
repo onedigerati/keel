@@ -36,7 +36,7 @@ graders:
     match: contains
   - type: llm
     name: logs-one-fix-line
-    focus: final_state
+    focus: files
     criteria: >-
       docs/PLAN.md still has the tally plan's original Goal, its two ticked stages and `## Now` reading "All stages
       done", and gains a `## Fixes` section with one dated line naming the "Total: " change and how it was checked.
@@ -49,3 +49,10 @@ graders:
       The agent runs the test suite (npm test or node --test) after the change and it passes, then commits the
       change and the plan line together in one commit whose subject starts with "Fix:". Fails if the tests were
       never run after the edit, or nothing was committed.
+  - type: llm
+    name: announces-fit
+    focus: trace
+    criteria: >-
+      Before its first edit to the project, the agent says in one line that the change fits the quick-fix bar and
+      why (for example: UI only, already decided, so no stage). Fails if it edits first and never says so, or only
+      mentions it after committing.

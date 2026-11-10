@@ -1,0 +1,23 @@
+$ claude -p "Quote, word for word, the line of keel working rules you were given this session that mentions keel:fix, then list the keel skills available to you. Do not change any files." --max-turns 3 --output-format stream-json --verbose < /dev/null   # installed keel (keel@keel-local, reads the working tree), no --plugin-dir
+# scratch repo: <scratch>/live/repo, laid out by plugins/keel/evals/quick-fix/scaffold.sh (tally plan, all stages done); re-run after review changed the rule text
+claude_code_version: 2.1.322
+keel plugin: [{'name': 'keel', 'source': 'keel@keel-local', 'version': '0.10.0'}]
+keel slash commands: ['keel:approve', 'keel:autopilot', 'keel:charter', 'keel:fix', 'keel:plan', 'keel:resume', 'keel:review', 'keel:stage', 'keel:verify']
+keel skills: ['keel:approve', 'keel:autopilot', 'keel:charter', 'keel:fix', 'keel:plan', 'keel:resume', 'keel:review', 'keel:stage', 'keel:verify']
+--- result ---
+The working-rules line that mentions keel:fix is one long line. Here it is word for word:
+
+> Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix's bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: say in one line that it fits the bar and why, then keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone; commit per stage and stop for the user's review. The keel skills (plan, charter, stage, fix, autopilot, verify, review, resume) hold the details.
+
+These are the keel skills available to me this session:
+
+- `keel:autopilot`: runs every remaining stage of an approved plan without pausing between stages. It comes back to you only when a decision is yours, a stage is risky, or something is stuck.
+- `keel:charter`: turns a PRD into `docs/ROADMAP.md` with milestones, and puts locked decisions into `CLAUDE.md`.
+- `keel:fix`: makes a small, low-risk change without a stage. The change is logged as one line in the plan and committed on its own.
+- `keel:plan`: creates or updates `docs/PLAN.md`, which holds the goal, stages, decisions and open questions.
+- `keel:resume`: picks a project back up after a break and says where things stand and what comes next.
+- `keel:review`: has an agent that didn't write the work review it, with a security pass when the work needs one.
+- `keel:stage`: runs the next stage from start to finish and then stops for your review.
+- `keel:verify`: checks work against the running product and the project's own checks, and saves evidence to `docs/evidence/stage-<n>/`.
+
+I didn't change any files.

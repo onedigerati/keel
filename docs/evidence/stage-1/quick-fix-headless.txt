@@ -1,0 +1,49 @@
+$ claude -p 'Small thing: when the CLI prints the total, put "Total: " in front of the number, so it reads "Total: 1.39". Go ahead and do it.' --max-turns 25 --allowedTools Read Glob Grep Bash Write Edit Skill Agent --output-format stream-json --verbose < /dev/null   # run by the user, installed keel 0.10.0 (keel@keel-local, reads the working tree), no sandbox
+# scratch repo: <scratch>/qf/repo, laid out by plugins/keel/evals/quick-fix/scaffold.sh (repo-local git author) — the eval sandbox makes .git read-only, so the case is run headless and graded by hand, as earlier plans did
+
+## Grading against plugins/keel/evals/quick-fix/case.yaml
+- announces-fit: pass — before any edit: "This fits keel:fix's bar: it's a copy change to the CLI's output, it's already decided, it's easy to undo, and no stage is open."
+- loads-fix: pass — Skill keel:fix, right after the announcement
+- no-agents: pass — no Agent call in the trace
+- no-archive: pass — docs/ holds PLAN.md and evidence/ only; no docs/plans
+- cli-changed: pass — src/cli.js prints `Total: ${…}`
+- logs-one-fix-line: pass — Goal, both ticked stages and "All stages done" unchanged; one dated line under a new ## Fixes after ## Stages, naming the change and its checks; no new docs/evidence/stage-* folder (only the scaffold's stage-1)
+- checked-and-committed: pass — the suite ran after the edit (1/1 pass) and the CLI printed Total: 1.39; one commit, 6105e06 "Fix: prefix the printed total with "Total: "", holding src/cli.js and docs/PLAN.md
+
+## git log --oneline / git show --stat HEAD
+6105e06 Fix: prefix the printed total with "Total: "
+47ed81c Stage 2: CSV input; all stages done
+ docs/PLAN.md | 3 +++
+ src/cli.js   | 2 +-
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+## docs/PLAN.md, ## Now to ## Fixes
+## Now
+All stages done
+
+## Stages
+- [x] 1. Core — total() in cents, with tests
+- [x] 2. CSV input — read a file, parse rows, print the total
+
+## Fixes
+- 2026-11-10 · The CLI prints the total as "Total: 1.39" instead of the bare number — npm test green; ran the CLI on a sample CSV and saw "Total: 1.39"
+
+## Decisions
+
+## the agent's turns (from the stream-json trace)
+TEXT This fits keel:fix's bar: it's a copy change to the CLI's output, it's already decided, it's easy to undo, and no stage is open. I'll run it through keel:fix.
+TOOL Skill {"skill": "keel:fix", "args": "Prefix the CLI's printed total with \"Total: \" so it reads \"Total: 1.39\""}
+  -> Launching skill: keel:fix
+TOOL Bash {"command": "git ls-files && cat docs/PLAN.md && cat CLAUDE.md 2>/dev/null; ls docs", "description": "List files and read plan"}
+  -> docs/PLAN.md | docs/evidence/.gitignore | docs/evidence/stage-1/report.md | docs/evidence/stage-1/tests.txt | package.json | src/cli.js | src/tally.js | test/tally.test.js | # Tally plan |  | ## Goal | A tiny CLI that totals expense rows from a CSV, for one person tracking spending. Done: `tally file.csv` prints the total. |  | ## Now | All stages done |  | ## Stages | - [x] 1. Core — total() in c
+TOOL Bash {"command": "cat src/cli.js package.json; cat test/tally.test.js | head -40", "description": "Read CLI, package, tests"}
+  -> import { readFileSync } from 'node:fs' | import { total } from './tally.js' | const rows = readFileSync(process.argv[2], 'utf8').trim().split('\n').slice(1).map(l => ({ amount: Number(l.split(',')[1]) })) | console.log((total(rows) / 100).toFixed(2)) | { "name": "tally", "version": "1.0.0", "type": "module", "scripts": { "test": "node --test" } } | import { test } from 'node:test' | import assert 
+TOOL Bash {"command": "sed -i 's|console.log((total(rows) / 100).toFixed(2))|console.log(`Total: ${(total(rows) / 100).toFixed(2)}`)|' src/cli.js && cat src/cli.js && npm test 2>&1 | tail -8 && d=$(mktemp -d) && printf 'date,amount\\n2026-11-01,0.29\\n2026-11-02,1.1\\n' > $d/t.csv && node src/cli.js $d/t.csv", "description": "Apply change, run tests, run CLI on sample"}
+  -> import { readFileSync } from 'node:fs' | import { total } from './tally.js' | const rows = readFileSync(process.argv[2], 'utf8').trim().split('\n').slice(1).map(l => ({ amount: Number(l.split(',')[1]) })) | console.log(`Total: ${(total(rows) / 100).toFixed(2)}`) | # tests 1 | # suites 0 | # pass 1 | # fail 0 | # cancelled 0 | # skipped 0 | # todo 0 | # duration_ms 40.289517 | Total: 1.39
+TOOL Bash {"command": "python3 - <<'EOF'\np='docs/PLAN.md'\ns=open(p).read()\ns=s.replace(\"- [x] 2. CSV input \u2014 read a file, parse rows, print the total\\n\",\"- [x] 2. CSV input \u2014 read a file, parse rows, print the total\\n\\n## Fixes\\n- 2026-11-10 \u00b7 The CLI prints the total as \\\"Total: 1.39\\\" instead of the bare number \u2014 npm test green; ran the CLI on a sample CSV and saw \\\"Total: 1.39\\\"\\n\",1)\nopen(p,'w').write(s)\nEOF\ngit add src/cli.js docs/PLAN.md && git commit -q -m 'Fix: prefix the printed total with \"Total: \"\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthrop
+  -> 6105e06 Fix: prefix the printed total with "Total: "
+TEXT The CLI now prints the total as `Total: 1.39` instead of just the number.
+
+- **Change:** one line in `src/cli.js:4`.
+- **Checks:** `npm test` passes. I also ran `node src/cli.js` on a sample CSV with amounts 0.29 and 1.1, and it printed `Total: 1.39`.
+- **Record:** I added a line under a new `## Fixes` section in `docs/PLAN.md` and committed it on its own as `6105e06` ("Fix: prefix the printed total with "Total: ""). Nothing has been pushed.

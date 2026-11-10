@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Verify work against the running product and the project's own checks — type check, lint, tests, build, a dependency audit, then each acceptance check proven by driving the real app (screenshots, scripted clicks, requests, CLI runs), with a per-check report; when a plan stage is verified, the report and the output behind it are saved to docs/evidence/stage-<n>/. Use before calling any stage or fix done, when asked to verify, test or check something works, or when unsure whether a change actually works.
+description: Verify work against the running product and the project's own checks — type check, lint, tests, build, a dependency audit, then each acceptance check proven by driving the real app (screenshots, scripted clicks, requests, CLI runs), with a per-check report; when a plan stage is verified, the report and the output behind it are saved to docs/evidence/stage-<n>/. Use before calling any stage done (a `keel:fix` change gets the lighter check in its own skill), when asked to verify, test or check something works, or when unsure whether a change actually works.
 ---
 
 # Keel: verify

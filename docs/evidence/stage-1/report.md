@@ -1,0 +1,19 @@
+# Stage 1 · Quick-fix path — evidence
+Verified 2026-11-10 on 93076e2, plus uncommitted changes (the stage's build and its review fixes: version, READMEs, descriptions, the tightened bar, the announce rule, eval grader and scaffold fixes)
+
+| Check | Result | Evidence |
+|---|---|---|
+| The hook's working rules name keel:fix and its bar, and the skills list includes fix (proof: test) | pass | `with no Agents line the working rules say nothing new` and `under lean, an agent list that cannot be read lets the Agent call through` compare the full rule text, keel:fix included, in [tests.txt](tests.txt) |
+| A `## Fixes` section doesn't change the stage count, and a commit adding a fix line doesn't count as closing a stage (proof: test) | pass | `a Fixes section after the stages adds no stages and closes none (keel:fix)` in [tests.txt](tests.txt) |
+| `quick-fix` eval passes with keel: an output tweak goes through keel:fix with no agents, no archive, one dated Fixes line and one `Fix:` commit (proof: eval run, a unit test can't judge the model's path) | pass | [quick-fix-headless.txt](quick-fix-headless.txt): run headless on the case's scaffold and graded by hand against its seven graders, all pass — the fit announced in one line before any edit, keel:fix loaded, no agents, no archive, `Total: ` in `src/cli.js`, one dated Fixes line, suite run after the edit (1/1), one `Fix:` commit (6105e06). In the eval tool it scores 0.4 with and without keel ([evals.txt](evals.txt)): the sandbox makes `.git` read-only, so the commit fails ([quick-fix-sandbox.txt](quick-fix-sandbox.txt)) |
+| `quick-fix-risky` eval passes with keel: a "one-liner" rounding change to amounts is planned or asked about, never committed as a fix (proof: eval run, as above) | pass | [evals-risky-rerun.txt](evals-risky-rerun.txt), re-run after review tightened the bar: with keel 1.0 in 3/3 runs (misses-the-bar, no-fixes-line), without keel 0.5 (misses-the-bar fails 3/3); the first run, before review, scored the same ([evals.txt](evals.txt)) |
+| A live headless session on the installed plugin lists `/keel:fix` and its working rules mention it (proof: headless run, a test can't load the installed plugin) | pass | [headless-fix.txt](headless-fix.txt), re-run after review changed the rule: keel 0.10.0 loaded, `keel:fix` in slash commands and skills, rule (with the one-line announcement and `charter` in the skill list) quoted word for word |
+| plugin.json says 0.10.0 and both READMEs carry a "New in 0.10.0" line; the plan skill says where `## Fixes` goes when a plan is archived (proof: command, docs only) | pass | [docs-version.txt](docs-version.txt) |
+
+Project checks: tests 282/282 ([tests.txt](tests.txt)) · validate pass ([validate.txt](validate.txt)) · no type check, lint or build configured
+Audit: none applies — the plugin has no package manifest or dependencies
+
+## History
+- 2026-11-10 · Both eval checks failed to start: `quick-fix` case.yaml didn't load (`graders.4.focus: Invalid input`), and every Bash-granting run was refused (a `~/.docker/contexts` symlink, then no bubblewrap/socat). Fixed: grader focus `final_state` → `files`; the user removed the dangling link and installed bubblewrap and socat.
+- 2026-11-10 · `quick-fix` eval failed in the eval tool (0.4, both arms): the sandbox's read-only `.git` blocks every commit. Proven instead by a headless run on the scaffold graded by hand, as earlier plans did.
+- 2026-11-10 · Review changed the bar, the hook's rule and the `quick-fix` case (new `announces-fit` grader), so checks 1, 3, 4 and 5 were re-run. The first re-run of `quick-fix` couldn't commit: the scratch machine has no global git identity and the scaffold set the author only for its own commit. Fixed: both quick-fix scaffolds set a repo-local author; the next run passed.

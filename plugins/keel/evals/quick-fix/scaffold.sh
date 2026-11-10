@@ -76,5 +76,8 @@ Project checks: tests 1/1 ([tests.txt](tests.txt))
 Audit: no dependencies
 MD
 git init -q
+# a repo-local author, so the agent can commit on a machine with no global git identity
+git config user.name eval
+git config user.email eval@example.com
 git add -A
-git -c user.name=eval -c user.email=eval@example.com commit -qm "Stage 2: CSV input; all stages done"
+git commit -qm "Stage 2: CSV input; all stages done"

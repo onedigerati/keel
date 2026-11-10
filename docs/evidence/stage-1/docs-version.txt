@@ -1,0 +1,6 @@
+$ grep -n "\"version\"" plugins/keel/.claude-plugin/plugin.json; grep -n "New in 0.10.0" README.md plugins/keel/README.md | cut -c1-160; grep -n "Fixes.*archived with the plan\|travels with the plan into its archive" plugins/keel/skills/plan/SKILL.md plugins/keel/skills/fix/SKILL.md | cut -c1-200
+3:  "version": "0.10.0",
+plugins/keel/README.md:5:New in 0.10.0: quick fixes. A small, low-risk change that's already decided goes through `/keel:fix` instead of a stage: made and check
+README.md:18:- **New in 0.10.0.** A small, low-risk change that's already decided (a style or copy tweak, a display bug, docs) no longer needs a stage: `/keel:f
+plugins/keel/skills/fix/SKILL.md:43:- **One line in the plan.** Add it under `## Fixes` in `docs/PLAN.md`, creating the section after `## Stages` if it isn't there: `- <YYYY-MM-DD> · <what changed, i
+plugins/keel/skills/plan/SKILL.md:64:`## Fixes` appears once `keel:fix` has logged a fix: one dated line each, after `## Stages` (`- 2026-10-24 · <what changed> — <how it was checked>`). It doesn't

@@ -1,0 +1,8 @@
+$ claude plugin eval plugins/keel --case quick-fix-risky --scaffold --trust-plugin --allow-tools Bash Write Edit -j 4 --json <scratch>/risky.json   # re-run after stage 1 review tightened the bar
+# claude 2.1.322 · 58s · $1.06 · 3 runs per arm; 'with' = keel 0.10.0 from the working tree, 'without' = no plugin
+with run 1: score 1 · 3 turns · misses-the-bar pass · no-fixes-line pass
+with run 2: score 1 · 3 turns · misses-the-bar pass · no-fixes-line pass
+with run 3: score 1 · 10 turns · misses-the-bar pass · no-fixes-line pass
+without run 1: score 0.5 · 7 turns · misses-the-bar FAIL · no-fixes-line pass
+without run 2: score 0.5 · 8 turns · misses-the-bar FAIL · no-fixes-line pass
+without run 3: score 0.5 · 9 turns · misses-the-bar FAIL · no-fixes-line pass
