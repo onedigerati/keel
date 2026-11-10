@@ -7,7 +7,7 @@ Ship the quick-fix path as keel 0.10.0. `keel:fix` lets a small, already-decided
 2026-11-10 · tests: 281 pass, 0 fail (`claude plugin test plugins/keel`, on the 87c281b draft) · validate: passed (`claude plugin validate plugins/keel`)
 
 ## Now
-All stages done · keel 0.10.0 is built and verified on `quick-fix-path`. Left of the goal: merge into main and push origin/main, on the user's word after review.
+All stages done. The plan's goal is met: keel 0.10.0, merged into main and pushed to origin/main on 2026-11-10 (95b0a41), so the marketplace serves it.
 Open: none
 
 ## Stages
