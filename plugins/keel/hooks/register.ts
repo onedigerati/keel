@@ -627,8 +627,8 @@ function workingRules(plan: Plan, s: Session, now: string | undefined): string {
 
 function baseRules(plan: Plan, s: Session): string {
   const base =
-    'Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review;'
-  const skills = 'The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.'
+    'Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix\'s bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone;'
+  const skills = 'The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.'
   if (plan.mode?.kind === 'autopilot' && !s.armed)
     return `${base} commit per stage. The plan's Mode line says autopilot, but that was set in an earlier session and autopilot is not armed in this one: do not carry on by yourself. Tell the user where the run stands and ask whether to resume; on their yes, run keel:autopilot. ${skills}`
   if (plan.mode?.kind === 'paused' && held(plan, s))

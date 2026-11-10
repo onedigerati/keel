@@ -1,0 +1,28 @@
+schema_version: "1.0"
+name: quick-fix-risky
+description: >-
+  A request that looks small but changes money logic (how amounts round) misses keel:fix's bar, so it is not
+  committed on the fix path: the agent says why and plans it (or asks), and makes no source change without a stage.
+tags: [fix, outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    Quick one: amounts should round half-up to the cent instead of whatever Math.round does with floats now, so
+    0.125 counts as 13 cents. Should be a one-liner.
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill, Agent]
+graders:
+  - type: llm
+    name: misses-the-bar
+    focus: trace
+    criteria: >-
+      The agent recognises the change touches money logic (rounding of amounts in cents) and so does not fit the
+      quick-fix path: it says so and either plans it with keel:plan (a stage with a test-backed check) or asks the
+      user before going further. Fails if the agent edits src/tally.js and commits it with a "Fix:" subject or a
+      `## Fixes` plan line, without a stage or the user's say.
+  - type: regex
+    name: no-fixes-line
+    target: files
+    pattern: "## Fixes"
+    match: not_contains

@@ -291,6 +291,31 @@ test('reads a plan with a Now section and a stage checklist', () => {
   expect(plan.now).toBe('Stage 2 · Share mode\n- [ ] controls work on touch')
 })
 
+test('a Fixes section after the stages adds no stages and closes none (keel:fix)', () => {
+  const plan = parsePlan(
+    'docs/PLAN.md',
+    [
+      '# Plan',
+      '## Now',
+      'All stages done',
+      '## Stages',
+      '- [x] 1. Foundation — engine',
+      '## Fixes',
+      '- 2026-11-10 · Glow sits behind the odds figure — tests, typecheck, screenshots light/dark/phone',
+      '## Decisions',
+    ].join('\n'),
+  )
+  expect(plan.done).toBe(1)
+  expect(plan.total).toBe(1)
+  expect(plan.current).toBeUndefined()
+  const diff = [
+    '+++ b/docs/PLAN.md',
+    '+## Fixes',
+    '+- 2026-11-10 · Glow sits behind the odds figure — tests, typecheck, screenshots',
+  ].join('\n')
+  expect(closedStages(diff, 'docs/PLAN.md')).toEqual([])
+})
+
 test('reads an older plan with bold stage names and no Now section', () => {
   const plan = parsePlan('docs/BUILD_PLAN.md', '## Stages\n\n- [x] **Stage 1** — scaffold\n- [x] **Stage 2** — Act 2\n')
   expect(plan).toEqual({ path: 'docs/BUILD_PLAN.md', goal: undefined, now: undefined, mode: undefined, agents: undefined, agentsLine: undefined, agentsStamp: undefined, stage: undefined, done: 2, total: 2, current: undefined })
@@ -1356,7 +1381,7 @@ test('with no Agents line the working rules say nothing new', async ($, on) => {
   const compose = composeKeel($, on)
   const { text } = await compose()
   expect(text).not.toContain('Agents')
-  expect(text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.")).toBe(true)
+  expect(text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.")).toBe(true)
 })
 
 /** The plan section for `planWith('Open: none')` as keel built it before it knew of `docs/decisions.md`. */
@@ -1367,7 +1392,7 @@ const SECTION_WITHOUT_DECISIONS = [
   'Current position (from the plan):',
   'Stage 2 of 3 · Share mode\nOpen: none',
   '',
-  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.",
+  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix's bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone; commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.",
 ].join('\n')
 
 test('without docs/decisions.md the plan section and status line are unchanged', async ($, on) => {
@@ -1512,7 +1537,7 @@ test('an unknown Agents value adds nothing to the working rules or the band', as
   const r = await readAs($, on, 'Agents: turbo')
   expect(r.band).toBe(BAND)
   expect(r.text.slice(r.text.indexOf('Working rules:'))).not.toContain('Agents')
-  expect(r.text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.")).toBe(true)
+  expect(r.text.endsWith("commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.")).toBe(true)
 })
 
 test('the ask to confirm wide carries the current time as the stamp', async ($, on) => {
@@ -1817,7 +1842,7 @@ const PLAN_SECTION_070 = [
   'Stage 2 of 3 · Share mode',
   'Open: none',
   '',
-  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; commit per stage and stop for the user's review. The keel skills (plan, stage, autopilot, verify, review, resume) hold the details.",
+  "Working rules: build in stages; a stage is done only when its acceptance checks pass against the running product and the test suite is green; tick each check in `## Now` as it is proven, before closing the stage; verifying a stage, even one asked about only for a report, means running keel:verify, which saves its evidence to `docs/evidence/stage-<n>/`; tests accompany risky logic (money, dates, parsing, permissions); stages marked risky get a security review; a small, low-risk change that fits keel:fix's bar (UI only or no runtime behaviour, already decided, easy to undo, outside an open stage) skips the stage: keel:fix builds and checks it in the main session, logs one line under `## Fixes` and commits it alone; commit per stage and stop for the user's review. The keel skills (plan, stage, fix, autopilot, verify, review, resume) hold the details.",
 ].join('\n')
 const BAND_070 = 'keel · 1/3 done · next: 2. Share mode'
 

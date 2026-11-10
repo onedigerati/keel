@@ -7,6 +7,10 @@ description: Create or update the project's single plan file (docs/PLAN.md) — 
 
 One file holds the project's state: `docs/PLAN.md`. If the project already keeps a plan elsewhere (`PLAN.md`, `docs/BUILD_PLAN.md`), adopt that file and its layout instead of starting a second one; add the sections below that it lacks. The keel hook reads the `## Now` section into every request and the `## Stages` checklist into the status line, so keep those two headings exact.
 
+## Is it plan-sized?
+
+Before creating a plan, starting the next one, or adding a stage for a new request, check it against `keel:fix`'s bar: small, `UI only` or no runtime behaviour, nothing to accept beyond "it works as asked", already decided, easy to undo, not inside an open stage. If it fits, say so in one line and recommend `keel:fix` instead of a plan: it's built, checked and committed in the main session, logged as one line under `## Fixes`, with no archive, stage, agents or evidence folder. The user picks; if they still want it staged, plan it as usual. Anything that misses the bar, or that you're unsure about, is planned.
+
 ## Creating a plan
 
 1. Gather what's already known: the user's words in this conversation, the repo (README, existing docs, code layout), and memory. Ask only about real gaps, in one short round, and only those whose answer changes the plan: who it's for, what "done" looks like, hard constraints, what's out of scope. Unless they've said, ask once how widely to fan the work out to agents (the Agents line, below); the default is `balanced`. Pick sensible defaults for the rest and record them as decisions.
@@ -57,6 +61,8 @@ Open: <decision waiting on the user, or "none">
 - 2026-09-30 · <plan name>: <one line on what it delivered> — [plan](plans/2026-09-30-<plan-slug>.md) · [evidence](plans/2026-09-30-<plan-slug>/evidence/)
 ```
 
+`## Fixes` appears once `keel:fix` has logged a fix: one dated line each, after `## Stages` (`- 2026-10-24 · <what changed> — <how it was checked>`). It doesn't count toward the stages or the goal, and it's archived with the plan.
+
 `## Standing decisions` and `## Shipped` appear once an earlier plan has been finished and archived (see "Starting the next plan").
 
 Once more than ten standing decisions would carry forward, they move to `docs/decisions.md`, and `## Standing decisions` keeps one line: `- Standing decisions from earlier plans are in [decisions.md](decisions.md).`, linked relative to the plan file (from a root `PLAN.md`, `docs/decisions.md`). A plan whose `## Standing decisions` already holds more than ten lines (an adopted one, say) moves them the next time it's updated. Ten or fewer stay in the plan, so a small project keeps one file. The file holds a heading and the same dated lines, links and all, relative to `docs/`. Its lines stay where they are: an archive appends only the archived plan's newly binding decisions, and one no longer binding is struck through (`~~old~~`) with the reason, never deleted, rewritten or duplicated:
@@ -93,6 +99,7 @@ A plan covers one body of work with one Goal: a single feature, several features
 
 - **New work that fits the current Goal** joins this plan: add its stages (see "Updating a plan"), even if it's a new feature.
 - **New work beyond the Goal while stages are still open:** ask the user whether to widen the Goal and add it here, or hold it for the next plan (note it under open questions).
+- **A change that fits `keel:fix`'s bar** (see "Is it plan-sized?") isn't new work for a plan, whether or not the Goal is met: recommend `keel:fix`, which logs it under the current plan's `## Fixes` without archiving anything.
 - **The Goal is met and the next work goes beyond it:** start a fresh plan rather than adding stages to the old one. If any stages are still open, ask first: finish them, drop them (logged as a decision), or carry them into the new plan.
 
 1. **Archive.** Move the finished plan to `docs/plans/<date finished>-<plan-slug>.md` (`git mv`, so its history follows it). If `docs/evidence/` exists, move it beside the plan: `mkdir -p docs/plans/<date finished>-<plan-slug>` then `git mv docs/evidence docs/plans/<date finished>-<plan-slug>/evidence`. That moves the whole folder, its `.gitignore` and local (ignored) files included. The plan stays unchanged except for one line under its Goal, `Evidence: [<date finished>-<plan-slug>/evidence/](<date finished>-<plan-slug>/evidence/)`, and any links it had into `docs/evidence/` rewritten to the new place. The new plan starts with no `docs/evidence/`; `keel:verify` recreates it. With a roadmap, fill its ledger from the archived evidence now (see "With a roadmap").
