@@ -9,7 +9,6 @@ Ship the quick-fix path as keel 0.10.0. `keel:fix` lets a small, already-decided
 ## Now
 Stage 1 of 1 · Quick-fix path
 Risk: guard rules — the fix bar decides which changes skip the stage, review and evidence, so a loose bar lets a risky change past the security pass
-Agents: wide — confirmed 2026-11-09 08:18
 Checks:
 - [ ] The hook's working rules name keel:fix and its bar, and the skills list includes fix (proof: test)
 - [ ] A `## Fixes` section doesn't change the stage count, and a commit adding a fix line doesn't count as closing a stage (proof: test)
@@ -17,7 +16,7 @@ Checks:
 - [ ] `quick-fix-risky` eval passes with keel: a "one-liner" rounding change to amounts is planned or asked about, never committed as a fix (proof: eval run, as above)
 - [ ] A live headless session on the installed plugin lists `/keel:fix` and its working rules mention it (proof: headless run, a test can't load the installed plugin)
 - [ ] plugin.json says 0.10.0 and both READMEs carry a "New in 0.10.0" line; the plan skill says where `## Fixes` goes when a plan is archived (proof: command, docs only)
-Open: where `## Fixes` goes at archive (open questions); the eval checks need `~/.docker/contexts` (a broken link) removed first
+Open: the eval checks need `~/.docker/contexts` (a broken link) removed first
 
 ## Stages
 - [ ] 1. Quick-fix path — keel:fix from the 87c281b draft, both evals green, 0.10.0, merged and pushed
@@ -27,10 +26,11 @@ Open: where `## Fixes` goes at archive (open questions); the eval checks need `~
 - 2026-11-10 · The 87c281b draft is the stage's starting point, reviewed rather than rebuilt — it already passes the suite (281) and validate.
 - 2026-11-10 · Version 0.10.0 — a new skill is a feature, as 0.8.0 and 0.9.0 were minor bumps; the marketplace entry has no version, so plugin.json's is what tells installed copies to update.
 - 2026-11-10 · The `quick-fix` eval's `logs-one-fix-line` grader uses `focus: files`, not `final_state` — the eval tool rejects `final_state`, and `files` is how other cases judge the end state.
-- 2026-11-10 · Agents line carried over from the last plan as it stands; it counts as balanced until the user confirms wide in this session.
+- 2026-11-10 · ~~Agents line carried over from the last plan as it stands; it counts as balanced until the user confirms wide in this session.~~ Replaced below.
+- 2026-11-10 · Agents: balanced (no line), from the user — the draft is one small, mostly built change, so wide would add tokens for little speed.
+- 2026-11-10 · `## Fixes` stays with the plan it was logged under and is archived with it, as drafted; the new plan starts without one — from the user: the archive keeps the whole record and a new plan doesn't carry work it didn't do.
 
 ## Open questions
-- Does `## Fixes` stay with the archived plan (as drafted) or carry into the new plan? — the user; decides the plan skill's archive wording in stage 1.
 - The eval tool won't run a Bash-granting case while `~/.docker/contexts` is a symbolic link (here it points at a missing Windows folder; Docker Desktop's WSL integration may recreate it). Setting `DOCKER_CONFIG` doesn't get around it. — the user removes the link; blocks the two eval checks.
 - In evidence, prose with a header name, a colon and a 16+ character word holding a digit (`Cookie: set by middleware_handler_v2`) is flagged: the narrow false positive left by the credential-run rule, since an unquoted value runs to the end of the line (stage 2 re-verify). Base64 values split by `/` into pieces under 16 characters, and values with letters only, are missed.
 - Stage 2 review, deferred: the evidence header rule reads one line at a time, so pretty-printed HAR (name and value on separate lines), headers split by `\` continuations and percent-encoded headers aren't caught. Custom auth headers (`X-Api-Key`, `X-Auth-Token`) aren't covered. A file renamed into `docs/evidence/` isn't scanned, since a rename adds no lines (which also keeps archiving from being refused). The `<…>` placeholder exemption is shape-only, so a real token wrapped in angle brackets passes. Pre-existing: the guard doesn't see index changes from `git apply --cached`, `stash pop`, `checkout <ref> -- path` or `git mv` earlier on the line, merges, or commits run from scripts; and `keel:allow-secret` is a substring anywhere on the line that exempts every pattern on it.
