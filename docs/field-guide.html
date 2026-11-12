@@ -1,0 +1,707 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Keel Field Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single reading column of "chart table" sections; the autopilot simulator breaks out wide as the centrepiece. */
+:root{
+  --paper:#EDF1F3; --sheet:#FFFFFF; --ink:#132A3A; --muted:#5A6D7A; --rule:#CBD6DD;
+  --sea:#1D6F86; --sea-soft:#D6E8EE; --signal:#C9661C; --signal-soft:#F7E3D2;
+  --ok:#2E7D4F; --ok-soft:#DCEFE3; --bad:#B23A3A; --bad-soft:#F6DCDC; --hold:#8A5A00; --hold-soft:#F8EBC8;
+  --code:#E3EAEE;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0E1A22; --sheet:#15242F; --ink:#E3ECF1; --muted:#93A6B3; --rule:#2A3D4A;
+  --sea:#5FB4CC; --sea-soft:#183844; --signal:#EE9450; --signal-soft:#3A2617;
+  --ok:#6CC592; --ok-soft:#173327; --bad:#EE7B7B; --bad-soft:#3A1C1E; --hold:#E7BE5C; --hold-soft:#352A12;
+  --code:#1B2E3A; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --paper:#0E1A22; --sheet:#15242F; --ink:#E3ECF1; --muted:#93A6B3; --rule:#2A3D4A;
+  --sea:#5FB4CC; --sea-soft:#183844; --signal:#EE9450; --signal-soft:#3A2617;
+  --ok:#6CC592; --ok-soft:#173327; --bad:#EE7B7B; --bad-soft:#3A1C1E; --hold:#E7BE5C; --hold-soft:#352A12;
+  --code:#1B2E3A; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.wrap{max-width:1080px;margin:0 auto}
+.col{max-width:720px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2.2rem,5vw,3.4rem);font-weight:800;letter-spacing:-.02em}
+h2{font-size:clamp(1.6rem,3vw,2.1rem);font-weight:700;letter-spacing:-.01em}
+h3{font-size:1.15rem;font-weight:700}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+code{background:var(--code);padding:.08em .35em;border-radius:4px}
+.eyebrow{font-family:var(--f-mono);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--sea);font-weight:600}
+.lede{font-size:1.15rem;color:var(--muted);max-width:62ch}
+.stack{display:flex;flex-direction:column;gap:14px}
+section{padding-block:56px;border-top:1px solid var(--rule)}
+section:first-of-type{border-top:0}
+a{color:var(--sea)}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+/* nav */
+nav.top{display:flex;flex-wrap:wrap;gap:6px 18px;padding-block:18px;font-size:.88rem;border-bottom:1px solid var(--rule)}
+nav.top a{color:var(--muted);text-decoration:none}
+nav.top a:hover{color:var(--ink)}
+nav.top .brand{font-family:var(--f-display);font-weight:800;color:var(--ink);margin-right:auto;font-size:1rem}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;padding-block:48px 56px}
+.hero > *{min-width:0}
+.layers{display:flex;flex-direction:column;gap:0;font-size:.9rem}
+.layer{display:grid;grid-template-columns:116px 1fr;gap:12px;align-items:baseline;padding:12px 14px;border-left:3px solid var(--sea);background:var(--sheet);border-bottom:1px solid var(--rule)}
+.layer:first-child{border-radius:8px 8px 0 0}
+.layer:last-child{border-radius:0 0 8px 8px;border-bottom:0}
+.layer b{font-family:var(--f-mono);font-size:.8rem;color:var(--sea)}
+.layer.opt{border-left-style:dashed;opacity:.92}
+.layer span{color:var(--muted)}
+.layer.hl{border-left-color:var(--signal)}
+.layer.hl b{color:var(--signal)}
+
+/* memory section */
+.mem{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px}
+.mem > div{min-width:0}
+.panel{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:18px}
+.panel h3{margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tag{font-family:var(--f-mono);font-size:.7rem;padding:2px 8px;border-radius:99px;background:var(--code);color:var(--muted);font-weight:600;letter-spacing:.04em;white-space:nowrap}
+.ctx-items{display:flex;flex-direction:column;gap:6px;min-height:230px}
+.ctx-item{font-size:.88rem;padding:7px 10px;border-radius:6px;background:var(--code);transition:opacity .5s, transform .5s, background .4s}
+.ctx-item.gone{opacity:.18;transform:translateX(-6px);text-decoration:line-through}
+.ctx-item.inj{background:var(--sea-soft);border-left:3px solid var(--sea)}
+.disk li{font-size:.88rem;margin-bottom:6px}
+.disk ul{margin:0;padding-left:18px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:7px;font-weight:600;font-size:.9rem}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn.ghost:hover{border-color:var(--ink)}
+.btn.sig{background:var(--signal);border-color:var(--signal);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.statusline{font-family:var(--f-mono);font-size:.8rem;background:var(--ink);color:var(--paper);padding:8px 12px;border-radius:6px;overflow-x:auto;white-space:nowrap}
+
+/* stage loop */
+.loop{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:28px}
+.step{background:var(--sheet);border:1px solid var(--rule);border-radius:9px;padding:12px;text-align:left;color:var(--ink);display:flex;flex-direction:column;gap:4px;min-width:0}
+.step .n{font-family:var(--f-mono);font-size:.72rem;color:var(--muted)}
+.step .t{font-family:var(--f-display);font-weight:700;font-size:1rem}
+.step[aria-pressed="true"]{border-color:var(--sea);box-shadow:inset 0 -3px 0 var(--sea)}
+.step.stop{border-style:dashed}
+.step-detail{margin-top:14px;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:18px 20px;min-height:132px}
+.step-detail p+p{margin-top:8px}
+
+/* simulator */
+.sim{margin-top:28px;background:var(--sheet);border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+.sim-bar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--rule);background:var(--paper)}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--muted);padding:6px 11px;font-size:.84rem;font-weight:600}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.seg-label{font-size:.78rem;color:var(--muted);font-family:var(--f-mono)}
+.sim-body{display:grid;grid-template-columns:300px 1fr;min-height:520px}
+.sim-body > *{min-width:0}
+.planfile{border-right:1px solid var(--rule);padding:14px 16px;font-family:var(--f-mono);font-size:.76rem;line-height:1.55;background:var(--sheet)}
+.planfile .fn{color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between}
+.planfile h4{margin:10px 0 2px;font-size:.78rem;color:var(--sea);font-weight:600}
+.planfile .ln{white-space:pre-wrap;word-break:break-word}
+.planfile .mode{color:var(--signal);font-weight:600}
+.planfile .mode.paused{color:var(--hold)}
+.planfile .chk.done{color:var(--ok)}
+.planfile .flash{animation:flash 1s}
+@keyframes flash{from{background:var(--signal-soft)}to{background:transparent}}
+.stage-row.active{color:var(--signal);font-weight:600}
+.stage-row.done{color:var(--ok)}
+.stage-row.held{color:var(--hold);font-weight:600}
+.lanes{display:flex;flex-direction:column}
+.lane{display:grid;grid-template-columns:104px 1fr;border-bottom:1px solid var(--rule);min-height:62px}
+.lane-name{padding:10px 12px;font-size:.78rem;font-weight:600;color:var(--muted);border-right:1px solid var(--rule);display:flex;flex-direction:column;justify-content:center;gap:2px}
+.lane-name small{font-weight:400;font-size:.68rem;line-height:1.25}
+.lane-chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px;align-content:center;min-width:0}
+.chip{font-size:.76rem;padding:4px 9px;border-radius:6px;border:1px solid var(--rule);background:var(--paper);display:inline-flex;align-items:center;gap:6px;max-width:100%}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+.chip.run .dot{background:var(--signal);animation:pulse 1s infinite}
+.chip.done{border-color:color-mix(in srgb, var(--ok) 40%, var(--rule))}
+.chip.done .dot{background:var(--ok)}
+.chip.fail{background:var(--bad-soft);border-color:var(--bad)}
+.chip.fail .dot{background:var(--bad)}
+.chip.hold{background:var(--hold-soft);border-color:var(--hold)}
+.chip.hold .dot{background:var(--hold)}
+.chip .wt{font-family:var(--f-mono);font-size:.64rem;color:var(--muted)}
+@keyframes pulse{50%{opacity:.25}}
+.gauge-wrap{padding:10px 14px;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:104px 1fr 54px;align-items:center;gap:10px;font-size:.78rem;color:var(--muted)}
+.gauge{height:10px;background:var(--code);border-radius:99px;position:relative;overflow:hidden}
+.gauge i{position:absolute;inset:0 auto 0 0;background:var(--sea);border-radius:99px;transition:width .6s}
+.gauge b{position:absolute;top:0;bottom:0;left:65%;width:2px;background:var(--signal)}
+.log{padding:12px 14px;font-size:.84rem;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+.log div{display:grid;grid-template-columns:72px 1fr;gap:10px}
+.log .who{font-family:var(--f-mono);font-size:.7rem;color:var(--muted);padding-top:2px}
+.log .hook .who{color:var(--signal)}
+.log .you .who{color:var(--sea)}
+.reply{display:none;padding:14px;border-top:1px solid var(--rule);background:var(--hold-soft)}
+.reply.on{display:block}
+.reply p{font-size:.9rem;margin-bottom:10px}
+.reply .row button{font-family:var(--f-mono);font-size:.82rem}
+.sim-foot{padding:10px 16px;font-size:.8rem;color:var(--muted);border-top:1px solid var(--rule);background:var(--paper)}
+
+/* pause list */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px}
+.grid2 > *{min-width:0}
+.pause{padding:14px 16px;border-left:3px solid var(--hold);background:var(--sheet);border-radius:0 8px 8px 0}
+.pause h3{font-size:1rem;margin-bottom:4px}
+.pause p{font-size:.9rem;color:var(--muted)}
+
+/* agents level */
+.fan{margin-top:20px;display:grid;grid-template-columns:1fr 1.3fr;gap:24px;align-items:start}
+.fan > *{min-width:0}
+.fan svg{width:100%;height:auto;max-width:100%;display:block}
+.fan svg text{font-family:var(--f-body);font-size:12px;fill:var(--ink)}
+.fan svg .sm{font-size:10.5px;fill:var(--muted);font-family:var(--f-mono)}
+
+/* guards */
+.guards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px}
+.guards > *{min-width:0}
+.guard{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:16px}
+.guard h3{font-size:1rem;margin-bottom:6px}
+.guard p{font-size:.88rem;color:var(--muted)}
+.guard .eg{margin-top:10px;font-family:var(--f-mono);font-size:.72rem;background:var(--bad-soft);color:var(--bad);padding:6px 8px;border-radius:5px;word-break:break-word}
+
+/* roadmap */
+.road{display:flex;gap:0;margin-top:24px;overflow-x:auto;padding-bottom:6px}
+.ms{flex:1 0 180px;padding:14px;border:1px solid var(--rule);background:var(--sheet);position:relative}
+.ms + .ms{border-left:0}
+.ms:first-child{border-radius:10px 0 0 10px}
+.ms:last-child{border-radius:0 10px 10px 0}
+.ms .id{font-family:var(--f-mono);font-size:.74rem;color:var(--muted)}
+.ms h3{font-size:1rem;margin:2px 0 8px}
+.ms .bar{height:6px;background:var(--code);border-radius:99px;overflow:hidden}
+.ms .bar i{display:block;height:100%;background:var(--ok)}
+.ms .st{font-size:.78rem;margin-top:8px;color:var(--muted)}
+.ms.cur{background:var(--signal-soft);border-color:var(--signal)}
+.ms.cur + .ms{border-left:0}
+.road-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}
+.road-steps > div{font-size:.88rem;min-width:0}
+.road-steps b{display:block;font-family:var(--f-display);font-size:1rem}
+
+/* triage */
+.triage{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:24px}
+.triage > *{min-width:0}
+.reqs{display:flex;flex-direction:column;gap:6px}
+.reqs button{text-align:left;background:var(--sheet);border:1px solid var(--rule);border-radius:7px;padding:9px 12px;color:var(--ink);font-size:.9rem}
+.reqs button[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 3px 0 0 var(--ink)}
+.verdict{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:20px}
+.verdict .route{font-family:var(--f-mono);font-weight:600;font-size:1.1rem;margin:6px 0 10px}
+.verdict .route.fix{color:var(--ok)}
+.verdict .route.plan{color:var(--signal)}
+
+/* table */
+.tbl{overflow-x:auto;margin-top:22px;border:1px solid var(--rule);border-radius:10px;background:var(--sheet)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:0}
+td:first-child{white-space:nowrap}
+footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1px solid var(--rule)}
+
+@media (max-width:860px){
+  .hero,.mem,.fan,.triage,.grid2{grid-template-columns:1fr}
+  .guards{grid-template-columns:1fr 1fr}
+  .loop{grid-template-columns:repeat(3,1fr)}
+  .sim-body{grid-template-columns:1fr}
+  .planfile{border-right:0;border-bottom:1px solid var(--rule);max-height:300px;overflow-y:auto}
+  .road-steps{grid-template-columns:1fr 1fr}
+}
+@media (max-width:520px){
+  .guards{grid-template-columns:1fr}
+  .loop{grid-template-columns:repeat(2,1fr)}
+  .lane{grid-template-columns:78px 1fr}
+  .lane-name small{display:none}
+  .gauge-wrap{grid-template-columns:78px 1fr 44px}
+  .layer{grid-template-columns:90px 1fr}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+<nav class="top" aria-label="Sections">
+  <span class="brand">keel 0.10.0</span>
+  <a href="#memory">Memory</a><a href="#stage">Stage loop</a><a href="#autopilot">Autopilot</a><a href="#agents">Agents level</a><a href="#guards">Guardrails</a><a href="#roadmap">Roadmap</a><a href="#fix">Quick fix</a><a href="#commands">Commands</a>
+</nav>
+
+<div class="hero">
+  <div class="stack">
+    <span class="eyebrow">Claude Code plugin</span>
+    <h1>Long projects, kept on course by one plan file and git</h1>
+    <p class="lede">A long project outlives any one context window. Keel keeps the project's state on disk, works through it in stages that are proven before they're committed, and can hand the whole plan to Claude acting as project manager. The manager runs it to the end and stops only for decisions that are yours.</p>
+  </div>
+  <div class="layers" aria-label="Keel's layers, from largest to smallest">
+    <div class="layer opt"><b>ROADMAP.md</b><span>Optional. Milestones and a requirement ledger for a PRD too big for one plan.</span></div>
+    <div class="layer hl"><b>PLAN.md</b><span>The source of truth: goal, <code>## Now</code>, stages, decisions, open questions.</span></div>
+    <div class="layer"><b>Stage</b><span>One slice of work with a risk line and acceptance checks.</span></div>
+    <div class="layer"><b>Check</b><span>An observable claim that names its proof: <code>(proof: test)</code>.</span></div>
+    <div class="layer"><b>evidence/</b><span><code>stage-&lt;n&gt;/report.md</code>, one row per check, committed with the stage.</span></div>
+  </div>
+</div>
+
+<!-- MEMORY -->
+<section id="memory">
+  <div class="col stack">
+    <span class="eyebrow">Problem 1 · memory</span>
+    <h2>Context gets wiped. The plan doesn't.</h2>
+    <p>Over a long project, Claude's context is compacted, cleared or lost to a new session. Keel stores the state in files and puts the important part back into every request. Press the buttons to see what's left after each kind of reset.</p>
+  </div>
+  <div class="mem">
+    <div class="panel">
+      <h3>Claude's context <span class="tag" id="ctxTag">session 1</span></h3>
+      <div class="ctx-items" id="ctxItems"></div>
+    </div>
+    <div class="panel disk">
+      <h3>On disk <span class="tag">durable</span></h3>
+      <ul>
+        <li><code>docs/PLAN.md</code>. Its <code>## Now</code> is added to the system prompt on every request.</li>
+        <li><code>docs/decisions.md</code> holds standing decisions once there are more than ten.</li>
+        <li><code>docs/evidence/stage-&lt;n&gt;/</code> holds proof of what passed and on which commit.</li>
+        <li><code>CLAUDE.md</code> holds how to run and test the project, and locked product decisions.</li>
+        <li>git holds one commit per stage, so the history reads as the plan.</li>
+      </ul>
+      <div style="margin-top:14px" class="statusline" id="statusline">keel · 2/5 done · next: 3. Share mode</div>
+      <p style="font-size:.8rem;color:var(--muted);margin-top:6px">The status line, kept current by the hook.</p>
+    </div>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn" id="bCompact">Compact the context</button>
+    <button class="btn ghost" id="bClear">Run /clear, then keel:resume</button>
+    <button class="btn ghost" id="bMemReset">Reset</button>
+  </div>
+</section>
+
+<!-- STAGE LOOP -->
+<section id="stage">
+  <div class="col stack">
+    <span class="eyebrow">Problem 2 · drift</span>
+    <h2>Work moves in stages, and each stage is proven</h2>
+    <p><code>/keel:stage</code> runs one stage end to end, then stops for your review. Autopilot runs this same loop for every stage without stopping between them. Click a step for details.</p>
+  </div>
+  <div class="loop" role="group" aria-label="Stage steps" id="loop"></div>
+  <div class="step-detail" id="stepDetail" aria-live="polite"></div>
+</section>
+
+<!-- AUTOPILOT -->
+<section id="autopilot">
+  <div class="col stack">
+    <span class="eyebrow">The project manager</span>
+    <h2>Autopilot: you approve the plan, Claude runs it</h2>
+    <p>With <code>/keel:autopilot</code>, the main session becomes the project manager. It doesn't write the code. Builder subagents write it, a fresh agent verifies it, another reviews it, and the manager commits and keeps the plan current. The keel hook keeps the run going between turns and enforces the stops.</p>
+    <p>The simulation below runs a sample four-stage plan for a garden-plot booking app. Stage 3 touches auth, so it's held until you approve it.</p>
+  </div>
+
+
+  <div class="sim" id="simKeel">
+    <div class="sim-bar">
+      <button class="btn sig" id="sPlay">▶ Start autopilot</button>
+      <button class="btn ghost" id="sReset">Reset</button>
+      <span class="seg-label">Agents</span>
+      <div class="seg" id="segAgents">
+        <button data-v="lean" aria-pressed="false">lean</button>
+        <button data-v="balanced" aria-pressed="true">balanced</button>
+        <button data-v="wide" aria-pressed="false">wide</button>
+      </div>
+      <span class="seg-label">Speed</span>
+      <div class="seg" id="segSpeed">
+        <button data-v="1" aria-pressed="true">1×</button>
+        <button data-v="2.5" aria-pressed="false">2.5×</button>
+      </div>
+    </div>
+    <div class="sim-body">
+      <div class="planfile" id="planfile" aria-label="docs/PLAN.md as the run changes it"></div>
+      <div class="lanes">
+        <div class="lane"><div class="lane-name">Manager<small>main session</small></div><div class="lane-chips" id="L-mgr"></div></div>
+        <div class="lane"><div class="lane-name">Builders<small>subagents</small></div><div class="lane-chips" id="L-bld"></div></div>
+        <div class="lane"><div class="lane-name">Verifier<small>built nothing</small></div><div class="lane-chips" id="L-ver"></div></div>
+        <div class="lane"><div class="lane-name">Reviewer<small>fresh eyes</small></div><div class="lane-chips" id="L-rev"></div></div>
+        <div class="lane"><div class="lane-name">keel hook<small>enforces</small></div><div class="lane-chips" id="L-hook"></div></div>
+        <div class="gauge-wrap"><span>Context</span><div class="gauge" title="Compaction threshold at 65%"><i id="gauge" style="width:12%"></i><b></b></div><span class="mono" id="gaugeN">12%</span></div>
+        <div class="log" id="log" aria-live="polite"></div>
+        <div class="reply" id="reply">
+          <p><b>Autopilot paused.</b> Stage 3's risk line names <b>auth</b> and <b>personal data</b>. The hook blocks file edits outside the plan and builder agents until you approve. Pick a reply:</p>
+          <div class="row">
+            <button class="btn ghost" data-r="status">what's the status?</button>
+            <button class="btn ghost" data-r="q">go?</button>
+            <button class="btn ghost" data-r="words">approve the auth stage</button>
+            <button class="btn" data-r="yes">yes, go ahead</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sim-foot" id="simFoot">This is an illustration of the flow. Timings are compressed and the agent output is made up.</div>
+  </div>
+</section>
+
+<!-- WHEN IT STOPS -->
+<section id="stops">
+  <div class="col stack">
+    <span class="eyebrow">When the manager calls you</span>
+    <h2>Autopilot stops for these, and only these</h2>
+    <p>To pause, the manager commits finished work (never half a stage), writes <code>Mode: paused — &lt;reason&gt;</code> into <code>## Now</code> and tells you what it needs, with a recommendation. The hook stops prompting and sends you a notification.</p>
+  </div>
+  <div class="grid2">
+    <div class="pause"><h3>A risky stage</h3><p>The risk line names auth, money, personal data or one of your <code>Keel risk:</code> words. It pauses before building, or before closing a stage whose corrected risk line names them.</p></div>
+    <div class="pause"><h3>A decision only you can make</h3><p>Scope, a product choice, or a trade-off the plan doesn't settle. Small decisions inside the plan's intent are logged with a date and made without asking.</p></div>
+    <div class="pause"><h3>Stuck</h3><p>A check still fails after three fix rounds, or a builder's report contradicts the evidence.</p></div>
+    <div class="pause"><h3>The plan is wrong</h3><p>A finished stage needs redoing, the scope has to grow, or a decision no longer holds.</p></div>
+    <div class="pause"><h3>Outward-facing steps</h3><p>Push, deploy, publish, sending data to an outside service, migrating real data, spending money. The hook blocks these commands while autopilot is armed.</p></div>
+    <div class="pause"><h3>A milestone boundary</h3><p>With a roadmap: after closing a milestone and cutting the next plan, it waits for your yes. It never builds a plan you haven't seen.</p></div>
+  </div>
+</section>
+
+<!-- AGENTS -->
+<section id="agents">
+  <div class="col stack">
+    <span class="eyebrow">Fan-out</span>
+    <h2>Agents level: spending tokens to save time</h2>
+    <p>One line in <code>## Now</code> sets how widely work fans out to subagents. <code>/keel:plan</code> asks once, and every skill follows the answer.</p>
+  </div>
+  <div class="fan">
+    <div class="stack">
+      <div class="seg" id="segFan" style="align-self:flex-start">
+        <button data-v="lean" aria-pressed="false">lean</button>
+        <button data-v="balanced" aria-pressed="true">balanced</button>
+        <button data-v="wide" aria-pressed="false">wide</button>
+      </div>
+      <p id="fanText"></p>
+      <p style="font-size:.86rem;color:var(--muted)" id="fanNote"></p>
+    </div>
+    <div class="panel" style="padding:12px"><svg id="fanSvg" viewBox="0 0 460 250" role="img" aria-label="How a stage's work is split across agents"></svg></div>
+  </div>
+</section>
+
+<!-- GUARDS -->
+<section id="guards">
+  <div class="col stack">
+    <span class="eyebrow">The hook</span>
+    <h2>Guardrails in code as well as in the instructions</h2>
+    <p>The skills tell Claude what to do. The hook (<code>hooks/register.ts</code>) refuses certain commits and commands, so a few rules hold even if Claude forgets them.</p>
+  </div>
+  <div class="guards">
+    <div class="guard"><h3>Evidence gate</h3><p>A commit that ticks stage <i>n</i> is refused unless <code>docs/evidence/stage-&lt;n&gt;/report.md</code> has a row for each of the stage's checks.</p><div class="eg">refused: stage 2 has 3 checks, report has 2 rows</div></div>
+    <div class="guard"><h3>Ticked-checks gate</h3><p>A stage can't be closed if its <code>## Now</code> checks were never seen ticked.</p><div class="eg">refused: stage 3 checks never ticked</div></div>
+    <div class="guard"><h3>Risky-stage hold</h3><p>While autopilot is armed, a stage that names auth, money or personal data gets no file edits and no builders until you type the approval yourself. Claude can't approve its own stage.</p><div class="eg">held: "go?" is a question, not an approval</div></div>
+    <div class="guard"><h3>Outward block</h3><p>While autopilot is armed, <code>git push</code>, publishes, deploys and <code>gh</code> writes are blocked, along with your own <code>Keel outward:</code> commands. It sees through <code>sudo</code>, <code>sh -c</code>, <code>eval</code> and similar wrappers.</p><div class="eg">blocked: git push (outward-facing)</div></div>
+    <div class="guard"><h3>Secret guard</h3><p>Every commit is scanned for keys, tokens, JWTs, database URLs with passwords and <code>.env</code> files. Credential headers in evidence must be masked.</p><div class="eg">blocked: src/db.ts:12 database URL with password</div></div>
+    <div class="guard"><h3>Run keeper</h3><p>When a turn ends with stages left, the hook compacts the context once it's past 65% full, keeping the plan state, then prompts the manager to carry on. It gives up after three turns that leave the plan unchanged.</p><div class="eg" style="background:var(--sea-soft);color:var(--sea)">continue: stage 3 of 4</div></div>
+  </div>
+</section>
+
+<!-- ROADMAP -->
+<section id="roadmap">
+  <div class="col stack">
+    <span class="eyebrow">Scaling up</span>
+    <h2>Larger projects: a roadmap, one plan at a time</h2>
+    <p>When <code>/keel:plan</code> sees work too big for one plan (about eight or more stages, or a PRD with about fifteen or more requirements), it asks once whether to chart it. <code>/keel:charter</code> turns the PRD into milestones and a requirement ledger. Plans are then cut from it one milestone at a time, never all up front.</p>
+  </div>
+  <div class="road" aria-label="Example roadmap">
+    <div class="ms"><span class="id">M1 · done</span><h3>Accounts</h3><div class="bar"><i style="width:100%"></i></div><div class="st">6/6 requirements covered</div></div>
+    <div class="ms cur"><span class="id">M2 · current plan</span><h3>Plots</h3><div class="bar"><i style="width:40%"></i></div><div class="st">4/10 covered · needs M1</div></div>
+    <div class="ms"><span class="id">M3</span><h3>Tools</h3><div class="bar"><i style="width:0"></i></div><div class="st">0/8 · needs M2</div></div>
+    <div class="ms"><span class="id">M4</span><h3>Harvest</h3><div class="bar"><i style="width:0"></i></div><div class="st">0/7 · needs M2</div></div>
+  </div>
+  <div class="road-steps">
+    <div><b>Tag</b>Each check names the requirements it proves: <code>(req: PLT-02)</code>.</div>
+    <div><b>Fill</b>When a plan is archived, a requirement counts as covered only if a stage report has a passing row tagged with its ID.</div>
+    <div><b>Close</b>A milestone closes on the full suite, a coverage check, a fresh agent's spot check of evidence, and a review. The hook refuses the tick without <code>milestone-&lt;ID&gt;.md</code>.</div>
+    <div><b>Cut</b>The next plan is cut from the next milestone, then autopilot waits for your yes.</div>
+  </div>
+  <div class="statusline" style="margin-top:18px">keel · M2 10/31 · 2/5 done · next: 3. Booking calendar</div>
+</section>
+
+<!-- QUICK FIX -->
+<section id="fix">
+  <div class="col stack">
+    <span class="eyebrow">New in 0.10.0</span>
+    <h2>Small changes skip the stage machinery</h2>
+    <p><code>/keel:fix</code> handles a small change that's already decided and low-risk. It's built in the main session with no agents, checked with the test suite (plus one look at the app when the change is visible), logged as one line under <code>## Fixes</code> and committed alone. Anything that could be quietly wrong goes through a plan. Pick a request:</p>
+  </div>
+  <div class="triage">
+    <div class="reqs" id="reqs"></div>
+    <div class="verdict" id="verdict" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- COMMANDS -->
+<section id="commands">
+  <div class="col stack">
+    <span class="eyebrow">Reference</span>
+    <h2>The commands</h2>
+    <p>Claude also runs these on its own when they fit, except <code>/keel:approve</code>, which only you can type.</p>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>Command</th><th>Role</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>/keel:plan</code></td><td>Planner</td><td>Writes <code>docs/PLAN.md</code>: goal, stages with checks and a risk line, decisions. Surveys existing code and records a test baseline. Archives a finished plan and starts the next one.</td></tr>
+      <tr><td><code>/keel:charter</code></td><td>Cartographer</td><td>Turns a large PRD into <code>docs/ROADMAP.md</code> with milestones and a requirement ledger, and proposes locked decisions for <code>CLAUDE.md</code>.</td></tr>
+      <tr><td><code>/keel:stage</code></td><td>Builder loop</td><td>Runs the next stage end to end (scope, build, verify, review, commit), then stops for you.</td></tr>
+      <tr><td><code>/keel:autopilot</code></td><td>Project manager</td><td>Runs every remaining stage by delegating the work, and stops only for decisions that are yours.</td></tr>
+      <tr><td><code>/keel:approve</code></td><td>You</td><td>Releases a held risky stage. Only you can type it.</td></tr>
+      <tr><td><code>/keel:verify</code></td><td>Inspector</td><td>Runs type check, lint, tests, build and a dependency audit, then proves each check against the running product and saves the evidence.</td></tr>
+      <tr><td><code>/keel:review</code></td><td>Second pair of eyes</td><td>An agent that didn't write the code reviews it, with a security pass for risky stages. Findings are sorted into fix, defer or reject.</td></tr>
+      <tr><td><code>/keel:resume</code></td><td>Navigator</td><td>After a break or a reset, reads the plan and git, then tells you where things stand and what's next.</td></tr>
+      <tr><td><code>/keel:fix</code></td><td>Quick fix</td><td>Makes a small, low-risk change without a stage, logs one line and commits it.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>Keel 0.10.0 · based on <code>plugins/keel/README.md</code> and the skill files in <code>plugins/keel/skills/</code>.</footer>
+</div>
+
+<script>
+(function(){
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+/* ---------- MEMORY ---------- */
+const CTX=[
+  {t:'Plan ## Now: stage 3, Share mode, 1 of 3 checks ticked',k:'now'},
+  {t:'Decision: share links expire after 7 days',k:'plan'},
+  {t:'Last 40 tool outputs: test logs, diffs',k:'x'},
+  {t:'Builder report for stage 2',k:'x'},
+  {t:'Why we chose SQLite over Postgres',k:'plan'},
+  {t:'Half-read file: src/share/link.ts',k:'x'},
+];
+let memState='fresh';
+function renderMem(){
+  const box=$('#ctxItems');box.innerHTML='';
+  if(memState==='fresh'){ $('#ctxTag').textContent='session 1';
+    CTX.forEach(c=>{const d=document.createElement('div');d.className='ctx-item';d.textContent=c.t;box.appendChild(d)});
+  } else if(memState==='compact'){ $('#ctxTag').textContent='after compaction';
+    CTX.forEach(c=>{const d=document.createElement('div');d.className='ctx-item'+(c.k==='x'?' gone':c.k==='now'?' inj':'');d.textContent=c.t+(c.k==='now'?' (kept: the summarizer is told to keep stage state, and the hook re-injects ## Now)':c.k==='plan'?' (in PLAN.md)':'');box.appendChild(d)});
+  } else { $('#ctxTag').textContent='new session';
+    [['Plan ## Now, injected by the hook on the first request','inj'],['keel:resume: read PLAN.md, decisions.md, git log since the last stage','inj'],['keel:resume: uncommitted work on src/share/','inj'],['"Stage 3 is half done: 1 of 3 checks proven. Next: build the expiry check."','']].forEach(([t,c])=>{const d=document.createElement('div');d.className='ctx-item '+c;d.textContent=t;box.appendChild(d)});
+  }
+}
+$('#bCompact').onclick=()=>{memState='compact';renderMem()};
+$('#bClear').onclick=()=>{memState='clear';renderMem()};
+$('#bMemReset').onclick=()=>{memState='fresh';renderMem()};
+renderMem();
+
+/* ---------- STAGE LOOP ---------- */
+const STEPS=[
+ {t:'Scope',d:'<p>Write <code>## Now</code> for the stage: what it covers, a <b>risk line</b> (UI only? user input? auth? money?), and acceptance checks that each name a proof. A test is used wherever one can cover the check, otherwise the check says why not.</p><p class="mono" style="color:var(--muted)">- [ ] A booked plot can\'t be double-booked (proof: test)</p>'},
+ {t:'Build',d:'<p>Build the foundation first in the main tree. Independent leaves then go to subagents in their own <b>git worktrees</b> so they can\'t collide, and the manager merges each branch back after checking it. Untested code gets a test of its current behaviour before it changes.</p>'},
+ {t:'Verify',d:'<p><code>keel:verify</code> runs type check, lint, tests, build and a dependency audit, then proves every check against the <b>running product</b> with real requests, CLI runs or screenshots. The result is saved to <code>docs/evidence/stage-&lt;n&gt;/report.md</code>, with secrets masked. On the plan\'s last stage it also re-runs earlier checks that weren\'t proven by a test, so a regression shows up.</p>'},
+ {t:'Review',d:'<p>First the risk line is checked against what the diff actually touches. A "UI only" stage that reads user input gets its risk line corrected. Then an agent that <b>didn\'t write the code</b> reviews it, with a security pass when the stage touches input, auth, money, personal data, secrets or external services. Findings are checked and sorted into <b>fix</b>, <b>defer</b> or <b>reject</b>.</p>'},
+ {t:'Commit',d:'<p>Tick the proven checks, update the plan, and commit the stage <b>with its evidence</b>. The hook\'s gates refuse the commit if the report is missing a row, a check was never ticked, or a secret is in the diff.</p>'},
+ {t:'Stop',stop:true,d:'<p><code>/keel:stage</code> stops here and reports to you, linking the evidence. <b>Under autopilot it doesn\'t stop.</b> The manager notes one line for the final report and moves to the next stage.</p>'},
+];
+const loop=$('#loop');
+STEPS.forEach((s,i)=>{const b=document.createElement('button');b.className='step'+(s.stop?' stop':'');b.setAttribute('aria-pressed',i===0);b.innerHTML='<span class="n">'+String(i+1).padStart(2,'0')+'</span><span class="t">'+s.t+'</span>';b.onclick=()=>{[...loop.children].forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');$('#stepDetail').innerHTML=s.d};loop.appendChild(b)});
+$('#stepDetail').innerHTML=STEPS[0].d;
+
+/* ---------- AGENTS FAN ---------- */
+const FAN={
+ lean:{t:'<b>lean.</b> Work is built and verified in the main session, one agent at a time. Autopilot still delegates building, but to one builder at a time. Review always keeps one fresh reviewer.',n:'Lowest token spend. The hook refuses a second concurrent agent.'},
+ balanced:{t:'<b>balanced</b> (no line). Independent leaves go to subagents when that helps. This is the default.',n:'Written as no Agents line at all.'},
+ wide:{t:'<b>wide.</b> Every independent leaf gets its own agent and worktree, a fresh agent verifies, and correctness and security reviewers run in parallel.',n:'Raises spend, so it only takes effect after you confirm it in the session. A wide line inherited from an old session or a cloned repo counts as balanced until you say yes.'}
+};
+function drawFan(v){
+  const svg=$('#fanSvg');const box=(x,y,w,h,label,sub,col)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="var(--sheet)" stroke="${col||'var(--rule)'}" stroke-width="1.5"/><text x="${x+w/2}" y="${y+h/2-(sub?3:-4)}" text-anchor="middle">${label}</text>${sub?`<text class="sm" x="${x+w/2}" y="${y+h/2+12}" text-anchor="middle">${sub}</text>`:''}`;
+  const line=(x1,y1,x2,y2)=>`<path d="M${x1} ${y1} C ${x1} ${(y1+y2)/2}, ${x2} ${(y1+y2)/2}, ${x2} ${y2}" fill="none" stroke="var(--muted)" stroke-width="1.2"/>`;
+  let s=box(170,8,120,40,'Manager','main session','var(--sea)');
+  if(v==='lean'){
+    s+=line(230,48,230,78)+box(150,78,160,40,'Builder (one at a time)','main tree');
+    s+=`<text class="sm" x="230" y="134" text-anchor="middle">foundation → leaf A → leaf B</text>`;
+    s+=line(230,140,130,190)+line(230,140,330,190);
+    s+=box(60,190,140,40,'Verify','in main session')+box(260,190,140,40,'1 Reviewer','fresh agent','var(--signal)');
+  } else if(v==='balanced'){
+    s+=line(230,48,100,90)+line(230,48,360,90);
+    s+=box(30,90,140,40,'Foundation','main tree')+box(290,90,140,40,'Leaves in parallel','worktrees, when it helps');
+    s+=line(100,130,230,190)+line(360,130,230,190);
+    s+=box(150,190,160,40,'Verify + review','fresh reviewer','var(--signal)');
+  } else {
+    s+=line(230,48,60,90)+line(230,48,175,90)+line(230,48,290,90)+line(230,48,400,90);
+    s+=box(10,90,100,40,'Foundation','main tree')+box(125,90,100,40,'Leaf A','worktree')+box(240,90,100,40,'Leaf B','worktree')+box(350,90,100,40,'Leaf C','worktree');
+    s+=line(230,130,80,190)+line(230,130,230,190)+line(230,130,380,190);
+    s+=box(15,190,130,40,'Fresh verifier','built nothing','var(--signal)')+box(165,190,130,40,'Correctness','reviewer','var(--signal)')+box(315,190,130,40,'Security','reviewer','var(--signal)');
+  }
+  svg.innerHTML=s; $('#fanText').innerHTML=FAN[v].t; $('#fanNote').textContent=FAN[v].n;
+}
+function seg(el,cb){el.querySelectorAll('button').forEach(b=>b.onclick=()=>{el.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');cb(b.dataset.v)})}
+seg($('#segFan'),drawFan);drawFan('balanced');
+
+/* ---------- QUICK FIX TRIAGE ---------- */
+const REQS=[
+ ['Fix a typo on the About page','fix','Copy only. It\'s decided, UI only, and one revert undoes it. Claude says in one line that it fits the bar, then makes it.'],
+ ['Change the primary button colour','fix','A style tweak with no runtime behaviour. Checked with the suite plus one look at the running app.'],
+ ['Reword the CLI --help text','fix','CLI output text counts as UI.'],
+ ['Bump React from 18 to 19','plan','Dependency changes miss the bar. Upgrades break things in quiet ways, so this needs a stage, a baseline and verification.'],
+ ['Round invoice totals to 2 decimals','plan','Money, and logic that can be quietly wrong. It needs tests and a review.'],
+ ['Show the member\'s bio on their profile','plan','It renders user-supplied content, which is an injection risk, so it gets a security pass.'],
+ ['Tweak the CI workflow to cache node_modules','plan','CI and deploy config miss the bar.'],
+ ['Fix the date shown on the season banner','plan','Display only, but dates are logic that can be quietly wrong.'],
+];
+const reqs=$('#reqs');
+function showReq(i){const r=REQS[i];[...reqs.children].forEach((b,j)=>b.setAttribute('aria-pressed',j===i));
+  $('#verdict').innerHTML='<span class="eyebrow">Route</span><div class="route '+r[1]+'">'+(r[1]==='fix'?'/keel:fix':'/keel:plan')+'</div><p>'+r[2]+'</p>'+(r[1]==='fix'?'<p class="mono" style="margin-top:12px;color:var(--muted);font-size:.78rem">## Fixes<br>- 2026-11-10 · '+esc(r[0])+'</p>':'<p style="margin-top:12px;color:var(--muted);font-size:.86rem">The plan gets a stage with a risk line and checks. If a fix grows past the bar while it\'s being made, keel:fix stops and offers keel:plan.</p>');}
+REQS.forEach((r,i)=>{const b=document.createElement('button');b.textContent=r[0];b.onclick=()=>showReq(i);reqs.appendChild(b)});
+showReq(0);
+
+/* ---------- AUTOPILOT SIM ---------- */
+const STAGES=[
+ {n:1,name:'Plot map',risk:'UI only',checks:['Map shows every plot with its status (proof: test)','Map fits at phone width (proof: screenshot)'],found:'plot model + map shell',leaves:['map grid','status legend'],review:false},
+ {n:2,name:'Booking',risk:'logic (booking rules)',checks:['Booking a free plot marks it booked (proof: test)','A booked plot can\'t be double-booked (proof: test)'],found:'bookings table + API route',leaves:['booking API','booking form'],review:true,failOnce:1},
+ {n:3,name:'Member login',risk:'auth, personal data',checks:['A member logs in with email and password (proof: test)','A wrong password is refused and rate-limited (proof: test)'],found:'session store',leaves:['login page','password reset'],review:true,security:true,held:true},
+ {n:4,name:'Season dates',risk:'logic (dates)',checks:['Booking closes at season end (proof: test)','Season dates show in the member\'s timezone (proof: test)'],found:'season config',leaves:['calendar view','closing job'],review:true,last:true},
+];
+let st, runId=0, playing=false, speed=1, level='balanced', approvalResolve=null;
+function initState(){st={mode:null,stageIdx:-1,status:STAGES.map(()=>'todo'),ticks:[],decisions:[],evidence:[],ctx:12,fixes:0}}
+function renderPlan(flash){
+  const s=st, cur=STAGES[s.stageIdx];
+  let h='<div class="fn"><span>docs/PLAN.md</span><span>'+(s.mode?'':'')+'</span></div>';
+  h+='<div class="ln"># Plotline plan</div><h4>## Goal</h4><div class="ln">Members can see the plot map, book a plot for the season and log in.</div>';
+  h+='<h4>## Now</h4>';
+  if(s.mode) h+='<div class="ln mode'+(s.mode.startsWith('paused')?' paused':'')+(flash==='mode'?' flash':'')+'">Mode: '+esc(s.mode)+'</div>';
+  if(level!=='balanced') h+='<div class="ln">Agents: '+level+(level==='wide'?' — confirmed 2026-11-10 09:14':'')+'</div>';
+  if(s.stageIdx===STAGES.length) h+='<div class="ln chk done">All stages done.</div>';
+  else if(cur){
+    h+='<div class="ln">Stage '+cur.n+'. '+esc(cur.name)+'</div><div class="ln">Risk: '+esc(cur.risk)+'</div>';
+    cur.checks.forEach((c,i)=>{const d=s.ticks[i];h+='<div class="ln chk'+(d?' done':'')+(flash==='t'+i?' flash':'')+'">- ['+(d?'x':' ')+'] '+esc(c)+'</div>'});
+  } else h+='<div class="ln" style="color:var(--muted)">Plan approved. Waiting for autopilot.</div>';
+  h+='<h4>## Stages</h4>';
+  STAGES.forEach((g,i)=>{const stt=s.status[i];h+='<div class="ln stage-row '+stt+'">- ['+(stt==='done'?'x':' ')+'] '+g.n+'. '+esc(g.name)+(stt==='active'?'  ←':'')+(stt==='held'?'  (held)':'')+'</div>'});
+  h+='<h4>## Decisions</h4>';
+  if(!s.decisions.length) h+='<div class="ln" style="color:var(--muted)">—</div>';
+  s.decisions.forEach((d,i)=>h+='<div class="ln'+(flash==='dec'&&i===s.decisions.length-1?' flash':'')+'">- 2026-11-10 · '+esc(d)+'</div>');
+  h+='<h4>docs/evidence/</h4>';
+  if(!s.evidence.length) h+='<div class="ln" style="color:var(--muted)">—</div>';
+  s.evidence.forEach((e,i)=>h+='<div class="ln'+(flash==='ev'&&i===s.evidence.length-1?' flash':'')+'">'+esc(e)+'</div>');
+  $('#planfile').innerHTML=h;
+}
+function setGauge(){const v=Math.round(st.ctx);$('#gauge').style.width=v+'%';$('#gaugeN').textContent=v+'%'}
+function log(who,msg,cls){const l=$('#log');const d=document.createElement('div');if(cls)d.className=cls;d.innerHTML='<span class="who">'+who+'</span><span>'+msg+'</span>';l.appendChild(d);l.scrollTop=l.scrollHeight}
+let chipN=0;
+function chip(lane,label,state,wt){const c=document.createElement('span');c.className='chip '+(state||'run');c.id='c'+(++chipN);c.innerHTML='<span class="dot"></span><span>'+esc(label)+'</span>'+(wt?'<span class="wt">'+esc(wt)+'</span>':'');$('#L-'+lane).appendChild(c);return c}
+function setChip(c,state,label){c.className='chip '+state;if(label)c.children[1].textContent=label}
+function clearLanes(){['mgr','bld','ver','rev','hook'].forEach(l=>$('#L-'+l).innerHTML='')}
+function wait(ms){const id=runId;return new Promise((res,rej)=>{let left=ms;const tick=()=>{if(id!==runId)return rej('abort');if(playing)left-=60*speed;if(left<=0)res();else setTimeout(tick,60)};setTimeout(tick,60)})}
+function ctxAdd(n){st.ctx=Math.min(96,st.ctx+n);setGauge()}
+
+async function runStage(i){
+  const g=STAGES[i];
+  st.stageIdx=i;st.status[i]='active';st.ticks=[];clearLanes();renderPlan();
+  const m=chip('mgr','Scope stage '+g.n+': write ## Now');
+  log('manager','Scoping stage '+g.n+' ('+esc(g.name)+'). Risk: <b>'+esc(g.risk)+'</b>.');
+  await wait(1100);setChip(m,'done');ctxAdd(3);
+
+  if(g.held){
+    st.status[i]='held';st.mode='paused — stage 3 names auth, personal data; waiting for approval';renderPlan('mode');
+    chip('hook','hold: no edits, no builders','hold');
+    log('hook','Stage 3 is held. File edits outside the plan and builder agents are blocked. Notification sent: <i>reply "yes", "go", "approve" or /keel:approve</i>.','hook');
+    log('manager','Paused. Stage 3 adds login and stores emails and password hashes. I recommend bcrypt with a per-account rate limit. Reply <b>yes</b> to build it.');
+    $('#reply').classList.add('on');
+    await new Promise(res=>{approvalResolve=res});
+    $('#reply').classList.remove('on');
+    st.status[i]='active';st.mode='autopilot';st.decisions.push('Stage 3 (auth) approved by the user; security review still runs');renderPlan('dec');
+    $('#L-hook').innerHTML='';chip('hook','hold released','done');
+    await wait(800);
+  }
+
+  // build
+  const fb=chip('bld','Foundation: '+g.found,'run','main tree');
+  log('manager','Briefing a builder on the foundation, with the stage\'s checks quoted from the plan.');
+  await wait(1300);setChip(fb,'done');ctxAdd(2);
+  if(level==='lean'){
+    for(const l of g.leaves){const c=chip('bld',l,'run','main tree');await wait(1000);setChip(c,'done');ctxAdd(1.5)}
+    log('manager','Leaves built one at a time (lean).');
+  } else {
+    const cs=g.leaves.map(l=>chip('bld',l,'run','worktree'));
+    if(level==='wide'){cs.push(chip('bld','tests for '+g.leaves[0],'run','worktree'))}
+    log('manager','Leaves fanned out in parallel, each in its own worktree.');
+    await wait(1400);cs.forEach(c=>setChip(c,'done'));ctxAdd(2);
+    log('manager','Merged each builder branch after checking it.');
+  }
+  // verify
+  const verLane=level==='lean'?'mgr':'ver';
+  let v=chip(verLane,'keel:verify'+(level==='lean'?' (main session)':''),'run');
+  log(level==='lean'?'manager':'verifier','Running type check, lint, tests and build, then each check against the running app.');
+  await wait(1400);ctxAdd(3);
+  if(g.failOnce){
+    setChip(v,'fail','check 2 failed');
+    log('verifier','<b style="color:var(--bad)">FAIL</b>: a second booking for plot 14 returned 201, expected 409.');
+    st.ticks[0]=true;renderPlan('t0');
+    const fx=chip('bld','fix: double-booking (failing output attached)','run','main tree');
+    log('manager','The builder said it was done. The evidence disagrees, so the failure goes back to the builder with the output.');
+    await wait(1300);setChip(fx,'done');
+    v=chip(verLane,'re-verify','run');await wait(1000);
+  }
+  setChip(v,'done','verify: all checks pass');
+  for(let k=0;k<g.checks.length;k++){st.ticks[k]=true;renderPlan('t'+k);await wait(350)}
+  st.evidence.push('stage-'+g.n+'/report.md');renderPlan('ev');
+  log(level==='lean'?'manager':'verifier','Evidence saved to <code>docs/evidence/stage-'+g.n+'/</code>.'+(g.last?' Re-ran stage 1\'s screenshot check (not test-proven): still passes.':''));
+  // review
+  if(g.review){
+    if(g.security&&level==='wide'){
+      const a=chip('rev','correctness review'),b=chip('rev','security review');await wait(1400);setChip(a,'done');setChip(b,'done');
+    } else {const r=chip('rev',g.security?'review + security pass':'fresh-eyes review');await wait(1300);setChip(r,'done')}
+    ctxAdd(3);
+    if(g.security) log('reviewer','Security pass found the reset token wasn\'t single-use. Marked <b>fix</b>, fixed by a builder and re-verified.');
+    else if(g.n===2) log('reviewer','2 findings: <b>fix</b> missing index on bookings.plot_id; <b>defer</b> waitlist idea (added to open questions).');
+    else log('reviewer','No fix-now findings. One <b>reject</b>: suggested a date library swap, outside the plan\'s intent.');
+    if(g.n===2){st.decisions.push('Bookings indexed by plot_id (review finding)');renderPlan('dec')}
+  } else log('manager','Risk line checked against the diff: still UI only. No review needed.');
+  // commit
+  const sg=chip('hook','secret guard');await wait(500);setChip(sg,'done','secret guard ✓');
+  const eg=chip('hook','evidence gate');await wait(500);setChip(eg,'done','evidence gate: '+g.checks.length+'/'+g.checks.length+' rows ✓');
+  st.status[i]='done';renderPlan();
+  const hash=['a41c9e2','7be0d13','c93f5a8','e1d2047'][i];
+  log('manager','Committed <code>'+hash+'</code> "Stage '+g.n+': '+esc(g.name)+'" with its evidence. Going straight to the next stage.');
+  await wait(700);
+  // turn end
+  if(!g.last){
+    if(st.ctx>65){
+      const c=chip('hook','compacting at '+Math.round(st.ctx)+'%');log('hook','Turn ended with stages left. Context is past 65%, so compacting and keeping the plan state.','hook');
+      await wait(1000);st.ctx=18;setGauge();setChip(c,'done','compacted → 18%');
+    }
+    const c2=chip('hook','prompt: carry on');log('hook','Prompting the manager to continue with stage '+(g.n+1)+'.','hook');await wait(700);setChip(c2,'done');
+  }
+}
+async function run(){
+  const id=++runId;playing=true;
+  try{
+    st.mode='autopilot';renderPlan('mode');
+    log('you','"Plan looks good. Take it from here."','you');
+    log('manager','Taking over. 4 stages left. I\'ll stop before stage 3 (auth, personal data) and before anything outward-facing.');
+    await wait(1000);
+    for(let i=0;i<STAGES.length;i++){if(id!==runId)return;await runStage(i)}
+    st.mode=null;st.stageIdx=STAGES.length;renderPlan();clearLanes();
+    chip('mgr','final report','done');
+    log('manager','<b>All stages done.</b> The Mode line is removed. Report: one line per stage, each linking its evidence, plus 3 decisions I made and 1 deferred question.');
+    await wait(700);
+    const p=chip('hook','git push blocked','fail');
+    log('hook','<code>git push</code> is blocked while autopilot is armed. Pushing is outward-facing, so it\'s your call.','hook');
+    $('#sPlay').textContent='✓ Done';$('#sPlay').disabled=true;
+  }catch(e){if(e!=='abort')throw e}
+}
+function reset(){runId++;playing=false;approvalResolve=null;initState();clearLanes();$('#log').innerHTML='';$('#reply').classList.remove('on');renderPlan();setGauge();
+  $('#sPlay').textContent='▶ Start autopilot';$('#sPlay').disabled=false;
+  log('you','You approved a 4-stage plan. Press <b>Start autopilot</b> to hand it to the manager.','you')}
+$('#sPlay').onclick=()=>{
+  if(st.mode===null&&st.stageIdx===-1){run();$('#sPlay').textContent='❚❚ Pause';return}
+  playing=!playing;$('#sPlay').textContent=playing?'❚❚ Pause':'▶ Resume';
+};
+$('#sReset').onclick=reset;
+seg($('#segAgents'),v=>{level=v;reset();if(v==='wide')log('you','"Yes, go wide." Confirmed in this session, so the hook stamps it. An unstamped wide line would count as balanced.','you')});
+seg($('#segSpeed'),v=>{speed=+v});
+$('#reply').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  const r=b.dataset.r;log('you','"'+esc(b.textContent)+'"','you');
+  if(r==='yes'){log('hook','The message opens with "yes" followed by a comma, so it counts as an approval. Hold released and the approval logged as a dated decision.','hook');if(approvalResolve){const f=approvalResolve;approvalResolve=null;f()}}
+  else if(r==='q') log('hook','"go?" ends with a question mark, so it\'s a question. The stage stays held.','hook');
+  else if(r==='words') log('hook','"approve" is followed by more words on the same line, so it reads as a request rather than an approval. The stage stays held.','hook');
+  else {log('hook','Not an approval. Still held.','hook');log('manager','Stages 1 and 2 are committed with evidence. Stage 3 is waiting on your approval, and the only question I\'m asking is whether to build it.')}
+});
+initState();renderPlan();setGauge();reset();
+
+})();
+</script>
+
+</body></html>

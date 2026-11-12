@@ -13,6 +13,9 @@ Open: none
 ## Stages
 - [x] 1. Quick-fix path — keel:fix from the 87c281b draft, both evals green, 0.10.0, merged and pushed
 
+## Fixes
+- 2026-11-12 · Added docs/field-guide.html, a Keel-only visual explainer (no GSD comparison), linked from the README — checked in headless Chromium: light, dark and phone width, no JS errors, autopilot sim runs
+
 ## Decisions
 - 2026-11-10 · keel:fix ships as a one-stage plan, not through keel:fix — it adds a skill and changes the hook's working rules, so it changes runtime behaviour and misses its own bar.
 - 2026-11-10 · The 87c281b draft is the stage's starting point, reviewed rather than rebuilt — it already passes the suite (281) and validate.

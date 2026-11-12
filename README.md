@@ -2,6 +2,8 @@
 
 A Claude Code plugin for long, multi-stage work. It keeps that work on course without a heavyweight process, and works on new projects and existing ones.
 
+For a visual walkthrough (interactive autopilot simulation, the stage loop, guardrails and roadmaps), download [docs/field-guide.html](docs/field-guide.html) and open it in a browser.
+
 ## Why "keel"
 
 A keel is the spine along the bottom of a ship. It's the first piece laid when a ship is built, and it does two jobs. It stops the ship from drifting sideways when the wind pushes on it, and it keeps the ship upright, on an even keel. It does both from below the waterline, adding almost nothing to the ship you see.
