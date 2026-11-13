@@ -1,34 +1,36 @@
 # Keel plan
 
 ## Goal
-Ship the quick-fix path as keel 0.10.0. `keel:fix` lets a small, already-decided, low-risk change (UI only or no runtime behaviour, easy to undo, outside an open stage) skip the stage: built and checked in the main session with no agents, logged as one line under `## Fixes`, committed alone. plan, stage and autopilot recommend it when a request fits, and anything touching user input, auth, money, personal data, secrets, external services, migrations or quietly-wrong logic misses the bar. The draft is commit 87c281b on `quick-fix-path`. Done looks like this: hook tests and both quick-fix evals pass, a live headless run shows the installed plugin offering `keel:fix`, the docs and version say 0.10.0, and the branch is merged and pushed to origin/main so the marketplace serves it.
+Ship an unattended autopilot as keel 0.11.0, for a user who wants a whole approved plan run without stopping at the gates that wait for their word. The user arms it themselves by typing `/keel:autopilot unattended` (add `outward` to also let push, publish and deploy through). The hook then stops holding risky stages, and Claude makes its own call on judgment pauses (scope, product choices, trade-offs, a plan that turns out wrong), picking its recommended option and logging it as a dated `(unattended)` decision. These stay in place: the commit gate on unticked checks and missing evidence, the secret guard, the security review on risky stages, a pause after three failed fix rounds or a report the evidence contradicts, and never building a plan the user hasn't seen. Only the user's own typed prompt arms it, never a Mode line, a skill Claude runs or a file. It disarms with autopilot. Done means hook tests and validate are green, the skill, README and version say 0.11.0, and it's committed on main.
 
 ## Baseline
-2026-11-10 · tests: 281 pass, 0 fail (`claude plugin test plugins/keel`, on the 87c281b draft) · validate: passed (`claude plugin validate plugins/keel`)
+2026-11-13 · tests: 282 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed with warnings (`claude plugin validate plugins/keel`)
 
 ## Now
-All stages done. The plan's goal is met: keel 0.10.0, merged into main and pushed to origin/main on 2026-11-10 (95b0a41), so the marketplace serves it.
+Stage 1 of 2 · Unattended in the hook
+Agents: lean
+Risk: permissions (loosens the risky-stage hold and the outward check)
+Checks:
+- [ ] The user's own `/keel:autopilot unattended` prompt arms autopilot unattended. The same words from a plugin prompt, the Skill tool's args, or a Mode line saying `unattended` don't (proof: test)
+- [ ] While unattended, a stage whose risk line names auth, money or personal data (or a project hold word) isn't held: Edit and Agent go through, the band reads `autopilot unattended`, and the user is told once that it's being built without a hold (proof: test)
+- [ ] While unattended, outward-facing commands are still denied, built-in and project rules both. With `/keel:autopilot unattended outward` they go through (proof: test)
+- [ ] While unattended, the checks, evidence and secret commit gates refuse exactly as before (proof: test)
+- [ ] Removing the Mode line, or a plain `/keel:autopilot` prompt, ends unattended; a new session starts without it (proof: test)
+- [ ] The working rules tell Claude it is unattended, what it may decide itself, and what still pauses (proof: test)
 Open: none
 
 ## Stages
-- [x] 1. Quick-fix path — keel:fix from the 87c281b draft, both evals green, 0.10.0, merged and pushed
-
-## Fixes
-- 2026-11-12 · Added docs/field-guide.html, a Keel-only visual explainer (no GSD comparison), linked from the README — checked in headless Chromium: light, dark and phone width, no JS errors, autopilot sim runs
+- [ ] 1. Unattended in the hook — arming from the user's prompt only, no risky hold, outward behind its own word, gates kept, tests
+- [ ] 2. Skill, docs, 0.11.0 — autopilot's "Unattended runs" section, the README, the version
 
 ## Decisions
-- 2026-11-10 · keel:fix ships as a one-stage plan, not through keel:fix — it adds a skill and changes the hook's working rules, so it changes runtime behaviour and misses its own bar.
-- 2026-11-10 · The 87c281b draft is the stage's starting point, reviewed rather than rebuilt — it already passes the suite (281) and validate.
-- 2026-11-10 · Version 0.10.0 — a new skill is a feature, as 0.8.0 and 0.9.0 were minor bumps; the marketplace entry has no version, so plugin.json's is what tells installed copies to update.
-- 2026-11-10 · The `quick-fix` eval's `logs-one-fix-line` grader uses `focus: files`, not `final_state` — the eval tool rejects `final_state`, and `files` is how other cases judge the end state.
-- 2026-11-10 · ~~Agents line carried over from the last plan as it stands; it counts as balanced until the user confirms wide in this session.~~ Replaced below.
-- 2026-11-10 · Agents: balanced (no line), from the user — the draft is one small, mostly built change, so wide would add tokens for little speed.
-- 2026-11-10 · `## Fixes` stays with the plan it was logged under and is archived with it, as drafted; the new plan starts without one — from the user: the archive keeps the whole record and a new plan doesn't carry work it didn't do.
+- 2026-11-13 · Design from the user ("go with your recommendations"): unattended skips the risky-stage hold and self-approves judgment pauses, each logged as a dated `(unattended)` decision. The checks/evidence gate stays, since it means unverified, not risky. Outward-facing commands need their own `outward` word, since they can't be undone. Three failed fix rounds still pause. Arming follows keel's rule that only the user's words in the session count.
+- 2026-11-13 · The word is `unattended`, not `lean`: `lean` is already an Agents level. The user's "autopilot lean" means running this plan under autopilot with `Agents: lean`.
+- 2026-11-13 · Arming is read from the user's prompt text (`/keel:autopilot` followed by `unattended`, then optionally `outward`), never from the Skill tool's args. Claude writes those args, the same reason `/keel:approve` clears only from prompt text (2026-11-09).
+- 2026-11-13 · The security review still runs on risky stages, and unattended never crosses into a plan the user hasn't seen (2026-11-08). It removes waiting for the user, not the checks.
+- 2026-11-13 · Agents: lean, from the user.
+- 2026-11-13 · Scale: two stages, one feature, so it's planned as one plan with no charter.
 
-- 2026-11-10 · Stage 1 review: the fix bar is tightened. A bug fix qualifies only in UI-only code. CLI output text counts as UI. Dependencies, CI, deploy and container config, build or env config that changes what reaches the client, security headers, rendering user-supplied content, and the project's `Keel risk:` words all miss the bar. Several fixes toward one outcome are a stage. A fix needs no uncommitted stage work in the tree. verify's description no longer claims fixes. — the draft's "contained bug fix" and "config that only the build reads" let runtime and security-relevant changes past review.
-- 2026-11-10 · When Claude judges a request fits the bar, it says so in one line, naming why, before the first edit, then goes on without waiting — from the user, after the review flagged silent self-routing: the call is visible before the commit and undone by one revert, without a round trip per typo. The hook's working rules and the `quick-fix` eval (`announces-fit`) carry it.
-- 2026-11-10 · The quick-fix scaffolds set a repo-local git author — a headless run on a machine with no global identity couldn't commit, so the commit grader tested the machine, not keel.
-- 2026-11-10 · The working rules' skill list names `charter` too — it was left out when 0.8.0 added it; fixed here since the same line changed.
 ## Open questions
 - 18 other eval scaffolds set the git author only for their own commit (`git -c user.name=eval …`), so on a machine with no global git identity the agent can't commit and any commit grader fails; the two quick-fix scaffolds now set a repo-local author (stage 1). Apply the same to the rest in a later plan.
 - Deferred from stage 1 review: no eval covers the bar's other misses (auth, secrets, a dependency bump, CI config, rendering user content), a fix asked mid-stage or under a held or autopilot stage, or the one-line announcement under an open plan; `quick-fix-risky` covers money only.
@@ -63,3 +65,4 @@ Open: none
 - 2026-11-08 · Agents level: an `Agents: lean | balanced | wide` line in `## Now` that the skills follow, shown in the status line, `lean` capped at one running agent by the hook, and `wide` honoured only once the user confirms it in-session (keel 0.7.0) — [plan](plans/2026-11-08-agents-level.md) · [evidence](plans/2026-11-08-agents-level/evidence/)
 - 2026-11-08 · Large projects: `keel:charter` turns a PRD into `docs/ROADMAP.md`, plans are cut one milestone at a time, the archive fills coverage from evidence, milestones close on suite, coverage and fit; standing decisions move to `docs/decisions.md` past ten; projects add hold words and outward commands in `CLAUDE.md` (keel 0.8.0, published) — [plan](plans/2026-11-08-large-projects.md) · [evidence](plans/2026-11-08-large-projects/evidence/)
 - 2026-11-09 · Explicit approval and secret formats: a held risky stage is released only by an approval reply or `/keel:approve`, and the secret guard catches JWTs, bearer, GitLab, npm, PyPI and SendGrid tokens and unmasked credential headers in evidence (keel 0.9.0, published) — [plan](plans/2026-11-09-explicit-approval-secret-formats.md) · [evidence](plans/2026-11-09-explicit-approval-secret-formats/evidence/)
+- 2026-11-10 · Quick-fix path: `keel:fix` lets a small, already-decided, low-risk change skip the stage, logged under `## Fixes` and committed alone (keel 0.10.0, published) — [plan](plans/2026-11-10-quick-fix-path.md) · [evidence](plans/2026-11-10-quick-fix-path/evidence/)
