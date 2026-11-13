@@ -7,18 +7,12 @@ Ship an unattended autopilot as keel 0.11.0, for a user who wants a whole approv
 2026-11-13 · tests: 282 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed with warnings (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 2 of 2 · Skill, docs, 0.11.0
-Mode: autopilot
+All stages done. The plan's goal is met: keel 0.11.0 with unattended autopilot, committed on main (not pushed; the installed copy updates once it's pushed or reinstalled).
 Agents: lean
-Risk: UI only (instructions and docs; no hook code)
-Checks:
-- [ ] keel:autopilot's skill has an "Unattended runs" section that matches the hook: how the user arms it (`/keel:autopilot unattended [outward]`), what Claude decides itself and logs as `(unattended)` decisions, what still pauses, the security review kept, and what ends it (a plain `/keel:autopilot`, the Mode line removed, a new Goal, re-arming without the word) (proof: read against register.ts's `unattendedRules`, a test can't judge prose)
-- [ ] The README documents unattended next to autopilot, outward's extra word and the band text, and its guard list says which guards unattended lifts (proof: read, a test can't judge prose)
-- [ ] plugin.json says 0.11.0, and tests and validate stay green (proof: test, `claude plugin validate`)
 Open: none
 ## Stages
 - [x] 1. Unattended in the hook — arming from the user's prompt only, no risky hold, outward behind its own word, gates kept, tests
-- [ ] 2. Skill, docs, 0.11.0 — autopilot's "Unattended runs" section, the README, the version
+- [x] 2. Skill, docs, 0.11.0 — autopilot's "Unattended runs" section, the README, the version
 
 ## Decisions
 - 2026-11-13 · Design from the user ("go with your recommendations"): unattended skips the risky-stage hold and self-approves judgment pauses, each logged as a dated `(unattended)` decision. The checks/evidence gate stays, since it means unverified, not risky. Outward-facing commands need their own `outward` word, since they can't be undone. Three failed fix rounds still pause. Arming follows keel's rule that only the user's words in the session count.
@@ -31,6 +25,8 @@ Open: none
 - 2026-11-13 · Stage 1 review, rejected: the once-only notice lives at module level like `heldNoticeFor`, so it can be skipped after `/clear` on the same stage key. It's consistent with the existing notice and costs one missed notification, not a guard.
 
 ## Open questions
+- `docs/field-guide.html` still says 0.10.0 and doesn't cover unattended; it needs a content update, not just a number bump — for the user.
+- In an unattended `outward` run, migrating or deleting real data and spending money still pause (the skill text); only push, publish, deploy and sending data out open. Decided by the stage 2 builder, in line with the Goal.
 - Stage 1 review, deferred: `sdk` counts as a user origin, so in a CI host that turns issue text into prompts, text opening with `/keel:autopilot unattended outward` arms a run that lifts every hold and allows push. That makes the known `sdk` approval question larger. Requiring `composer`/`bridge` for `outward` would also block headless runs the user starts themselves, so it's a call for the user.
 - `long pathological lines parse in well under 100 ms` failed at 300 ms twice in the stage 1 reviewer's runs and passed in verify's: it's timing-sensitive under load.
 - 18 other eval scaffolds set the git author only for their own commit (`git -c user.name=eval …`), so on a machine with no global git identity the agent can't commit and any commit grader fails; the two quick-fix scaffolds now set a repo-local author (stage 1). Apply the same to the rest in a later plan.

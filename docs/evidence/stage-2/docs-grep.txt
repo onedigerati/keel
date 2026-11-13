@@ -1,0 +1,18 @@
+$ grep -n -i unattended plugins/keel/README.md README.md plugins/keel/skills/autopilot/SKILL.md
+plugins/keel/README.md:5:New in 0.11.0: unattended autopilot. Type `/keel:autopilot unattended` and autopilot runs the whole approved plan without waiting for you: risky stages aren't held, and Claude makes the judgment 
+plugins/keel/README.md:58:| `/keel:autopilot` | Autopilot: Claude takes over an approved plan as project manager and runs every remaining stage without stopping between them. Builders are subagents (one at a time under `
+plugins/keel/README.md:87:- **Autopilot stops, enforced.** While autopilot is armed: outward-facing commands are blocked (`git push`, package publishes, deploys, `gh` writes, requests that send data to an outside host); 
+plugins/keel/README.md:88:- **Unattended runs.** Only your own typed message arms one: `/keel:autopilot unattended` at its start, the word right after the command in any case, and `outward` right after that to also allow
+plugins/keel/skills/autopilot/SKILL.md:3:description: Take over an approved plan as its project manager and see it through — run every remaining stage through build, verify, review and commit without stopping between s
+plugins/keel/skills/autopilot/SKILL.md:13:- Add `Mode: autopilot` to `## Now`. Turning the line on in this session, or the user starting this skill, is what arms the keel hook; a Mode line already in the plan from an ear
+plugins/keel/skills/autopilot/SKILL.md:49:In an unattended run, fewer of these pause: section 4.
+plugins/keel/skills/autopilot/SKILL.md:51:## 4. Unattended runs
+plugins/keel/skills/autopilot/SKILL.md:53:An unattended run is one the user armed by typing `/keel:autopilot unattended` themselves, as the start of their message. Adding `outward` (`/keel:autopilot unattended outward`) 
+plugins/keel/skills/autopilot/SKILL.md:55:It removes waiting for the user, not the checks. Unattended, you decide these yourself instead of pausing:
+plugins/keel/skills/autopilot/SKILL.md:60:For each, pick the option you'd recommend, log it in the plan's decisions as a dated decision marked `(unattended)` with the why (`- 2026-11-13 · (unattended) Session cookie ove
+plugins/keel/skills/autopilot/SKILL.md:67:Kept in every unattended run: `keel:review`'s security pass on every risky stage, and the commit gates (unticked checks, missing evidence, secrets, a milestone ticked without its
+plugins/keel/skills/autopilot/SKILL.md:69:What ends it: the user typing a plain `/keel:autopilot`; the Mode line removed; a new Goal in the plan; or autopilot armed again without the word: you starting this skill from a 
+plugins/keel/skills/autopilot/SKILL.md:71:The final report (section 5) lists every `(unattended)` decision first, before anything else, so the user sees what you decided for them.
+plugins/keel/skills/autopilot/SKILL.md:76:- in an unattended run, first: every decision marked `(unattended)`, each with its date, what you chose and why;
+README.md:20:- **New in 0.11.0.** `/keel:autopilot unattended` runs an approved plan without waiting for you: risky stages aren't held, and Claude makes the judgment calls the plan doesn't settle, logging each as a dated
+README.md:27:- **Autopilot** runs an approved plan stage after stage. It pauses, enforced by hooks, before risky stages and anything outward-facing, unless you arm it unattended (`/keel:autopilot unattended`, plus `outwa
