@@ -3,6 +3,8 @@ declare module 'claude-code' {
     keel: {
       /** Autopilot may drive this session: set when the user starts keel:autopilot here, never read from the repo. */
       armed: boolean
+      /** How unattended this session's autopilot runs: set only by the user's own `/keel:autopilot unattended [outward]` prompt, reset by a plain `/keel:autopilot` or the Mode line going. */
+      unattended: 'off' | 'on' | 'outward'
       /** The plan's mode at the last look this session (`none` without a Mode line), to see it change. */
       seenMode: 'autopilot' | 'paused' | 'none'
       /** Risky stages (by their `## Now` heading line) the user has approved (`isApproval`) under autopilot, driving or paused. */

@@ -16,6 +16,7 @@ import {
   samePath,
   stampOf,
   tickedMilestones,
+  unattendedOf,
 } from '../hooks/register.ts'
 import { addScope, commitScope, gitCall, outwardReason, parseCommands } from '../hooks/shell.ts'
 import { parseProjectRules, projectOutward, projectRisky } from '../hooks/project.ts'
@@ -3136,4 +3137,289 @@ test('under autopilot, bypasses through the parser are denied through the hook',
   expect(await bash('echo git push | sh')).toContain('(a shell reading its script from standard input)')
   expect(await bash('cd "$(git rev-parse --show-toplevel)" && ./scripts/ship.sh')).toContain('(./scripts/ship.sh, a `Keel outward:` rule in CLAUDE.md)')
   for (const line of EVERYDAY) expect([line, await bash(line)]).toEqual([line, undefined])
+})
+
+// ---- autopilot unattended: armed by the user's own words, no risky hold, outward behind its own word, gates kept ----
+
+/** What the band reads while an unattended run drives stage 2 of 3. */
+const UNATTENDED_BAND = 'keel · autopilot unattended · 1/3 done · next: 2. Share mode'
+
+/**
+ * Autopilot on stage 2 of 3 (`risk` on its risk line, `files` beside the plan), armed as a fresh session arms it: the
+ * user's `words` as its first prompt, Claude starting keel:autopilot with the words after the command as the Skill's args,
+ * then the Mode line set. Returns what to look at: an Edit outside the plan, an Agent call, a Bash line, the plan section.
+ */
+async function armedBy($: Engine, on: On, words: string, opts: { tag: string; risk?: string; files?: Record<string, string> }) {
+  const now = (line: string) => planWith(opts.risk ? `${line}\nRisk: ${opts.risk}` : line, opts.tag)
+  const plan: Parameters<typeof engine>[1] & { text: string } = { text: now('Open: none'), files: opts.files }
+  const sent = engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.prompt.submit({ text: words, origin: { kind: 'composer' } })
+  // the session's first look comes after the prompt, with no Mode line yet
+  await compose()
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot', args: words.replace(/^\s*\/keel:autopilot\s*/, '') } as never)
+  plan.text = now('Mode: autopilot')
+  await $.turn.complete(ended('t1'))
+  const edit = async () => (await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/login.ts' })).deny
+  const agent = async () => (await $.tool.call({ tool: 'Agent', description: 'build', prompt: 'build stage 2' } as never)).deny
+  const bash = async (command: string) => (await $.tool.call({ tool: 'Bash', command })).deny
+  const say = (text: string, kind: 'composer' | 'plugin' = 'composer') =>
+    $.prompt.submit({ text, origin: kind === 'plugin' ? { kind, name: 'other' } : { kind } } as never)
+  return { plan, now, sent, compose, edit, agent, bash, say }
+}
+
+test('the words after /keel:autopilot: unattended, then outward, as whole words in any case', () => {
+  const read = (texts: string[]) => texts.map(t => [t, unattendedOf(t)])
+  const on = ['/keel:autopilot unattended', '  /keel:autopilot   UNATTENDED', '/keel:autopilot unattended please', '/keel:autopilot unattended, outward', '/keel:autopilot unattended\noutward-ish']
+  const outward = ['/keel:autopilot unattended outward', '/keel:autopilot Unattended Outward', '/keel:autopilot unattended outward now', '/keel:autopilot unattended\noutward']
+  const off = ['/keel:autopilot', '/keel:autopilot unattendedly', '/keel:autopilot unattended-ish', '/keel:autopilot outward unattended', '/keel:autopilot run it unattended', 'run /keel:autopilot unattended', '/keel:autopilotunattended']
+  expect(read(on)).toEqual(on.map(t => [t, 'on']))
+  expect(read(outward)).toEqual(outward.map(t => [t, 'outward']))
+  expect(read(off)).toEqual(off.map(t => [t, 'off']))
+})
+
+test("the user's own /keel:autopilot unattended arms an unattended run: a risky stage isn't held, the band says so, and the user is told once", async ($, on) => {
+  const { sent, compose, edit, agent } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u1', risk: 'auth, user input' })
+  expect(await edit()).toBeUndefined()
+  expect(await agent()).toBeUndefined()
+  const { band, text } = await compose()
+  expect(band).toBe(UNATTENDED_BAND)
+  expect(text).not.toContain('is held')
+  expect(sent.notes).toEqual(['Autopilot (unattended) is building Stage 2 of 3 · Share mode u1 without a hold: it touches auth.'])
+  await $.turn.complete(ended('t2'))
+  await $.turn.complete(ended('t3'))
+  expect(sent.notes).toHaveLength(1)
+})
+
+test('an unattended run lifts a project hold word too', async ($, on) => {
+  const { edit, compose } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u2', risk: 'pci', files: { 'CLAUDE.md': 'Keel risk: pci' } })
+  expect(await edit()).toBeUndefined()
+  expect((await compose()).band).toBe(UNATTENDED_BAND)
+})
+
+test("the band keeps the Agents level after autopilot unattended", async ($, on) => {
+  const { plan, now, compose } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u3' })
+  plan.text = now('Mode: autopilot\nAgents: lean')
+  expect((await compose()).band).toBe('keel · autopilot unattended · lean · 1/3 done · next: 2. Share mode')
+})
+
+test("unattended isn't armed by a plugin's prompt, the Skill tool's args, or a Mode line saying unattended", async ($, on) => {
+  // the Mode line says unattended, and the user's own prompt is a plain /keel:autopilot
+  const { say, sent, compose, edit, agent } = await armedBy($, on, '/keel:autopilot', { tag: ' u4', risk: 'auth, user input' })
+  const expectHeld = async () => {
+    expect(await edit()).toContain('keel autopilot is holding')
+    expect(await agent()).toContain('keel autopilot is holding')
+    expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+  }
+  await expectHeld()
+  await say('/keel:autopilot unattended outward', 'plugin')
+  await $.prompt.submit({ text: '/keel:autopilot unattended', origin: { kind: 'task-notification' } } as never)
+  await expectHeld()
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot', args: 'unattended outward' } as never)
+  await $.tool.call({ tool: 'Skill', skill: 'autopilot', args: 'unattended' } as never)
+  await expectHeld()
+  expect(sent.notes.some(n => n.includes('unattended'))).toBe(false)
+  // the user's own words arm it
+  await say('/keel:autopilot unattended')
+  expect(await edit()).toBeUndefined()
+  expect((await compose()).band).toBe(UNATTENDED_BAND)
+})
+
+test("a Mode line saying unattended doesn't arm it in a new session", async ($, on) => {
+  const plan = { text: planWith('Mode: autopilot — unattended\nRisk: auth', ' u5') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.turn.complete(ended('t1'))
+  expect((await compose()).band).toBe('keel · autopilot (not armed) · 1/3 done · next: 2. Share mode')
+  await $.prompt.submit({ text: 'resume autopilot', origin: { kind: 'composer' } })
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot', args: 'unattended' } as never)
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+  expect((await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/login.ts' })).deny).toContain('is holding')
+})
+
+test('a plain /keel:autopilot ends an unattended run, and so does removing the Mode line', async ($, on) => {
+  const { plan, now, say, compose, edit } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u6', risk: 'auth' })
+  expect((await compose()).band).toBe(UNATTENDED_BAND)
+  await say('/keel:autopilot')
+  expect(await edit()).toContain('keel autopilot is holding')
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+
+  await say('/keel:autopilot unattended')
+  expect((await compose()).band).toBe(UNATTENDED_BAND)
+  // the Mode line goes, then comes back: autopilot arms again on the change, but not unattended
+  plan.text = now('Open: none')
+  await $.turn.complete(ended('t2'))
+  plan.text = now('Mode: autopilot')
+  await $.turn.complete(ended('t3'))
+  expect(await edit()).toContain('keel autopilot is holding')
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+})
+
+test('while unattended, outward-facing commands are still denied, built-in and project rules both', async ($, on) => {
+  const { bash, compose } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u7', files: { 'CLAUDE.md': RULES } })
+  expect((await compose()).band).toBe(UNATTENDED_BAND)
+  expect(await bash('git push origin main')).toContain('holds outward-facing steps for the user (git push)')
+  expect(await bash('make release')).toContain('(make release, a `Keel outward:` rule in CLAUDE.md)')
+  expect(await bash('npm test')).toBeUndefined()
+})
+
+test('with /keel:autopilot unattended outward, outward-facing commands go through, built-in and project rules both', async ($, on) => {
+  const { bash, compose } = await armedBy($, on, '/keel:autopilot unattended outward', { tag: ' u8', files: { 'CLAUDE.md': RULES } })
+  expect((await compose()).band).toBe('keel · autopilot unattended outward · 1/3 done · next: 2. Share mode')
+  expect(await bash('git push origin main')).toBeUndefined()
+  expect(await bash('npm publish')).toBeUndefined()
+  expect(await bash('make release')).toBeUndefined()
+  expect(await bash('./scripts/ship.sh --now')).toBeUndefined()
+})
+
+/** An unattended outward run closing stage 2, whose `## Now` lists `checks`; git answers from `answers`. */
+async function unattendedCommit($: Engine, on: On, checks: string[], files: Record<string, string>, answers: (argv: readonly string[]) => string) {
+  const plan = { text: shareMode('Open: none', ...checks), files }
+  engine(on, plan)
+  fakeGit(on, answers, false)
+  composeKeel($, on)
+  await $.prompt.submit({ text: '/keel:autopilot unattended outward', origin: { kind: 'composer' } })
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot', args: 'unattended outward' } as never)
+  await $.turn.complete(ended('t0'))
+  plan.text = shareMode('Mode: autopilot', ...checks)
+  await $.turn.complete(ended('t1'))
+  // armed and unattended outward: a push goes through, so the gates below are refusing on their own account
+  expect((await $.tool.call({ tool: 'Bash', command: 'git push' })).deny).toBeUndefined()
+  return async () => (await $.tool.call({ tool: 'Bash', command: 'git commit -m "Stage 2"' })).deny
+}
+
+test('while unattended, closing a stage with unticked checks is refused as before', async ($, on) => {
+  const commit = await unattendedCommit($, on, ['- [x] link opens read-only', '- [ ] controls work on touch'], { [REPORT]: reportWith(2) }, () => closeStage2)
+  const deny = await commit()
+  expect(deny).toContain('closes stage 2, but these checks were never seen ticked')
+  expect(deny).toContain('controls work on touch')
+})
+
+test('while unattended, closing a stage without its evidence report is refused as before', async ($, on) => {
+  const commit = await unattendedCommit($, on, ['- [x] link opens read-only'], {}, () => closeStage2)
+  expect(await commit()).toContain(`its evidence report \`${REPORT}\` is neither in the commit nor in the working tree`)
+})
+
+test('while unattended, a commit carrying a secret is refused as before', async ($, on) => {
+  const commit = await unattendedCommit($, on, ['- [x] link opens read-only'], { [REPORT]: reportWith(1) }, argv =>
+    argv.includes('--cached') ? diffOf('src/client.ts', `+const token = "${GH}"`) : '',
+  )
+  const deny = await commit()
+  expect(deny).toContain('looks like a secret')
+  expect(deny).toContain('src/client.ts:4: a GitHub token')
+})
+
+test('the working rules tell Claude it is unattended, what it may decide itself, and what still pauses', async ($, on) => {
+  const { compose } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u9', risk: 'auth' })
+  const { text } = await compose()
+  expect(text).toContain('Autopilot is on and unattended: the user armed it in this session with `/keel:autopilot unattended`.')
+  expect(text).toContain("Don't pause for a risky stage or for a decision the plan doesn't settle: pick the option you'd recommend, log it in the plan as a dated decision marked `(unattended)` with the why, and carry on.")
+  expect(text).toContain("Risky stages still get keel:review's security pass.")
+  expect(text).toContain("Still pause, setting the Mode line to `paused — <reason>`, after three failed fix rounds, when a builder's report and the evidence disagree and you can't settle it, and before building a plan the user hasn't seen.")
+  expect(text).toContain('Outward-facing commands (push, publish, deploy, sending data out) are still blocked while it runs.')
+  expect(text).toMatch(/hold the details\.$/)
+  expect(text).not.toContain('is held')
+})
+
+test('the working rules for unattended outward say pushes and publishes are allowed this run', async ($, on) => {
+  const { compose } = await armedBy($, on, '/keel:autopilot unattended outward', { tag: ' u10' })
+  const { text } = await compose()
+  expect(text).toContain('Autopilot is on and unattended')
+  expect(text).toContain('Outward-facing commands (push, publish, deploy, sending data out) are allowed this run: the user armed it with `outward`.')
+  expect(text).not.toContain('are still blocked')
+})
+
+test('plain autopilot keeps its working rules and band, with no word of unattended', async ($, on) => {
+  const { compose } = await armedBy($, on, '/keel:autopilot', { tag: ' u11' })
+  const { text, band } = await compose()
+  expect(band).toBe('keel · autopilot · 1/3 done · next: 2. Share mode')
+  expect(text).toContain('Autopilot is on: you are the project manager under keel:autopilot.')
+  expect(text).not.toContain('unattended')
+})
+
+test('a new Goal ends an unattended run: a plan cut after the user armed it is held, and its pushes denied', async ($, on) => {
+  const { plan, bash, edit, compose } = await armedBy($, on, '/keel:autopilot unattended outward', { tag: ' u12' })
+  expect(await bash('git push origin main')).toBeUndefined()
+  // Claude cuts the next plan, its first stage touching auth, and keeps the Mode line
+  plan.text = ['## Goal', 'Accounts.', planWith('Mode: autopilot\nRisk: auth', ' u12')].join('\n')
+  await $.turn.complete(ended('t2'))
+  expect(await edit()).toContain('keel autopilot is holding')
+  expect(await bash('git push origin main')).toContain('holds outward-facing steps for the user (git push)')
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+})
+
+test('the unattended notice comes from the first build call, so a risky stage closed inside one turn is still told once', async ($, on) => {
+  const { plan, sent, edit, agent } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u13', risk: 'payments' })
+  expect(sent.notes).toEqual([])
+  // edits to the plan itself tell nothing
+  await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/docs/PLAN.md' })
+  expect(sent.notes).toEqual([])
+  expect(await agent()).toBeUndefined()
+  expect(await edit()).toBeUndefined()
+  // the stage closes and `## Now` moves on to a stage that isn't risky before the turn ends
+  plan.text = ['## Now', 'Stage 3 of 3 · Polish', 'Mode: autopilot', '## Stages', '- [x] 1. Foundation', '- [x] 2. Share mode', '- [ ] 3. Polish'].join('\n')
+  await $.turn.complete(ended('t2'))
+  expect(sent.notes).toEqual(['Autopilot (unattended) is building Stage 2 of 3 · Share mode u13 without a hold: it touches payments.'])
+})
+
+test('a paused unattended run says so in the band, with outward when armed with it', async ($, on) => {
+  const { plan, now, compose } = await armedBy($, on, '/keel:autopilot unattended', { tag: ' u14', risk: 'auth' })
+  plan.text = now('Mode: paused — three fix rounds failed')
+  expect((await compose()).band).toBe('keel · paused · unattended · 1/3 done · next: 2. Share mode')
+  // the user answers in their own words, and resuming from the pause is the same run, which keeps its level
+  await $.prompt.submit({ text: 'try a smaller fix first', origin: { kind: 'composer' } })
+  plan.text = now('Mode: autopilot')
+  await $.turn.complete(ended('t2'))
+  expect((await compose()).band).toBe(UNATTENDED_BAND)
+})
+
+test('a paused unattended outward run says unattended outward in the band', async ($, on) => {
+  const { plan, now, compose } = await armedBy($, on, '/keel:autopilot unattended outward', { tag: ' u15' })
+  plan.text = now('Mode: paused — builder report and evidence disagree')
+  expect((await compose()).band).toBe('keel · paused · unattended outward · 1/3 done · next: 2. Share mode')
+})
+
+test('autopilot armed again without the word ends unattended: the user said something else, then resumed it', async ($, on) => {
+  const plan = { text: planWith('Open: none\nRisk: auth', ' u16') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.prompt.submit({ text: '/keel:autopilot unattended', origin: { kind: 'composer' } })
+  await compose()
+  await $.prompt.submit({ text: 'hold off', origin: { kind: 'composer' } })
+  await compose()
+  // later, a plain prompt, Claude starting keel:autopilot and setting the Mode line
+  await $.prompt.submit({ text: 'ok, run the plan on autopilot', origin: { kind: 'composer' } })
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot' } as never)
+  plan.text = planWith('Mode: autopilot\nRisk: auth', ' u16')
+  await $.turn.complete(ended('t1'))
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+  expect((await $.tool.call({ tool: 'Edit', old_string: 'a', new_string: 'b', file_path: '/repo/src/login.ts' })).deny).toContain('keel autopilot is holding')
+})
+
+test('a Mode line turning to autopilot after a prompt without the word ends unattended', async ($, on) => {
+  const plan = { text: planWith('Open: none\nRisk: auth', ' u17') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.prompt.submit({ text: '/keel:autopilot unattended', origin: { kind: 'composer' } })
+  await compose()
+  await $.prompt.submit({ text: 'actually, not yet', origin: { kind: 'composer' } })
+  plan.text = planWith('Mode: autopilot\nRisk: auth', ' u17')
+  await $.turn.complete(ended('t1'))
+  expect((await compose()).band).toBe('keel · autopilot held · 1/3 done · next: 2. Share mode')
+})
+
+test('starting keel:autopilot again from a prompt without the word ends unattended, even with no Mode line change', async ($, on) => {
+  const plan = { text: planWith('Mode: paused — which colour scheme?\nRisk: auth', ' u18') }
+  engine(on, plan)
+  on('tool.call', () => ({ result: { text: 'ok' } }))
+  const compose = composeKeel($, on)
+  await $.prompt.submit({ text: '/keel:autopilot unattended', origin: { kind: 'composer' } })
+  expect((await compose()).band).toBe('keel · paused · unattended · 1/3 done · next: 2. Share mode')
+  await $.prompt.submit({ text: 'blue. resume the run', origin: { kind: 'composer' } })
+  await $.tool.call({ tool: 'Skill', skill: 'keel:autopilot' } as never)
+  expect((await compose()).band).toBe('keel · paused · held · 1/3 done · next: 2. Share mode')
 })

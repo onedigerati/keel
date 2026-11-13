@@ -1,0 +1,12 @@
+$ claude plugin test plugins/keel  # with the unattended hold lift and outward skip removed
+(fail) the user's own /keel:autopilot unattended arms an unattended run: a risky stage isn't held, the band says so, and the user is told once [53.35ms]
+(fail) an unattended run lifts a project hold word too [59.21ms]
+(fail) unattended isn't armed by a plugin's prompt, the Skill tool's args, or a Mode line saying unattended [83.00ms]
+(fail) a plain /keel:autopilot ends an unattended run, and so does removing the Mode line [56.64ms]
+(fail) with /keel:autopilot unattended outward, outward-facing commands go through, built-in and project rules both [47.97ms]
+(fail) while unattended, closing a stage with unticked checks is refused as before [55.27ms]
+(fail) while unattended, closing a stage without its evidence report is refused as before [53.57ms]
+(fail) while unattended, a commit carrying a secret is refused as before [50.62ms]
+(fail) the working rules tell Claude it is unattended, what it may decide itself, and what still pauses [61.39ms]
+ 288 pass
+ 9 fail

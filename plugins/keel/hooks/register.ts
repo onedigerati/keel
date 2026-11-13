@@ -373,6 +373,45 @@ const GOAL = { plugin: 'keel', key: 'goal' } as const
 const CHECK_COUNTS = { plugin: 'keel', key: 'checkCounts' } as const
 const FIRST_AGENTS = { plugin: 'keel', key: 'firstAgents' } as const
 const PROJECT_RULES = { plugin: 'keel', key: 'projectRules' } as const
+const UNATTENDED = { plugin: 'keel', key: 'unattended' } as const
+
+/**
+ * How unattended this session's autopilot runs: `off`; `on`, which lifts the risky-stage hold and lets Claude settle
+ * judgment calls itself; or `outward`, which also lets outward-facing commands through. Only the user's own
+ * `/keel:autopilot unattended [outward]` prompt sets it (see `unattendedOf`), never the Skill tool's args, a plugin's
+ * prompt or the Mode line, since Claude or a file could write those.
+ */
+export type Unattended = 'off' | 'on' | 'outward'
+
+const UNATTENDED_LEVELS: readonly Unattended[] = ['off', 'on', 'outward']
+
+/**
+ * Whether the user's latest prompt in this load opened with `/keel:autopilot`. Autopilot armed any other way (the user
+ * saying "resume" and Claude starting the skill, or a Mode line turning to autopilot) is a new run the user didn't
+ * arm unattended, so it ends an unattended level left from earlier in the session.
+ */
+let lastUserPromptAutopilot = false
+
+/** Ends an unattended run when autopilot is armed again without the user's `/keel:autopilot` in their latest prompt. */
+async function rearmed($: EngineInterface, session?: Session) {
+  if (lastUserPromptAutopilot) return
+  if (session) {
+    if (session.unattended === 'off') return
+    session.unattended = 'off'
+  }
+  await $.state.set(UNATTENDED, 'off')
+}
+
+/**
+ * The words after `/keel:autopilot` in the user's prompt: `unattended` as the next whole word (any case) gives `on`,
+ * and `outward` as the whole word right after it gives `outward`. Anything else, a plain `/keel:autopilot` included,
+ * gives `off`, so the user re-running autopilot without the word ends an unattended run. Read only from a prompt that
+ * already opens with `/keel:autopilot`.
+ */
+export function unattendedOf(text: string): Unattended {
+  const m = text.match(/^\s*\/keel:autopilot\s+unattended(?![\w:-])(\s+outward(?![\w:-]))?/i)
+  return !m ? 'off' : m[1] ? 'outward' : 'on'
+}
 
 /**
  * The project's rules for one hook call, read on first use and at most once: `CLAUDE.md`'s rules now, joined with every
@@ -399,6 +438,8 @@ async function stickyRules($: EngineInterface): Promise<ProjectRules> {
 
 interface Session {
   armed: boolean
+  /** Set by the user's prompt alone; it lifts nothing unless autopilot is also armed. */
+  unattended: Unattended
   cleared: string[]
   openChecks: Record<string, string[]>
   /** For each stage number, how many checks `## Now` listed when last seen there. */
@@ -410,8 +451,9 @@ interface Session {
 }
 
 async function readSession($: EngineInterface): Promise<Session> {
-  const [armed, cleared, openChecks, checkCounts, firstAgents] = await Promise.all([
+  const [armed, unattended, cleared, openChecks, checkCounts, firstAgents] = await Promise.all([
     $.state.get(ARMED),
+    $.state.get(UNATTENDED),
     $.state.get(CLEARED),
     $.state.get(OPEN_CHECKS),
     $.state.get(CHECK_COUNTS),
@@ -419,6 +461,7 @@ async function readSession($: EngineInterface): Promise<Session> {
   ])
   return {
     armed: armed.value ?? false,
+    unattended: UNATTENDED_LEVELS.includes(unattended.value as Unattended) ? (unattended.value as Unattended) : 'off',
     cleared: cleared.value ?? [],
     openChecks: openChecks.value ?? {},
     checkCounts: checkCounts.value ?? {},
@@ -515,6 +558,9 @@ async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session
       session.openChecks = {}
       session.cleared = []
       session.checkCounts = {}
+      // a new Goal is a plan the user didn't arm unattended (one Claude cut, say), so it runs with the hold and outward check
+      session.unattended = 'off'
+      await $.state.set(UNATTENDED, 'off')
       await $.state.set(OPEN_CHECKS, {})
       await $.state.set(CLEARED, [])
       await $.state.set(CHECK_COUNTS, {})
@@ -523,7 +569,15 @@ async function sync($: EngineInterface, plan: Plan | undefined): Promise<Session
   }
   if (seen.value !== mode) {
     if (seen.value !== undefined && mode === 'autopilot') session.armed = true
+    // a Mode line turning to autopilot from none is a new run; resuming from a pause is the same run, and keeps its level
+    if (seen.value === 'none' && mode === 'autopilot') await rearmed($, session)
     if (mode === 'none') session.armed = false
+    // the Mode line going away ends an unattended run with autopilot; the session's first look (nothing seen yet) isn't a
+    // removal, so it keeps what the user's `/keel:autopilot unattended` prompt set just before that look
+    if (seen.value !== undefined && mode === 'none' && session.unattended !== 'off') {
+      session.unattended = 'off'
+      await $.state.set(UNATTENDED, 'off')
+    }
     await $.state.set(SEEN_MODE, mode)
     await $.state.set(ARMED, session.armed)
   }
@@ -574,14 +628,26 @@ const driving = (plan: Plan | undefined, s: Session) => plan?.mode?.kind === 'au
 /** The plan's Mode line puts a risky current stage under autopilot's rule: driving or paused, armed or not. */
 const underAutopilot = (plan: Plan | undefined) => plan?.mode?.kind === 'autopilot' || plan?.mode?.kind === 'paused'
 
+/** The user armed this session's autopilot unattended, with or without `outward`. */
+const unattended = (s: Session) => s.unattended !== 'off'
+
 /**
- * Autopilot is holding the current stage: autopilot is armed in this session and driving or paused, the stage's risk
- * line names auth, money or personal data (or a project hold word), and the user hasn't approved it — only their own
- * prompt that `isApproval` accepts clears it (see `prompt.submit`). A pause doesn't lift the hold: autopilot pauses on
- * a risky stage by its own procedure, so the pause is where the hold matters most.
+ * The current stage needs the user's approval: autopilot is armed in this session and driving or paused, the stage's
+ * risk line names auth, money or personal data (or a project hold word), and the user hasn't approved it — only their
+ * own prompt that `isApproval` accepts clears it (see `prompt.submit`).
  */
-const held = (plan: Plan | undefined, s: Session) =>
+const unapprovedRisky = (plan: Plan | undefined, s: Session) =>
   s.armed && underAutopilot(plan) && !!plan?.stage?.risky.length && !s.cleared.includes(plan.stage.key)
+
+/**
+ * Autopilot is holding the current stage: it is risky and unapproved, and the user didn't arm this run unattended (an
+ * unattended run builds it without a hold, and says so once). A pause doesn't lift the hold: autopilot pauses on a
+ * risky stage by its own procedure, so the pause is where the hold matters most.
+ */
+const held = (plan: Plan | undefined, s: Session) => unapprovedRisky(plan, s) && !unattended(s)
+
+/** An unattended run is building a risky, unapproved stage that would otherwise be held. */
+const unheld = (plan: Plan | undefined, s: Session) => unapprovedRisky(plan, s) && unattended(s)
 
 // ---- what rides in the system prompt ----
 
@@ -590,19 +656,24 @@ function statusLine(plan: Plan, s: Session, roadmap?: Roadmap): string {
   const milestone = roadmap ? ` · ${roadmap.id} ${roadmap.covered}/${roadmap.total}` : ''
   if (plan.total === 0) return `keel${milestone} · ${plan.path}`
   if (!plan.current) return `keel${milestone} · all ${plan.total} stages done · next feature: keel:plan`
+  const level = s.unattended === 'outward' ? 'unattended outward' : 'unattended'
   const mode = !plan.mode
     ? ''
     : plan.mode.kind === 'paused'
       ? held(plan, s)
         ? ' · paused · held'
-        : ' · paused'
+        : s.armed && unattended(s)
+          ? ` · paused · ${level}`
+          : ' · paused'
       : !s.armed
         ? ' · autopilot (not armed)'
         : held(plan, s)
           ? ' · autopilot held'
-          : ' · autopilot'
-  const level = effectiveAgents(plan, s.firstAgents, s.now)
-  const agents = level === 'lean' || level === 'wide' ? ` · ${level}` : ''
+          : unattended(s)
+            ? ` · autopilot ${level}`
+            : ' · autopilot'
+  const fanOut = effectiveAgents(plan, s.firstAgents, s.now)
+  const agents = fanOut === 'lean' || fanOut === 'wide' ? ` · ${fanOut}` : ''
   return `keel${mode}${agents}${milestone} · ${plan.done}/${plan.total} done · next: ${plan.current}`
 }
 
@@ -635,11 +706,30 @@ function baseRules(plan: Plan, s: Session): string {
     return `${base} commit per stage. Autopilot is paused (${plan.mode.reason}), and the current stage is held: its risk line names ${plan.stage?.risky.join(', ')}. Building it (file edits outside the plan, builder agents) stays blocked until the user approves it with ${APPROVAL_REPLY}; only that approval releases the stage. A question or comment from the user gets its answer while the stage stays held; then ask for that reply again. Put no other yes/no question to the user while paused here, since their yes would release the stage. ${skills}`
   if (held(plan, s))
     return `${base} commit per stage. Autopilot is on, and the current stage is held: its risk line names ${plan.stage?.risky.join(', ')}. Building it (file edits outside the plan, builder agents) is blocked until the user approves it with ${APPROVAL_REPLY}; nothing else releases it. Commit what is finished, set the Mode line to \`paused — <reason>\`, and ask the user for that reply. ${skills}`
+  if (plan.mode?.kind === 'autopilot' && unattended(s)) return `${base} commit per stage. ${unattendedRules(s)} ${skills}`
   if (plan.mode?.kind === 'autopilot')
     return `${base} commit per stage. Autopilot is on: you are the project manager under keel:autopilot. Go from stage to stage without stopping for review, delegate the building, and stop only for the reasons keel:autopilot lists, setting the Mode line to paused when you do. Outward-facing commands (push, publish, deploy, sending data out) are blocked while it runs. ${skills}`
   if (plan.mode?.kind === 'paused')
     return `${base} commit per stage. Autopilot is paused (${plan.mode.reason}): settle that with the user, then set the Mode line back to autopilot and carry on under keel:autopilot. ${skills}`
   return `${base} commit per stage and stop for the user's review. ${skills}`
+}
+
+/**
+ * Autopilot's rules for a run the user armed unattended: what Claude decides itself instead of waiting, and what still
+ * stops it, since unattended removes waiting for the user, not the checks.
+ */
+function unattendedRules(s: Session): string {
+  const outward =
+    s.unattended === 'outward'
+      ? 'Outward-facing commands (push, publish, deploy, sending data out) are allowed this run: the user armed it with `outward`.'
+      : 'Outward-facing commands (push, publish, deploy, sending data out) are still blocked while it runs.'
+  return [
+    'Autopilot is on and unattended: the user armed it in this session with `/keel:autopilot unattended`. You are the project manager under keel:autopilot: go from stage to stage without stopping for review, and delegate the building.',
+    "Don't pause for a risky stage or for a decision the plan doesn't settle: pick the option you'd recommend, log it in the plan as a dated decision marked `(unattended)` with the why, and carry on.",
+    "Risky stages still get keel:review's security pass.",
+    "Still pause, setting the Mode line to `paused — <reason>`, after three failed fix rounds, when a builder's report and the evidence disagree and you can't settle it, and before building a plan the user hasn't seen.",
+    outward,
+  ].join(' ')
 }
 
 /** Where standing decisions move once more than ten would carry forward (keel:plan). */
@@ -682,6 +772,8 @@ let lastMode: Mode['kind'] | undefined
 let lastPromptFromUser = false
 /** The held stage the person was last told about, so they hear it once. */
 let heldNoticeFor: string | undefined
+/** The risky stage an unattended run last told the person it is building without a hold, so they hear it once. */
+let unheldNoticeFor: string | undefined
 /** Agent calls from the main loop that have reached the lean cap and not yet settled (allowed, denied or thrown). */
 let agentCallsInFlight = 0
 
@@ -1047,7 +1139,13 @@ export const register: Register = on => {
     if (e.origin.kind !== 'plugin') stalledTurns = 0
     lastPromptFromUser = fromUser
     if (fromUser) {
-      if (/^\s*\/keel:autopilot\b/.test(e.text)) await $.state.set(ARMED, true)
+      lastUserPromptAutopilot = /^\s*\/keel:autopilot\b/.test(e.text)
+      if (lastUserPromptAutopilot) {
+        // each /keel:autopilot sets how unattended the run is, so a plain one ends an unattended run; the level is
+        // written first, so a failed second write can't leave an earlier level re-armed
+        await $.state.set(UNATTENDED, unattendedOf(e.text))
+        await $.state.set(ARMED, true)
+      }
       // the person approved a risky stage that was held or paused: only their own prompt opening with an approval
       // (`isApproval`) clears it — never a question, a plugin's prompt, or a skill Claude can run itself
       if (isApproval(e.text)) {
@@ -1113,7 +1211,10 @@ export const register: Register = on => {
 
   // starting keel:autopilot from the person's own turn arms it, including over a Mode line an earlier session left
   on('tool.call', { tool: 'Skill' }, async ($, e, next) => {
-    if (!e.agentId && lastPromptFromUser && /^(?:keel:)?autopilot$/.test(e.skill)) await $.state.set(ARMED, true)
+    if (!e.agentId && lastPromptFromUser && /^(?:keel:)?autopilot$/.test(e.skill)) {
+      await rearmed($)
+      await $.state.set(ARMED, true)
+    }
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -1121,9 +1222,20 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     if (e.tool !== 'Edit' && e.tool !== 'Write' && e.tool !== 'NotebookEdit' && e.tool !== 'Agent') return next(e)
     const plan = await loadPlan($)
-    if (!plan || !held(plan, await sync($, plan))) return next(e)
+    if (!plan) return next(e)
+    const s = await sync($, plan)
     const target = 'file_path' in e ? String(e.file_path) : 'notebook_path' in e ? String(e.notebook_path) : ''
     if (target && samePath(target, plan.path)) return next(e)
+    // an unattended run builds a risky stage where the hold would have denied it, and the person hears of it once, here
+    // rather than at a turn's end, which a stage closed inside one turn or a turn ending paused would skip
+    if (unheld(plan, s)) {
+      if (unheldNoticeFor !== plan.stage?.key) {
+        unheldNoticeFor = plan.stage?.key
+        await $.ui.notify(`Autopilot (unattended) is building ${plan.stage?.key} without a hold: it touches ${plan.stage?.risky.join(', ')}.`, { title: 'keel' })
+      }
+      return next(e)
+    }
+    if (!held(plan, s)) return next(e)
     const then =
       plan.mode?.kind === 'paused'
         ? 'The plan is paused: answer the user, and ask them for that reply.'
@@ -1176,8 +1288,9 @@ export const register: Register = on => {
     const s = await sync($, plan)
 
     // while autopilot drives, outward-facing steps wait for the person: Keel's own check first, over every command the
-    // line runs whatever words it holds, then the project's only when it found nothing
-    if (driving(plan, s)) {
+    // line runs whatever words it holds, then the project's only when it found nothing. A run the user armed
+    // `unattended outward` lets them through; the commit gates below hold in every run
+    if (driving(plan, s) && s.unattended !== 'outward') {
       const reason = commands.map(outwardReason).find(Boolean)
       if (reason) return { deny: outwardDenial(reason) }
       const rules = await sessionRules($)()

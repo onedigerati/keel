@@ -7,20 +7,17 @@ Ship an unattended autopilot as keel 0.11.0, for a user who wants a whole approv
 2026-11-13 · tests: 282 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed with warnings (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 1 of 2 · Unattended in the hook
+Stage 2 of 2 · Skill, docs, 0.11.0
+Mode: autopilot
 Agents: lean
-Risk: permissions (loosens the risky-stage hold and the outward check)
+Risk: UI only (instructions and docs; no hook code)
 Checks:
-- [ ] The user's own `/keel:autopilot unattended` prompt arms autopilot unattended. The same words from a plugin prompt, the Skill tool's args, or a Mode line saying `unattended` don't (proof: test)
-- [ ] While unattended, a stage whose risk line names auth, money or personal data (or a project hold word) isn't held: Edit and Agent go through, the band reads `autopilot unattended`, and the user is told once that it's being built without a hold (proof: test)
-- [ ] While unattended, outward-facing commands are still denied, built-in and project rules both. With `/keel:autopilot unattended outward` they go through (proof: test)
-- [ ] While unattended, the checks, evidence and secret commit gates refuse exactly as before (proof: test)
-- [ ] Removing the Mode line, or a plain `/keel:autopilot` prompt, ends unattended; a new session starts without it (proof: test)
-- [ ] The working rules tell Claude it is unattended, what it may decide itself, and what still pauses (proof: test)
+- [ ] keel:autopilot's skill has an "Unattended runs" section that matches the hook: how the user arms it (`/keel:autopilot unattended [outward]`), what Claude decides itself and logs as `(unattended)` decisions, what still pauses, the security review kept, and what ends it (a plain `/keel:autopilot`, the Mode line removed, a new Goal, re-arming without the word) (proof: read against register.ts's `unattendedRules`, a test can't judge prose)
+- [ ] The README documents unattended next to autopilot, outward's extra word and the band text, and its guard list says which guards unattended lifts (proof: read, a test can't judge prose)
+- [ ] plugin.json says 0.11.0, and tests and validate stay green (proof: test, `claude plugin validate`)
 Open: none
-
 ## Stages
-- [ ] 1. Unattended in the hook — arming from the user's prompt only, no risky hold, outward behind its own word, gates kept, tests
+- [x] 1. Unattended in the hook — arming from the user's prompt only, no risky hold, outward behind its own word, gates kept, tests
 - [ ] 2. Skill, docs, 0.11.0 — autopilot's "Unattended runs" section, the README, the version
 
 ## Decisions
@@ -30,8 +27,12 @@ Open: none
 - 2026-11-13 · The security review still runs on risky stages, and unattended never crosses into a plan the user hasn't seen (2026-11-08). It removes waiting for the user, not the checks.
 - 2026-11-13 · Agents: lean, from the user.
 - 2026-11-13 · Scale: two stages, one feature, so it's planned as one plan with no charter.
+- 2026-11-13 · Stage 1 review, fixed: a Goal change ends unattended (otherwise a plan Claude cut after the arming ran unheld, and with `outward` could push); the "without a hold" notice fires where the hold would have denied, not at turn end; the band shows `unattended outward` and `paused · unattended`; re-arming autopilot without the word (the Skill from a plain-language ask, or a Mode line turned on) ends a latent unattended; the level is written before the armed flag.
+- 2026-11-13 · Stage 1 review, rejected: the once-only notice lives at module level like `heldNoticeFor`, so it can be skipped after `/clear` on the same stage key. It's consistent with the existing notice and costs one missed notification, not a guard.
 
 ## Open questions
+- Stage 1 review, deferred: `sdk` counts as a user origin, so in a CI host that turns issue text into prompts, text opening with `/keel:autopilot unattended outward` arms a run that lifts every hold and allows push. That makes the known `sdk` approval question larger. Requiring `composer`/`bridge` for `outward` would also block headless runs the user starts themselves, so it's a call for the user.
+- `long pathological lines parse in well under 100 ms` failed at 300 ms twice in the stage 1 reviewer's runs and passed in verify's: it's timing-sensitive under load.
 - 18 other eval scaffolds set the git author only for their own commit (`git -c user.name=eval …`), so on a machine with no global git identity the agent can't commit and any commit grader fails; the two quick-fix scaffolds now set a repo-local author (stage 1). Apply the same to the rest in a later plan.
 - Deferred from stage 1 review: no eval covers the bar's other misses (auth, secrets, a dependency bump, CI config, rendering user content), a fix asked mid-stage or under a held or autopilot stage, or the one-line announcement under an open plan; `quick-fix-risky` covers money only.
 - Deferred, pre-existing (stage 1 review): `parsePlan` takes the first heading containing "stage" as the checklist, so a heading like `## Stage fixes` above `## Stages` would be read instead; `## Fixes` doesn't trigger it. And keel:fix says to create `## Fixes` after `## Stages`, which is unclear for a plan without one.
