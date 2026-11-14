@@ -1,10 +1,10 @@
 {
-  "name": "keel-local",
+  "name": "jbit-local",
   "owner": { "name": "jonah" },
   "plugins": [
     {
-      "name": "keel",
-      "source": "./plugins/keel",
+      "name": "jbit",
+      "source": "./plugins/jbit",
       "description": "Lightweight project discipline: one plan file, a roadmap of milestones for projects too big for one plan, staged work, a quick-fix path for small low-risk changes, an autopilot project manager, a choice of how widely work fans out to agents, verification against the running product with evidence kept in the repo, fresh-eyes review, and a secret guard on commits."
     }
   ]

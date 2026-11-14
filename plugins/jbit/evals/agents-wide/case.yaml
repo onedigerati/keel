@@ -1,0 +1,57 @@
+schema_version: "1.0"
+name: agents-wide
+description: >-
+  An `Agents: wide` line from an earlier session, confirmed by the user in the prompt, is restamped with the
+  current date and time; jbit:stage then gives each of stage 2's three independent exporters its own agent in its
+  own worktree and has a fresh agent that built nothing run the verify.
+tags: [outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  # The line ships unstamped, so the hook counts it as balanced; the user's confirmation is what restamps it.
+  prompt: I confirm wide for this plan. Go.
+  max_turns: 60
+  allowed_tools: [Read, Glob, Grep, Bash, Edit, Write, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-stage
+    tool: Skill
+    input_match: "stage"
+    min: 1
+    arm: with-only
+  - type: tool_used
+    name: builders-in-worktrees
+    tool: Agent
+    input_match: '"isolation":\s*"worktree"'
+    min: 3
+  - type: llm
+    name: restamps-wide
+    focus: trace
+    criteria: >-
+      Before spawning any builder agent, the agent edits the `Agents: wide` line in docs/PLAN.md's `## Now` to
+      `Agents: wide — confirmed <YYYY-MM-DD HH:MM>`. The date and time must come from the trace itself: the output
+      of a `date` call the agent ran, or the stamp the jbit hook's injected rule offered. Fails if the line is left
+      unstamped, stamped with only a date, stamped with a time that appears in neither a `date` output nor the
+      hook's rule (an invented time, or an example time copied from a skill such as 14:32), or stamped after
+      builders are spawned.
+  - type: llm
+    name: fans-out-leaves
+    focus: trace
+    criteria: >-
+      Each of the three exporters (CSV in src/csv.js, JSON in src/json.js, Markdown in src/markdown.js) is built by
+      its own agent spawned with `isolation: "worktree"`, briefed to own that exporter's module and test and no
+      other; the three run at the same time (spawned in one turn, or in the background before the others report).
+      The main session then merges or applies each agent's work back. Fails if the main session builds any
+      exporter itself (fixes applied after review don't count), if one agent builds more than one exporter, or if any builder runs outside a worktree.
+  - type: llm
+    name: fresh-verifier
+    focus: trace
+    criteria: >-
+      The stage's verification (jbit:verify, or its steps: the test suite and each check proven) is run by an agent
+      spawned for it that built none of the exporters, not by the main session and not by one of the builders.
+      Fails if verification runs only in the main session or only inside a builder.
+  - type: regex
+    name: no-push
+    target: trace
+    pattern: "git push"
+    match: not_contains

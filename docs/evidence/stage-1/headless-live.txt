@@ -1,0 +1,21 @@
+$ claude -p "<quote the plugin context heading; load jbit:plan and name its first heading>" --plugin-dir plugins/jbit --max-turns 6 --allowedTools Read Skill --output-format stream-json --verbose
+# scratch git repo with a one-stage docs/PLAN.md (Agents: lean). Trimmed to status line, init plugins/skills, tool calls and assistant text; ids dropped.
+ui_status: jbit · lean · 0/1 done · next: 1. Hello
+init plugins: [('jbit', '0.12.0')]
+init skills: ['jbit:approve', 'jbit:autopilot', 'jbit:charter', 'jbit:fix', 'jbit:plan', 'jbit:resume', 'jbit:review', 'jbit:stage', 'jbit:verify']
+tool_use: {"skill": "jbit:plan"}
+tool_result: Launching skill: jbit:plan
+assistant: 1. The project context the plugin injected starts with this heading line, quoted exactly:
+
+   ```
+   # JBIT
+   ```
+
+2. I loaded `jbit:plan`. Its first heading is:
+
+   ```
+   # JBIT: plan
+   ```
+
+I didn't follow the skill's instructions, and no files were changed.
+ui_status: jbit · lean · 0/1 done · next: 1. Hello

@@ -1,0 +1,50 @@
+schema_version: "1.0"
+name: verify-evidence
+description: jbit:verify leaves a per-check evidence report and its output files in docs/evidence/stage-1/, with images git-ignored by default.
+tags: [outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: Verify stage 1.
+  max_turns: 20
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill]
+graders:
+  - type: tool_used
+    name: loads-verify
+    tool: Skill
+    input_match: "verify"
+    min: 1
+    arm: with-only
+  - type: file_exists
+    name: writes-report
+    path: docs/evidence/stage-1/report.md
+  - type: file_exists
+    name: saves-output
+    path: "docs/evidence/stage-1/*.txt"
+  - type: file_exists
+    name: writes-gitignore
+    path: docs/evidence/.gitignore
+  # file_exists can't follow the report's links and no grader runs git, so link targets and
+  # git check-ignore are judged from the trace (the files the agent wrote and listed).
+  - type: llm
+    name: report-rows-link-files
+    focus: trace
+    criteria: >-
+      The agent wrote docs/evidence/stage-1/report.md containing a table with one row for each of the two checks in
+      Now (total() sums in integer cents; `node src/cli.js sample.csv` prints 13.89). Each row's evidence is a
+      relative link to a file the agent saved in docs/evidence/stage-1/ (for example the test run and the CLI run
+      as .txt files) or a named test with its command; every linked file was actually written in that folder. The
+      report also has a line for the project checks and one for the dependency audit (or says why the audit couldn't run or doesn't apply).
+  - type: llm
+    name: gitignore-ignores-images
+    focus: { source: file, path: docs/evidence/.gitignore }
+    criteria: >-
+      The file ignores images (at least *.png and *.jpg), and also traces and videos (such as *.zip, *.webm, *.mp4
+      or *.trace). It does not ignore Markdown or .txt files, so report.md and the saved output stay committable.
+  - type: llm
+    name: results-match-reality
+    focus: { source: file, path: docs/evidence/stage-1/report.md }
+    criteria: >-
+      Both checks are marked pass: in this project the test "sums amounts in cents" passes and
+      `node src/cli.js sample.csv` prints 13.89. No check is marked fail, missing or unverified, and the project
+      tests are reported as 2 passing, 0 failing.

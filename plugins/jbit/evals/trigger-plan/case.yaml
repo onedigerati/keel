@@ -1,0 +1,28 @@
+schema_version: "1.0"
+name: trigger-plan
+description: Asking to plan a multi-step project loads jbit:plan and writes a plan with observable checks.
+tags: [trigger, outcome]
+execution:
+  prompt: >-
+    I want to build a small command-line tool that converts CSV files to JSON, with options for picking columns and
+    renaming them. Plan it out before we write anything. Assume sensible defaults rather than asking me questions.
+  max_turns: 15
+  allowed_tools: [Read, Glob, Grep, Write, Skill]
+graders:
+  - type: tool_used
+    name: loads-plan
+    tool: Skill
+    input_match: "plan"
+    min: 1
+    arm: with-only
+  - type: file_exists
+    name: writes-plan-file
+    path: docs/PLAN.md
+    arm: with-only
+  - type: llm
+    name: plan-quality
+    focus: trace
+    criteria: >-
+      The plan the agent produces (written to a file or given in its reply) has Goal, Now, Stages, Decisions and Open questions sections; 3 to 8 stages, each ending in something
+      runnable; acceptance checks in Now that are observable (a specific command and its output, not "works") and
+      each name a proof; a Risk line; and dated decisions for the defaults it chose.

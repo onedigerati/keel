@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Keel Field Guide</title>
+<title>JBIT Field Guide</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
@@ -226,7 +226,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
 
 <div class="wrap">
 <nav class="top" aria-label="Sections">
-  <span class="brand">keel 0.10.0</span>
+  <span class="brand">jbit 0.10.0</span>
   <a href="#memory">Memory</a><a href="#stage">Stage loop</a><a href="#autopilot">Autopilot</a><a href="#agents">Agents level</a><a href="#guards">Guardrails</a><a href="#roadmap">Roadmap</a><a href="#fix">Quick fix</a><a href="#commands">Commands</a>
 </nav>
 
@@ -234,9 +234,9 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="stack">
     <span class="eyebrow">Claude Code plugin</span>
     <h1>Long projects, kept on course by one plan file and git</h1>
-    <p class="lede">A long project outlives any one context window. Keel keeps the project's state on disk, works through it in stages that are proven before they're committed, and can hand the whole plan to Claude acting as project manager. The manager runs it to the end and stops only for decisions that are yours.</p>
+    <p class="lede">A long project outlives any one context window. JBIT keeps the project's state on disk, works through it in stages that are proven before they're committed, and can hand the whole plan to Claude acting as project manager. The manager runs it to the end and stops only for decisions that are yours.</p>
   </div>
-  <div class="layers" aria-label="Keel's layers, from largest to smallest">
+  <div class="layers" aria-label="JBIT's layers, from largest to smallest">
     <div class="layer opt"><b>ROADMAP.md</b><span>Optional. Milestones and a requirement ledger for a PRD too big for one plan.</span></div>
     <div class="layer hl"><b>PLAN.md</b><span>The source of truth: goal, <code>## Now</code>, stages, decisions, open questions.</span></div>
     <div class="layer"><b>Stage</b><span>One slice of work with a risk line and acceptance checks.</span></div>
@@ -250,7 +250,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="col stack">
     <span class="eyebrow">Problem 1 · memory</span>
     <h2>Context gets wiped. The plan doesn't.</h2>
-    <p>Over a long project, Claude's context is compacted, cleared or lost to a new session. Keel stores the state in files and puts the important part back into every request. Press the buttons to see what's left after each kind of reset.</p>
+    <p>Over a long project, Claude's context is compacted, cleared or lost to a new session. JBIT stores the state in files and puts the important part back into every request. Press the buttons to see what's left after each kind of reset.</p>
   </div>
   <div class="mem">
     <div class="panel">
@@ -266,13 +266,13 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
         <li><code>CLAUDE.md</code> holds how to run and test the project, and locked product decisions.</li>
         <li>git holds one commit per stage, so the history reads as the plan.</li>
       </ul>
-      <div style="margin-top:14px" class="statusline" id="statusline">keel · 2/5 done · next: 3. Share mode</div>
+      <div style="margin-top:14px" class="statusline" id="statusline">jbit · 2/5 done · next: 3. Share mode</div>
       <p style="font-size:.8rem;color:var(--muted);margin-top:6px">The status line, kept current by the hook.</p>
     </div>
   </div>
   <div class="row" style="margin-top:16px">
     <button class="btn" id="bCompact">Compact the context</button>
-    <button class="btn ghost" id="bClear">Run /clear, then keel:resume</button>
+    <button class="btn ghost" id="bClear">Run /clear, then jbit:resume</button>
     <button class="btn ghost" id="bMemReset">Reset</button>
   </div>
 </section>
@@ -282,7 +282,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="col stack">
     <span class="eyebrow">Problem 2 · drift</span>
     <h2>Work moves in stages, and each stage is proven</h2>
-    <p><code>/keel:stage</code> runs one stage end to end, then stops for your review. Autopilot runs this same loop for every stage without stopping between them. Click a step for details.</p>
+    <p><code>/jbit:stage</code> runs one stage end to end, then stops for your review. Autopilot runs this same loop for every stage without stopping between them. Click a step for details.</p>
   </div>
   <div class="loop" role="group" aria-label="Stage steps" id="loop"></div>
   <div class="step-detail" id="stepDetail" aria-live="polite"></div>
@@ -293,12 +293,12 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="col stack">
     <span class="eyebrow">The project manager</span>
     <h2>Autopilot: you approve the plan, Claude runs it</h2>
-    <p>With <code>/keel:autopilot</code>, the main session becomes the project manager. It doesn't write the code. Builder subagents write it, a fresh agent verifies it, another reviews it, and the manager commits and keeps the plan current. The keel hook keeps the run going between turns and enforces the stops.</p>
+    <p>With <code>/jbit:autopilot</code>, the main session becomes the project manager. It doesn't write the code. Builder subagents write it, a fresh agent verifies it, another reviews it, and the manager commits and keeps the plan current. The jbit hook keeps the run going between turns and enforces the stops.</p>
     <p>The simulation below runs a sample four-stage plan for a garden-plot booking app. Stage 3 touches auth, so it's held until you approve it.</p>
   </div>
 
 
-  <div class="sim" id="simKeel">
+  <div class="sim" id="simJBIT">
     <div class="sim-bar">
       <button class="btn sig" id="sPlay">▶ Start autopilot</button>
       <button class="btn ghost" id="sReset">Reset</button>
@@ -321,7 +321,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
         <div class="lane"><div class="lane-name">Builders<small>subagents</small></div><div class="lane-chips" id="L-bld"></div></div>
         <div class="lane"><div class="lane-name">Verifier<small>built nothing</small></div><div class="lane-chips" id="L-ver"></div></div>
         <div class="lane"><div class="lane-name">Reviewer<small>fresh eyes</small></div><div class="lane-chips" id="L-rev"></div></div>
-        <div class="lane"><div class="lane-name">keel hook<small>enforces</small></div><div class="lane-chips" id="L-hook"></div></div>
+        <div class="lane"><div class="lane-name">jbit hook<small>enforces</small></div><div class="lane-chips" id="L-hook"></div></div>
         <div class="gauge-wrap"><span>Context</span><div class="gauge" title="Compaction threshold at 65%"><i id="gauge" style="width:12%"></i><b></b></div><span class="mono" id="gaugeN">12%</span></div>
         <div class="log" id="log" aria-live="polite"></div>
         <div class="reply" id="reply">
@@ -347,7 +347,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
     <p>To pause, the manager commits finished work (never half a stage), writes <code>Mode: paused — &lt;reason&gt;</code> into <code>## Now</code> and tells you what it needs, with a recommendation. The hook stops prompting and sends you a notification.</p>
   </div>
   <div class="grid2">
-    <div class="pause"><h3>A risky stage</h3><p>The risk line names auth, money, personal data or one of your <code>Keel risk:</code> words. It pauses before building, or before closing a stage whose corrected risk line names them.</p></div>
+    <div class="pause"><h3>A risky stage</h3><p>The risk line names auth, money, personal data or one of your <code>JBIT risk:</code> words. It pauses before building, or before closing a stage whose corrected risk line names them.</p></div>
     <div class="pause"><h3>A decision only you can make</h3><p>Scope, a product choice, or a trade-off the plan doesn't settle. Small decisions inside the plan's intent are logged with a date and made without asking.</p></div>
     <div class="pause"><h3>Stuck</h3><p>A check still fails after three fix rounds, or a builder's report contradicts the evidence.</p></div>
     <div class="pause"><h3>The plan is wrong</h3><p>A finished stage needs redoing, the scope has to grow, or a decision no longer holds.</p></div>
@@ -361,7 +361,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="col stack">
     <span class="eyebrow">Fan-out</span>
     <h2>Agents level: spending tokens to save time</h2>
-    <p>One line in <code>## Now</code> sets how widely work fans out to subagents. <code>/keel:plan</code> asks once, and every skill follows the answer.</p>
+    <p>One line in <code>## Now</code> sets how widely work fans out to subagents. <code>/jbit:plan</code> asks once, and every skill follows the answer.</p>
   </div>
   <div class="fan">
     <div class="stack">
@@ -388,7 +388,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
     <div class="guard"><h3>Evidence gate</h3><p>A commit that ticks stage <i>n</i> is refused unless <code>docs/evidence/stage-&lt;n&gt;/report.md</code> has a row for each of the stage's checks.</p><div class="eg">refused: stage 2 has 3 checks, report has 2 rows</div></div>
     <div class="guard"><h3>Ticked-checks gate</h3><p>A stage can't be closed if its <code>## Now</code> checks were never seen ticked.</p><div class="eg">refused: stage 3 checks never ticked</div></div>
     <div class="guard"><h3>Risky-stage hold</h3><p>While autopilot is armed, a stage that names auth, money or personal data gets no file edits and no builders until you type the approval yourself. Claude can't approve its own stage.</p><div class="eg">held: "go?" is a question, not an approval</div></div>
-    <div class="guard"><h3>Outward block</h3><p>While autopilot is armed, <code>git push</code>, publishes, deploys and <code>gh</code> writes are blocked, along with your own <code>Keel outward:</code> commands. It sees through <code>sudo</code>, <code>sh -c</code>, <code>eval</code> and similar wrappers.</p><div class="eg">blocked: git push (outward-facing)</div></div>
+    <div class="guard"><h3>Outward block</h3><p>While autopilot is armed, <code>git push</code>, publishes, deploys and <code>gh</code> writes are blocked, along with your own <code>JBIT outward:</code> commands. It sees through <code>sudo</code>, <code>sh -c</code>, <code>eval</code> and similar wrappers.</p><div class="eg">blocked: git push (outward-facing)</div></div>
     <div class="guard"><h3>Secret guard</h3><p>Every commit is scanned for keys, tokens, JWTs, database URLs with passwords and <code>.env</code> files. Credential headers in evidence must be masked.</p><div class="eg">blocked: src/db.ts:12 database URL with password</div></div>
     <div class="guard"><h3>Run keeper</h3><p>When a turn ends with stages left, the hook compacts the context once it's past 65% full, keeping the plan state, then prompts the manager to carry on. It gives up after three turns that leave the plan unchanged.</p><div class="eg" style="background:var(--sea-soft);color:var(--sea)">continue: stage 3 of 4</div></div>
   </div>
@@ -399,7 +399,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="col stack">
     <span class="eyebrow">Scaling up</span>
     <h2>Larger projects: a roadmap, one plan at a time</h2>
-    <p>When <code>/keel:plan</code> sees work too big for one plan (about eight or more stages, or a PRD with about fifteen or more requirements), it asks once whether to chart it. <code>/keel:charter</code> turns the PRD into milestones and a requirement ledger. Plans are then cut from it one milestone at a time, never all up front.</p>
+    <p>When <code>/jbit:plan</code> sees work too big for one plan (about eight or more stages, or a PRD with about fifteen or more requirements), it asks once whether to chart it. <code>/jbit:charter</code> turns the PRD into milestones and a requirement ledger. Plans are then cut from it one milestone at a time, never all up front.</p>
   </div>
   <div class="road" aria-label="Example roadmap">
     <div class="ms"><span class="id">M1 · done</span><h3>Accounts</h3><div class="bar"><i style="width:100%"></i></div><div class="st">6/6 requirements covered</div></div>
@@ -413,7 +413,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
     <div><b>Close</b>A milestone closes on the full suite, a coverage check, a fresh agent's spot check of evidence, and a review. The hook refuses the tick without <code>milestone-&lt;ID&gt;.md</code>.</div>
     <div><b>Cut</b>The next plan is cut from the next milestone, then autopilot waits for your yes.</div>
   </div>
-  <div class="statusline" style="margin-top:18px">keel · M2 10/31 · 2/5 done · next: 3. Booking calendar</div>
+  <div class="statusline" style="margin-top:18px">jbit · M2 10/31 · 2/5 done · next: 3. Booking calendar</div>
 </section>
 
 <!-- QUICK FIX -->
@@ -421,7 +421,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="col stack">
     <span class="eyebrow">New in 0.10.0</span>
     <h2>Small changes skip the stage machinery</h2>
-    <p><code>/keel:fix</code> handles a small change that's already decided and low-risk. It's built in the main session with no agents, checked with the test suite (plus one look at the app when the change is visible), logged as one line under <code>## Fixes</code> and committed alone. Anything that could be quietly wrong goes through a plan. Pick a request:</p>
+    <p><code>/jbit:fix</code> handles a small change that's already decided and low-risk. It's built in the main session with no agents, checked with the test suite (plus one look at the app when the change is visible), logged as one line under <code>## Fixes</code> and committed alone. Anything that could be quietly wrong goes through a plan. Pick a request:</p>
   </div>
   <div class="triage">
     <div class="reqs" id="reqs"></div>
@@ -434,25 +434,25 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="col stack">
     <span class="eyebrow">Reference</span>
     <h2>The commands</h2>
-    <p>Claude also runs these on its own when they fit, except <code>/keel:approve</code>, which only you can type.</p>
+    <p>Claude also runs these on its own when they fit, except <code>/jbit:approve</code>, which only you can type.</p>
   </div>
   <div class="tbl"><table>
     <thead><tr><th>Command</th><th>Role</th><th>What it does</th></tr></thead>
     <tbody>
-      <tr><td><code>/keel:plan</code></td><td>Planner</td><td>Writes <code>docs/PLAN.md</code>: goal, stages with checks and a risk line, decisions. Surveys existing code and records a test baseline. Archives a finished plan and starts the next one.</td></tr>
-      <tr><td><code>/keel:charter</code></td><td>Cartographer</td><td>Turns a large PRD into <code>docs/ROADMAP.md</code> with milestones and a requirement ledger, and proposes locked decisions for <code>CLAUDE.md</code>.</td></tr>
-      <tr><td><code>/keel:stage</code></td><td>Builder loop</td><td>Runs the next stage end to end (scope, build, verify, review, commit), then stops for you.</td></tr>
-      <tr><td><code>/keel:autopilot</code></td><td>Project manager</td><td>Runs every remaining stage by delegating the work, and stops only for decisions that are yours.</td></tr>
-      <tr><td><code>/keel:approve</code></td><td>You</td><td>Releases a held risky stage. Only you can type it.</td></tr>
-      <tr><td><code>/keel:verify</code></td><td>Inspector</td><td>Runs type check, lint, tests, build and a dependency audit, then proves each check against the running product and saves the evidence.</td></tr>
-      <tr><td><code>/keel:review</code></td><td>Second pair of eyes</td><td>An agent that didn't write the code reviews it, with a security pass for risky stages. Findings are sorted into fix, defer or reject.</td></tr>
-      <tr><td><code>/keel:resume</code></td><td>Navigator</td><td>After a break or a reset, reads the plan and git, then tells you where things stand and what's next.</td></tr>
-      <tr><td><code>/keel:fix</code></td><td>Quick fix</td><td>Makes a small, low-risk change without a stage, logs one line and commits it.</td></tr>
+      <tr><td><code>/jbit:plan</code></td><td>Planner</td><td>Writes <code>docs/PLAN.md</code>: goal, stages with checks and a risk line, decisions. Surveys existing code and records a test baseline. Archives a finished plan and starts the next one.</td></tr>
+      <tr><td><code>/jbit:charter</code></td><td>Cartographer</td><td>Turns a large PRD into <code>docs/ROADMAP.md</code> with milestones and a requirement ledger, and proposes locked decisions for <code>CLAUDE.md</code>.</td></tr>
+      <tr><td><code>/jbit:stage</code></td><td>Builder loop</td><td>Runs the next stage end to end (scope, build, verify, review, commit), then stops for you.</td></tr>
+      <tr><td><code>/jbit:autopilot</code></td><td>Project manager</td><td>Runs every remaining stage by delegating the work, and stops only for decisions that are yours.</td></tr>
+      <tr><td><code>/jbit:approve</code></td><td>You</td><td>Releases a held risky stage. Only you can type it.</td></tr>
+      <tr><td><code>/jbit:verify</code></td><td>Inspector</td><td>Runs type check, lint, tests, build and a dependency audit, then proves each check against the running product and saves the evidence.</td></tr>
+      <tr><td><code>/jbit:review</code></td><td>Second pair of eyes</td><td>An agent that didn't write the code reviews it, with a security pass for risky stages. Findings are sorted into fix, defer or reject.</td></tr>
+      <tr><td><code>/jbit:resume</code></td><td>Navigator</td><td>After a break or a reset, reads the plan and git, then tells you where things stand and what's next.</td></tr>
+      <tr><td><code>/jbit:fix</code></td><td>Quick fix</td><td>Makes a small, low-risk change without a stage, logs one line and commits it.</td></tr>
     </tbody>
   </table></div>
 </section>
 
-<footer>Keel 0.10.0 · based on <code>plugins/keel/README.md</code> and the skill files in <code>plugins/keel/skills/</code>.</footer>
+<footer>JBIT 0.10.0 · based on <code>plugins/jbit/README.md</code> and the skill files in <code>plugins/jbit/skills/</code>.</footer>
 </div>
 
 <script>
@@ -477,7 +477,7 @@ function renderMem(){
   } else if(memState==='compact'){ $('#ctxTag').textContent='after compaction';
     CTX.forEach(c=>{const d=document.createElement('div');d.className='ctx-item'+(c.k==='x'?' gone':c.k==='now'?' inj':'');d.textContent=c.t+(c.k==='now'?' (kept: the summarizer is told to keep stage state, and the hook re-injects ## Now)':c.k==='plan'?' (in PLAN.md)':'');box.appendChild(d)});
   } else { $('#ctxTag').textContent='new session';
-    [['Plan ## Now, injected by the hook on the first request','inj'],['keel:resume: read PLAN.md, decisions.md, git log since the last stage','inj'],['keel:resume: uncommitted work on src/share/','inj'],['"Stage 3 is half done: 1 of 3 checks proven. Next: build the expiry check."','']].forEach(([t,c])=>{const d=document.createElement('div');d.className='ctx-item '+c;d.textContent=t;box.appendChild(d)});
+    [['Plan ## Now, injected by the hook on the first request','inj'],['jbit:resume: read PLAN.md, decisions.md, git log since the last stage','inj'],['jbit:resume: uncommitted work on src/share/','inj'],['"Stage 3 is half done: 1 of 3 checks proven. Next: build the expiry check."','']].forEach(([t,c])=>{const d=document.createElement('div');d.className='ctx-item '+c;d.textContent=t;box.appendChild(d)});
   }
 }
 $('#bCompact').onclick=()=>{memState='compact';renderMem()};
@@ -489,10 +489,10 @@ renderMem();
 const STEPS=[
  {t:'Scope',d:'<p>Write <code>## Now</code> for the stage: what it covers, a <b>risk line</b> (UI only? user input? auth? money?), and acceptance checks that each name a proof. A test is used wherever one can cover the check, otherwise the check says why not.</p><p class="mono" style="color:var(--muted)">- [ ] A booked plot can\'t be double-booked (proof: test)</p>'},
  {t:'Build',d:'<p>Build the foundation first in the main tree. Independent leaves then go to subagents in their own <b>git worktrees</b> so they can\'t collide, and the manager merges each branch back after checking it. Untested code gets a test of its current behaviour before it changes.</p>'},
- {t:'Verify',d:'<p><code>keel:verify</code> runs type check, lint, tests, build and a dependency audit, then proves every check against the <b>running product</b> with real requests, CLI runs or screenshots. The result is saved to <code>docs/evidence/stage-&lt;n&gt;/report.md</code>, with secrets masked. On the plan\'s last stage it also re-runs earlier checks that weren\'t proven by a test, so a regression shows up.</p>'},
+ {t:'Verify',d:'<p><code>jbit:verify</code> runs type check, lint, tests, build and a dependency audit, then proves every check against the <b>running product</b> with real requests, CLI runs or screenshots. The result is saved to <code>docs/evidence/stage-&lt;n&gt;/report.md</code>, with secrets masked. On the plan\'s last stage it also re-runs earlier checks that weren\'t proven by a test, so a regression shows up.</p>'},
  {t:'Review',d:'<p>First the risk line is checked against what the diff actually touches. A "UI only" stage that reads user input gets its risk line corrected. Then an agent that <b>didn\'t write the code</b> reviews it, with a security pass when the stage touches input, auth, money, personal data, secrets or external services. Findings are checked and sorted into <b>fix</b>, <b>defer</b> or <b>reject</b>.</p>'},
  {t:'Commit',d:'<p>Tick the proven checks, update the plan, and commit the stage <b>with its evidence</b>. The hook\'s gates refuse the commit if the report is missing a row, a check was never ticked, or a secret is in the diff.</p>'},
- {t:'Stop',stop:true,d:'<p><code>/keel:stage</code> stops here and reports to you, linking the evidence. <b>Under autopilot it doesn\'t stop.</b> The manager notes one line for the final report and moves to the next stage.</p>'},
+ {t:'Stop',stop:true,d:'<p><code>/jbit:stage</code> stops here and reports to you, linking the evidence. <b>Under autopilot it doesn\'t stop.</b> The manager notes one line for the final report and moves to the next stage.</p>'},
 ];
 const loop=$('#loop');
 STEPS.forEach((s,i)=>{const b=document.createElement('button');b.className='step'+(s.stop?' stop':'');b.setAttribute('aria-pressed',i===0);b.innerHTML='<span class="n">'+String(i+1).padStart(2,'0')+'</span><span class="t">'+s.t+'</span>';b.onclick=()=>{[...loop.children].forEach(x=>x.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');$('#stepDetail').innerHTML=s.d};loop.appendChild(b)});
@@ -542,7 +542,7 @@ const REQS=[
 ];
 const reqs=$('#reqs');
 function showReq(i){const r=REQS[i];[...reqs.children].forEach((b,j)=>b.setAttribute('aria-pressed',j===i));
-  $('#verdict').innerHTML='<span class="eyebrow">Route</span><div class="route '+r[1]+'">'+(r[1]==='fix'?'/keel:fix':'/keel:plan')+'</div><p>'+r[2]+'</p>'+(r[1]==='fix'?'<p class="mono" style="margin-top:12px;color:var(--muted);font-size:.78rem">## Fixes<br>- 2026-11-10 · '+esc(r[0])+'</p>':'<p style="margin-top:12px;color:var(--muted);font-size:.86rem">The plan gets a stage with a risk line and checks. If a fix grows past the bar while it\'s being made, keel:fix stops and offers keel:plan.</p>');}
+  $('#verdict').innerHTML='<span class="eyebrow">Route</span><div class="route '+r[1]+'">'+(r[1]==='fix'?'/jbit:fix':'/jbit:plan')+'</div><p>'+r[2]+'</p>'+(r[1]==='fix'?'<p class="mono" style="margin-top:12px;color:var(--muted);font-size:.78rem">## Fixes<br>- 2026-11-10 · '+esc(r[0])+'</p>':'<p style="margin-top:12px;color:var(--muted);font-size:.86rem">The plan gets a stage with a risk line and checks. If a fix grows past the bar while it\'s being made, jbit:fix stops and offers jbit:plan.</p>');}
 REQS.forEach((r,i)=>{const b=document.createElement('button');b.textContent=r[0];b.onclick=()=>showReq(i);reqs.appendChild(b)});
 showReq(0);
 
@@ -596,7 +596,7 @@ async function runStage(i){
   if(g.held){
     st.status[i]='held';st.mode='paused — stage 3 names auth, personal data; waiting for approval';renderPlan('mode');
     chip('hook','hold: no edits, no builders','hold');
-    log('hook','Stage 3 is held. File edits outside the plan and builder agents are blocked. Notification sent: <i>reply "yes", "go", "approve" or /keel:approve</i>.','hook');
+    log('hook','Stage 3 is held. File edits outside the plan and builder agents are blocked. Notification sent: <i>reply "yes", "go", "approve" or /jbit:approve</i>.','hook');
     log('manager','Paused. Stage 3 adds login and stores emails and password hashes. I recommend bcrypt with a per-account rate limit. Reply <b>yes</b> to build it.');
     $('#reply').classList.add('on');
     await new Promise(res=>{approvalResolve=res});
@@ -622,7 +622,7 @@ async function runStage(i){
   }
   // verify
   const verLane=level==='lean'?'mgr':'ver';
-  let v=chip(verLane,'keel:verify'+(level==='lean'?' (main session)':''),'run');
+  let v=chip(verLane,'jbit:verify'+(level==='lean'?' (main session)':''),'run');
   log(level==='lean'?'manager':'verifier','Running type check, lint, tests and build, then each check against the running app.');
   await wait(1400);ctxAdd(3);
   if(g.failOnce){

@@ -1,0 +1,8 @@
+# mutation: keel alias removed from ALLOW (secrets.ts) and RULE_LINE (project.ts), then restored
+$ claude plugin test plugins/jbit
+(fail) the legacy keel:allow-secret marker and jbit:allow-secret both exempt a line; anything else does not [0.45ms]
+(fail) legacy Keel risk and outward lines parse exactly like the JBIT ones, in any case and Markdown form [0.17ms]
+(fail) a legacy Keel risk line in CLAUDE.md still holds a stage, exactly like auth [58.92ms]
+(fail) a legacy Keel outward line still holds matching commands under autopilot [49.59ms]
+ 308 pass
+ 4 fail

@@ -1,0 +1,26 @@
+$ grep -rni keel --exclude-dir=.git --exclude-dir=node_modules . | sed 's#^\./##' | grep -v '^docs/plans/' | grep -v '^docs/decisions.md' | grep -v '^docs/PLAN.md' | grep -v '^docs/evidence/'
+plugins/jbit/hooks/project.ts:54: * `keel` is the legacy name from before the plugin was renamed: `Keel risk:` / `Keel outward:` rules live in other
+plugins/jbit/hooks/project.ts:57:const RULE_LINE = /^(?:[-*+][ \t]+|\d{1,9}[.)][ \t]+)?[*_`]{0,3}(?:jbit|keel)[ \t]+(risk|outward)[*_`]{0,3}[ \t]*:[*_`]{0,3}/i
+plugins/jbit/tests/jbit.test.ts:3427:// ---- the rename: jbit forms work, and the legacy keel forms other people's repos hold stay honoured ----
+plugins/jbit/tests/jbit.test.ts:3429:test('the legacy keel:allow-secret marker and jbit:allow-secret both exempt a line; anything else does not', () => {
+plugins/jbit/tests/jbit.test.ts:3430:  for (const marker of ['jbit:allow-secret', 'keel:allow-secret']) {
+plugins/jbit/tests/jbit.test.ts:3436:  for (const marker of ['KEEL:ALLOW-SECRET', 'JBIT:allow-secret', 'Keel:allow-secret', 'keel allow-secret', 'keel:allow', 'jbit:allow-secrt'])
+plugins/jbit/tests/jbit.test.ts:3441:test('legacy Keel risk and outward lines parse exactly like the JBIT ones, in any case and Markdown form', () => {
+plugins/jbit/tests/jbit.test.ts:3444:  for (const name of ['Keel', 'JBIT', 'keel', 'jbit']) {
+plugins/jbit/tests/jbit.test.ts:3450:  expect(parseProjectRules('Keel risk: pci\nJBIT risk: pci, card data\nkeel outward: make release\njbit outward: make release').risk).toEqual(['pci', 'card data'])
+plugins/jbit/tests/jbit.test.ts:3452:  const none = ['see Keel risk: mid-line', 'keels risk: x', 'jbits risk: x', 'keeljbit risk: x', 'xkeel risk: x', 'k eel risk: x', 'Keel: risk: x', 'Keel-risk: x', '```\nKeel risk: example\n```']
+plugins/jbit/tests/jbit.test.ts:3456:test('a legacy Keel risk line in CLAUDE.md still holds a stage, exactly like auth', async ($, on) => {
+plugins/jbit/tests/jbit.test.ts:3457:  await expectHeldLikeAuth($, on, 'pci', 'PCI scope, user input', { 'CLAUDE.md': '# Project\n\nKeel risk: PCI , card data\n' })
+plugins/jbit/tests/jbit.test.ts:3460:test('a legacy Keel outward line still holds matching commands under autopilot', async ($, on) => {
+plugins/jbit/tests/jbit.test.ts:3461:  const { bash } = await drivingBash($, on, { 'CLAUDE.md': '# Project\n\nKeel outward: make release, ./scripts/ship.sh\n' })
+plugins/jbit/tests/jbit.test.ts:3467:test('only /jbit:autopilot reads unattended now: the old /keel:autopilot form is not a command', () => {
+plugins/jbit/tests/jbit.test.ts:3470:  for (const t of ['/keel:autopilot unattended', '/keel:autopilot unattended outward', '/KEEL:AUTOPILOT UNATTENDED']) expect(unattendedOf(t)).toBe('off')
+plugins/jbit/tests/jbit.test.ts:3473:test('/jbit:autopilot unattended and unattended outward arm a run; the old /keel:autopilot unattended does not', async ($, on) => {
+plugins/jbit/tests/jbit.test.ts:3481:test('the old /keel:autopilot unattended outward prompt leaves a risky stage held and pushes denied', async ($, on) => {
+plugins/jbit/tests/jbit.test.ts:3482:  const { edit, bash, compose, sent } = await armedBy($, on, '/keel:autopilot unattended outward', { tag: ' r2', risk: 'auth, user input' })
+plugins/jbit/tests/jbit.test.ts:3489:test('/jbit:approve releases a hold; the old /keel:approve does not', async ($, on) => {
+plugins/jbit/tests/jbit.test.ts:3491:  expect(isApproval('/keel:approve')).toBe(false)
+plugins/jbit/tests/jbit.test.ts:3492:  expect(isApproval('/KEEL:APPROVE stage 2')).toBe(false)
+plugins/jbit/tests/jbit.test.ts:3494:  await say('/keel:approve')
+plugins/jbit/hooks/secrets.ts:41: * The comment that exempts a line from the scan, matched case-sensitively anywhere on the line. `keel:allow-secret` is the
+plugins/jbit/hooks/secrets.ts:44:const ALLOW = ['jbit:allow-secret', 'keel:allow-secret'] as const

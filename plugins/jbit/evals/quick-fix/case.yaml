@@ -1,0 +1,58 @@
+schema_version: "1.0"
+name: quick-fix
+description: >-
+  With the plan's goal met, a one-line, already-decided output tweak that touches no money logic goes through
+  jbit:fix: built in the main session with no agents, checked with the suite, logged as one line under `## Fixes`
+  and committed alone, with no archived plan, new plan or evidence folder.
+tags: [fix, outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    Small thing: when the CLI prints the total, put "Total: " in front of the number, so it reads "Total: 1.39".
+    Go ahead and do it.
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-fix
+    tool: Skill
+    input_match: '"skill":\s*"(jbit:)?fix"'
+    min: 1
+    arm: with-only
+  - type: tool_used
+    name: no-agents
+    tool: Agent
+    min: 0
+    max: 0
+  - type: file_exists
+    name: no-archive
+    path: docs/plans
+    exists: false
+  - type: regex
+    name: cli-changed
+    target: files
+    pattern: "Total: "
+    match: contains
+  - type: llm
+    name: logs-one-fix-line
+    focus: files
+    criteria: >-
+      docs/PLAN.md still has the tally plan's original Goal, its two ticked stages and `## Now` reading "All stages
+      done", and gains a `## Fixes` section with one dated line naming the "Total: " change and how it was checked.
+      No new stage, no new Goal, no new `docs/evidence/stage-*` folder. Fails if the plan was archived or rewritten,
+      a stage was added, or no Fixes line was written.
+  - type: llm
+    name: checked-and-committed
+    focus: trace
+    criteria: >-
+      The agent runs the test suite (npm test or node --test) after the change and it passes, then commits the
+      change and the plan line together in one commit whose subject starts with "Fix:". Fails if the tests were
+      never run after the edit, or nothing was committed.
+  - type: llm
+    name: announces-fit
+    focus: trace
+    criteria: >-
+      Before its first edit to the project, the agent says in one line that the change fits the quick-fix bar and
+      why (for example: UI only, already decided, so no stage). Fails if it edits first and never says so, or only
+      mentions it after committing.

@@ -1,0 +1,43 @@
+schema_version: "1.0"
+name: scale-check-large
+description: >-
+  Planning a PRD of 25 requirements across two releases fires jbit:plan's scale check: Claude asks once, with a
+  recommendation, whether to chart the project first, even when told to assume defaults, and doesn't cram the whole
+  PRD into one plan of ten or more stages.
+tags: [scale, outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    The PRD for this is in docs/PRD.md. Plan the build before writing any code; assume sensible defaults rather than
+    asking me.
+  max_turns: 25
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-plan
+    tool: Skill
+    input_match: "plan"
+    min: 1
+    arm: with-only
+  - type: llm
+    name: asks-once-about-charting
+    focus: trace
+    criteria: >-
+      The agent asks the user whether to chart the project into milestones first (jbit:charter, a roadmap such as
+      docs/ROADMAP.md, or words to that effect) or keep a single plan, gives its recommendation, and names what
+      made it ask (the number of requirements, the two releases, or the stage count). It asks this exactly once:
+      fails if it never asks, if it asks the same question again later in the run, or if it charts the project
+      without asking.
+  - type: llm
+    name: no-oversized-plan
+    focus: trace
+    criteria: >-
+      No plan file the agent writes (docs/PLAN.md or another) lists 10 or more stages under its stages section. A
+      run that writes no plan while it waits for the user's answer passes, as does a plan of fewer stages covering
+      only the first release or milestone.
+  - type: regex
+    name: no-source-changes
+    target: files
+    pattern: "src/"
+    match: not_contains

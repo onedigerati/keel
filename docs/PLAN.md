@@ -7,20 +7,21 @@ Rename the plugin from keel to JBIT (pronounced jay-bit, "Just Build It"), with 
 2026-11-13 · tests: 304 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed with warnings (`claude plugin validate plugins/keel`)
 
 ## Now
-Stage 1 of 2 · Rename to jbit
+Stage 2 of 2 · Identity and docs
+Mode: autopilot — unattended
 Agents: lean
-Risk: secrets (the secret guard's allow marker), user input (prompt parsing for `/jbit:autopilot` and `/jbit:approve`)
+Risk: docs only (READMEs, field guide, manifest descriptions; no runtime behaviour)
 Checks:
-- [ ] The plugin is `jbit` 0.12.0: `plugins/jbit/`, plugin.json and marketplace.json name it, and the skills, hooks, tests and evals use `jbit:*` (proof: test)
-- [ ] `/jbit:autopilot unattended [outward]` arms and `/jbit:approve` releases a hold, exactly as the keel forms did (proof: test)
-- [ ] A line with `keel:allow-secret` and a `Keel risk:` / `Keel outward:` rule in `CLAUDE.md` still work, as do the `jbit:allow-secret`, `JBIT risk:` and `JBIT outward:` forms (proof: test)
-- [ ] Outside `docs/plans/`, `docs/decisions.md` and the alias code, `grep -ri keel` finds nothing (proof: command, a test can't scan the repo's prose)
-- [ ] A live session with the renamed plugin shows `# JBIT` in its context and the `jbit` status line, and `jbit:plan` loads (proof: headless run, a test can't see the engine's view)
+- [ ] The root README, plugin README, field guide, and the plugin.json and marketplace.json descriptions lead with JBIT, "jay-bit", "Just Build It" and the tagline "Plans it. Proves it. Sees it through." (proof: command)
+- [ ] Both READMEs tell the story from goal to done (plan, stages, build, verify with evidence, review, commit; autopilot to see it through) in place of a feature list, and promise no hands-free run (proof: reading, recorded in the report)
+- [ ] Both READMEs say how to move over from keel (remove `keel-local`, add `jbit-local`, install `jbit`, uninstall `keel`) and that `Keel risk:`, `Keel outward:` and `keel:allow-secret` still work (proof: command)
+- [ ] The field guide shows 0.12.0 and has no stale version or name (proof: command)
+- [ ] Tests and validate stay green, and stage 1's grep check still holds (proof: test, command)
 Open: none
 
 ## Stages
-- [ ] 1. Rename to jbit — folder, manifests, skills, hooks, tests, evals; legacy keel aliases; 0.12.0
-- [ ] 2. Identity and docs — README, field guide, marketplace description: name, jay-bit, tagline, goal-to-done story
+- [x] 1. Rename to jbit — folder, manifests, skills, hooks, tests, evals; legacy keel aliases; 0.12.0
+- [ ] 2. Identity and docs — README, field guide, marketplace description: name, jay-bit, tagline, goal-to-done story; how to move over from keel, and the legacy forms that still work
 
 ## Decisions
 - 2026-11-13 · The name is JBIT, pronounced jay-bit, for "Just Build It"; written `JBIT` in prose and `jbit` in commands, paths and the plugin name — at least seven other Claude Code dev-framework repos are called keel on GitHub, and none of the `jbit` repos is in the AI space (from the user).
@@ -32,6 +33,8 @@ Open: none
 - 2026-11-13 · Version 0.12.0: a rename is a visible change, so a minor bump under the 2026-11-10 rule.
 - 2026-11-13 · Agents: lean, from the user.
 - 2026-11-13 · Scale: two stages, one change, planned as one plan with no charter.
+- 2026-11-13 · Stage 1 review: the READMEs' missing keel-to-jbit move-over steps and the unmentioned legacy forms go into stage 2, which rewrites both READMEs anyway — autopilot. Rejected: a live check muddied by the old install loading beside jbit (the headless run's init lists only `jbit` 0.12.0, `docs/evidence/stage-1/headless-live.txt`).
+- 2026-11-13 · The grep check also leaves out `docs/PLAN.md` (this plan records the rename) and `docs/evidence/` (the stage's own proof quotes the old name), and counts the alias tests with the alias code — autopilot, within the Goal's intent that only history and the alias keep the name.
 
 ## Open questions
 - After the build, for the user: push; move `~/repos/keel` to `~/repos/jbit`; remove the `keel-local` marketplace, add the folder as `jbit-local`, `/plugin install jbit@jbit-local`, uninstall `keel`; and a `Plan:` commit in eVelo-v2, Heel and ToDo updating `keel:*` mentions in their plans (cosmetic: the hook injects the current names).

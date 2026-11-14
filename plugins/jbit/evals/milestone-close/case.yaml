@@ -1,0 +1,98 @@
+schema_version: "1.0"
+name: milestone-close
+description: With a roadmap, archiving a finished plan fills Covered by for the requirement its evidence proves and commits the switch; the milestone close then runs in the new plan (full suite, coverage check, a fresh reviewer's evidence-fit sample, a milestone review, evidence in docs/evidence/milestone-M1.md) and either ticks M1 and cuts the M2 plan, or reports what failed and plans the fix; either way the run stops for the user's yes before building.
+tags: [outcome]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: >-
+    Stage 1 is done and verified, so this plan is finished. Wrap it up, archive it and move on to what's next on
+    the roadmap. Assume sensible defaults rather than asking me.
+  max_turns: 60
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill, Agent]
+graders:
+  - type: tool_used
+    name: loads-plan
+    tool: Skill
+    input_match: "plan"
+    min: 1
+    arm: with-only
+  - type: tool_used
+    name: fresh-reviewer
+    tool: Agent
+    min: 1
+    arm: with-only
+  - type: file_exists
+    name: no-evidence-left
+    path: "docs/evidence/stage-*/*"
+    exists: false
+    arm: with-only
+  - type: llm
+    name: covered-by-filled-right
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      In the Requirements table, TAL-04's Covered by cell now holds only a link to the newly archived refunds plan
+      under docs/plans/, written relative to docs/ (for example `[Refunds](plans/<date>-<slug>.md)`), and not TBD,
+      n/a, a dash, a date or other text. TAL-01, TAL-02 and TAL-03 still link the Core totals plan
+      (plans/2026-10-10-core-totals.md); in particular TAL-02 was not changed to the new plan even though the new
+      plan's evidence also tags it. The dropped TAL-05 row and the M2 rows RPT-01 and RPT-02 still have empty
+      Covered by cells, and no row was deleted.
+  - type: llm
+    name: m1-ticked-m2-open
+    focus: { source: file, path: docs/ROADMAP.md }
+    criteria: >-
+      Under Milestones, M2 (Reports) is still unticked (`- [ ]`). M1 (Core totals) is either ticked (`- [x]`), when
+      the close passed, or still unticked when the milestone review or another close check failed and the trace shows
+      that failure being reported. Either is fine; M1 ticked although a close check failed is not.
+  - type: llm
+    name: closes-after-checks
+    focus: trace
+    criteria: >-
+      Before ticking M1 in docs/ROADMAP.md, the agent did all three of: ran the project's full test suite
+      (npm test or node --test) and saw it pass; checked coverage, confirming each non-dropped M1 requirement
+      (TAL-01 to TAL-04, not the dropped TAL-05) has a Covered by link backed by a passing tagged evidence row;
+      and had a fresh agent (spawned with the Agent tool, not the agent itself) sample requirements and judge
+      whether the linked evidence really delivers them. The tick came after all three, not before or instead.
+  - type: llm
+    name: names-m2-current
+    focus: trace
+    criteria: >-
+      The final report gives the close's outcome honestly. Either M1 closed and the report names M2 (Reports) as the
+      current milestone the next plan is cut from; or the close failed and the report says M1 stays open, names what
+      failed, and says the next plan's stages fix it before M1 can close (not moving on to M2).
+  - type: file_exists
+    name: milestone-evidence-written
+    path: "docs/evidence/milestone-M1.md"
+    arm: with-only
+  - type: llm
+    name: milestone-evidence-rows
+    focus: { source: file, path: docs/evidence/milestone-M1.md }
+    criteria: >-
+      The file holds a table with a row whose first cell is each of TAL-01, TAL-02, TAL-03 and TAL-04 (the
+      non-dropped M1 requirements), each giving its Covered by link and the passing evidence row behind it. TAL-05
+      (dropped) needs no row. It also records the full suite's result and a fresh agent's evidence-fit sample: which
+      requirements it sampled (at least four here, since M1 has four live ones), at least one proof it re-ran itself,
+      and its answer per ID.
+  - type: llm
+    name: switch-then-tick-committed
+    focus: trace
+    criteria: >-
+      The agent committed the switch (the plan archived to docs/plans/, its evidence moved beside it, TAL-04's
+      Covered by filled, and a new docs/PLAN.md with the standing decision and Shipped lines) before any tick, and
+      ran the close inside the new plan (its Now saying it closes milestone M1), so a docs/PLAN.md existed at every
+      commit. If M1 was ticked, the tick was committed together with or after docs/evidence/milestone-M1.md, in a
+      separate commit. No jbit hook refusal was worked around (for example by writing the evidence file only to get
+      past it without running the checks).
+  - type: llm
+    name: stops-after-cutting-m2
+    focus: trace
+    criteria: >-
+      No M2 stage is built: no report code, no M2 tests, no M2 stage run, and never `Mode: autopilot` in a freshly cut
+      plan. If M1 closed, the agent cut the next plan from M2 (its Goal names M2 and RPT-01/RPT-02, checks tagged
+      after the proof like `(proof: test) (req: RPT-01)`) and stopped to ask whether to start. If the close failed,
+      the new plan's stages fix what failed (for M1, not M2) and the agent stops to ask before building them.
+  - type: regex
+    name: no-source-changes
+    target: files
+    pattern: "src/"
+    match: not_contains

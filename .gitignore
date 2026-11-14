@@ -2,8 +2,8 @@ node_modules
 .claude-plugin/types
 *.Zone.Identifier
 .DS_Store
-plugins/keel/.claude-plugin/types
-plugins/keel/tsconfig.json
+plugins/jbit/.claude-plugin/types
+plugins/jbit/tsconfig.json
 
 # eval results
-plugins/keel/evals/results
+plugins/jbit/evals/results
