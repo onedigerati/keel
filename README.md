@@ -1,34 +1,52 @@
-# jbit
+# JBIT
 
-A Claude Code plugin for long, multi-stage work. It keeps that work on course without a heavyweight process, and works on new projects and existing ones.
+**Plans it. Proves it. Sees it through.**
+
+JBIT, pronounced jay-bit, stands for Just Build It. "Just build it" is what you say to Claude. The tagline is what JBIT does so that's a safe thing to say.
+
+It's a Claude Code plugin for long, multi-stage work, on new projects and existing ones. All project state lives in one plan file plus git, with no tracker or codebase map to keep current.
 
 For a visual walkthrough (interactive autopilot simulation, the stage loop, guardrails and roadmaps), download [docs/field-guide.html](docs/field-guide.html) and open it in a browser.
 
-## Why "jbit"
+## From goal to done
 
-A jbit is the spine along the bottom of a ship. It's the first piece laid when a ship is built, and it does two jobs. It stops the ship from drifting sideways when the wind pushes on it, and it keeps the ship upright, on an even jbit. It does both from below the waterline, adding almost nothing to the ship you see.
+1. **You state a goal.** Say what you want built, or point Claude at a spec.
+2. **One plan.** `/jbit:plan` writes `docs/PLAN.md`: the goal, stages with a risk line and acceptance checks you can observe, dated decisions and open questions. In existing code it surveys what the work touches and records a test baseline first. The plan's current position rides in Claude's context, so it survives long sessions and compaction, and new work either fits the goal or waits for the next plan.
+3. **Build a stage.** `/jbit:stage` builds the next stage, fanning independent parts out to subagents as far as the plan's Agents line allows.
+4. **Verify it, with evidence.** `/jbit:verify` runs the project's checks, then proves each acceptance check by a test or against the running product, and saves the report and output to `docs/evidence/stage-<n>/`.
+5. **Review it.** The risk line is checked against what the code actually touches. Anything beyond UI gets a fresh-eyes review by an agent that didn't write it, with a security pass where it matters.
+6. **Commit it.** One commit per stage, evidence included. Hooks refuse a commit that closes a stage without its evidence or carries a secret. Then it stops for your review.
+7. **Autopilot sees it through.** `/jbit:autopilot` runs every remaining stage as project manager, without stopping in between.
+8. **Next plan.** When the goal is met, `/jbit:plan` archives the plan and its evidence and starts the next one fresh.
 
-Long work with Claude drifts in similar ways. Context gets summarized and the current stage gets lost. Scope creeps one feature at a time. A stage gets called done before anyone checked it. A run that's going well keeps going straight into a push, a deploy or a change to auth code. JBIT is built to hold against each of these:
+Along the way, `/jbit:fix` takes a small, low-risk change without a stage, `/jbit:charter` turns a PRD too big for one plan into a roadmap of milestones, and `/jbit:resume` picks things up after a break.
 
-- **Laid first.** Work starts with a plan: a goal, stages with acceptance checks you can observe, a risk line for each stage, and dated decisions. Everything after that is built along it.
-- **Holds the course.** The plan's current position rides in Claude's context, so it survives long sessions and compaction. New work either fits the plan's goal or waits for the next plan, and Claude asks which instead of quietly growing the scope.
-- **Keeps it steady.** Each stage is verified against the running product, reviewed by fresh eyes when it's risky, and committed. Checks are proven by tests where they can be, and the rest are re-run at the end of the plan, so a later stage can't break an earlier one without it showing by the end of the plan. Autopilot stops before risky and outward-facing steps, and those stops are enforced by hooks rather than left to good intentions.
-- **Stays below the waterline.** The state is one plan file plus git. There's no separate codebase map, no tracker and no ceremony to maintain, so the structure doesn't get in the way of the work.
+## What it won't do
 
-## What it does
+It doesn't promise a hands-free run. Autopilot still stops, enforced by hooks, for a risky stage (auth, money, personal data or your project's own risk words) until you approve it, for decisions only you can make, when it's stuck, and before outward steps such as a push, publish or deploy.
 
-- **New in 0.11.0.** `/jbit:autopilot unattended` runs an approved plan without waiting for you: risky stages aren't held, and Claude makes the judgment calls the plan doesn't settle, logging each as a dated `(unattended)` decision listed first in its final report. Add `outward` to also let push, publish and deploy through. Only your own typed command arms it, never a skill Claude runs, a Mode line or a file, and it ends with a plain `/jbit:autopilot`, the Mode line removed or a new Goal. The commit gates, the secret guard, the security review on risky stages and the pause after three failed fix rounds all stay, and it never builds a plan you haven't seen. The status line reads `autopilot unattended`.
-- **Quick fixes (new in 0.10.0).** A small, low-risk change that's already decided (a style or copy tweak, a display bug, docs) no longer needs a stage: `/jbit:fix` makes it and checks it in the main session, logs one dated line under the plan's `## Fixes` and commits it alone with a `Fix:` subject. Anything touching user input, auth, money, personal data, secrets, external services, migrations, dependencies, CI or deploy config, your project's `JBIT risk:` words, or logic that can be quietly wrong misses the bar and is planned. `/jbit:plan`, `/jbit:stage` and `/jbit:autopilot` recommend it when a request fits, and you choose.
-- **Explicit approval and secret formats (new in 0.9.0).** Under autopilot, a risky stage that's held or paused is released only by your own reply opening with yes, yep, go, approve, approved, proceed or "build it" (followed by the end of the message, a line break, or punctuation other than `?`), or by `/jbit:approve`; a status question leaves it held, and a plan paused on a risky stage is held too while autopilot is armed. The secret guard now also catches JWTs, bearer tokens (20 or more characters with a letter and a digit), and GitLab, npm, PyPI and SendGrid tokens. In `docs/evidence/`, it refuses an `Authorization`, `Proxy-Authorization`, `Cookie` or `Set-Cookie` header (or its `HTTP_COOKIE`-style env, curl `-b` or one-line HAR form) whose value still holds a credential-like string, 16 or more token characters with a letter and a digit, once `[masked]` and placeholders such as `$TOKEN` or `<token>` are taken out. A short value, a header split across lines and custom headers such as `X-Api-Key` aren't checked.
-- **Large projects (new in 0.8.0).** When a PRD is too big for one plan, `jbit:plan` asks once whether to chart it, and `jbit:charter` turns it into `docs/ROADMAP.md`: milestones with dependencies and a ledger of the PRD's requirements. Plans are cut from the current milestone one at a time, and coverage fills in from passing evidence when a plan is archived. A milestone closes, in the next plan and before its stages are cut, only on the full suite, a coverage check, a fresh agent's evidence-fit sample and a milestone review, and a hook refuses a commit that ticks it unless `docs/evidence/milestone-<ID>.md` has a row for each of its requirements. A project without a roadmap works exactly as before.
-- **One plan file plus git** hold all the state. The current stage rides in Claude's context, so it survives long sessions and compaction.
-- **Staged work.** Each stage is verified against the running product, reviewed when risky, and committed. A stage's risk line is checked against what its code actually touches before review is decided.
-- **Quick fixes.** A small, low-risk change that's already decided goes through `jbit:fix`: made and checked in the main session, logged as one line in the plan and committed alone, without a stage, agents or an evidence folder. Anything that touches risky logic is still planned.
-- **Autopilot** runs an approved plan stage after stage. It pauses, enforced by hooks, before risky stages and anything outward-facing, unless you arm it unattended (`/jbit:autopilot unattended`, plus `outward` for pushes and deploys).
-- **Evidence.** Verifying a stage saves a per-check report and the output behind it to `docs/evidence/`, committed with the stage. A stage can't be closed without its report.
-- **Agents level.** An `Agents: lean | wide` line in the plan sets how widely work fans out to subagents, trading tokens for wall-clock time; no line is balanced. `lean` is held to one running agent by a hook, and a `wide` line already in the plan when a session starts isn't honoured until you confirm it.
-- **Project risk rules.** `JBIT risk:` and `JBIT outward:` lines in `CLAUDE.md` add a project's own hold words and outward commands. They only add to JBIT's built-ins, never loosen them.
-- **Secret guard:** commits that would carry a secret are blocked.
+`/jbit:autopilot unattended`, typed by you, removes the waits: Claude builds risky stages and settles open decisions itself, logging each one for you. Add `outward` to let push, publish and deploy through. It removes waiting, not checks: verification, the commit gates, the secret guard and the security review stay, and migrating real data or spending money still pause.
+
+## Moving over from keel
+
+JBIT was called keel up to 0.11.0. To switch an existing install:
+
+```
+claude plugin uninstall keel@keel-local
+claude plugin marketplace remove keel-local
+claude plugin marketplace add onedigerati/jbit
+claude plugin install jbit@jbit-local
+```
+
+Use the path to your local clone in place of `onedigerati/jbit` if you install from a clone, then start a new session. Commands are now `/jbit:*`; the old `/keel:*` commands no longer exist. Your repos need no edits: `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` and `keel:allow-secret` markers still work, alongside `JBIT risk:`, `JBIT outward:` and `jbit:allow-secret`.
+
+## In short
+
+- **State.** One plan file plus git. With a PRD too big for one plan, `docs/ROADMAP.md` adds milestones and a requirement ledger, and a milestone closes only on evidence that its requirements are covered.
+- **Evidence.** Each verified stage leaves a per-check report and its output in `docs/evidence/`, committed with the stage. A stage can't be closed without its report.
+- **Agents level.** An `Agents: lean | wide` line in the plan sets how widely work fans out to subagents, trading tokens for wall-clock time; no line is balanced. `lean` is held to one running agent by a hook, and `wide` is honoured only once you confirm it in the session.
+- **Project risk rules.** `JBIT risk:` and `JBIT outward:` lines in `CLAUDE.md` add your project's own hold words and outward commands. They only add to the built-ins, never loosen them.
+- **Secret guard.** A commit that would carry a secret is blocked, and credential headers in evidence must be masked.
 
 ## Install
 
@@ -37,4 +55,4 @@ claude plugin marketplace add onedigerati/jbit
 claude plugin install jbit@jbit-local
 ```
 
-See [plugins/jbit/README.md](plugins/jbit/README.md) for the skills, hooks and how a project flows from one plan to the next.
+See [plugins/jbit/README.md](plugins/jbit/README.md) for the full story, every skill and hook, project risk rules, the secret guard, evidence, roadmaps, Agents levels and evals.

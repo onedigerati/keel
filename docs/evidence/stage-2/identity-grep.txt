@@ -1,0 +1,10 @@
+$ grep -n -e 'jay-bit' -e 'Just Build It' -e 'Plans it. Proves it. Sees it through.' README.md plugins/jbit/README.md docs/field-guide.html plugins/jbit/.claude-plugin/plugin.json .claude-plugin/marketplace.json
+README.md:3:**Plans it. Proves it. Sees it through.**
+README.md:5:JBIT, pronounced jay-bit, stands for Just Build It. "Just build it" is what you say to Claude. The tagline is what JBIT does so that's a safe thing to say.
+plugins/jbit/.claude-plugin/plugin.json:4:  "description": "JBIT, pronounced jay-bit, for Just Build It. Plans it. Proves it. Sees it through. Turns a goal into one plan file of stages with acceptance checks; builds each
+plugins/jbit/README.md:3:**Plans it. Proves it. Sees it through.**
+plugins/jbit/README.md:5:JBIT, pronounced jay-bit, stands for Just Build It. "Just build it" is what you say to Claude. The tagline is what JBIT does so that's a safe thing to say: it plans the work, proves each piece ag
+.claude-plugin/marketplace.json:8:      "description": "JBIT, pronounced jay-bit, for Just Build It. Plans it. Proves it. Sees it through. Turns a goal into one plan file of stages with acceptance checks; builds each sta
+docs/field-guide.html:235:    <span class="eyebrow">Claude Code plugin · JBIT, said jay-bit, for Just Build It</span>
+docs/field-guide.html:236:    <h1>Plans it. Proves it. Sees it through.</h1>
+docs/field-guide.html:459:<footer>JBIT 0.12.0 · Plans it. Proves it. Sees it through. · based on <code>plugins/jbit/README.md</code> and the skill files in <code>plugins/jbit/skills/</code>.</footer>

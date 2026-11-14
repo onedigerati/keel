@@ -1,7 +1,7 @@
 {
   "name": "jbit",
   "version": "0.12.0",
-  "description": "Lightweight project discipline: one plan file, a roadmap of milestones for projects too big for one plan, staged work, a quick-fix path for small low-risk changes, an autopilot project manager, a choice of how widely work fans out to agents, verification against the running product with evidence kept in the repo, fresh-eyes review, and a secret guard on commits.",
+  "description": "JBIT, pronounced jay-bit, for Just Build It. Plans it. Proves it. Sees it through. Turns a goal into one plan file of stages with acceptance checks; builds each stage, verifies it against the running product with evidence kept in the repo, has fresh eyes review it and commits it; and autopilot sees the plan through, still stopping for risky stages, outward steps and decisions that are yours. Also a roadmap of milestones for projects too big for one plan, a quick-fix path for small low-risk changes, a choice of how widely work fans out to agents, and a secret guard on commits.",
   "author": {
     "name": "jonah"
   },

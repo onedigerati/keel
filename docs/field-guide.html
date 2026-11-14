@@ -226,15 +226,15 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
 
 <div class="wrap">
 <nav class="top" aria-label="Sections">
-  <span class="brand">jbit 0.10.0</span>
+  <span class="brand">JBIT 0.12.0</span>
   <a href="#memory">Memory</a><a href="#stage">Stage loop</a><a href="#autopilot">Autopilot</a><a href="#agents">Agents level</a><a href="#guards">Guardrails</a><a href="#roadmap">Roadmap</a><a href="#fix">Quick fix</a><a href="#commands">Commands</a>
 </nav>
 
 <div class="hero">
   <div class="stack">
-    <span class="eyebrow">Claude Code plugin</span>
-    <h1>Long projects, kept on course by one plan file and git</h1>
-    <p class="lede">A long project outlives any one context window. JBIT keeps the project's state on disk, works through it in stages that are proven before they're committed, and can hand the whole plan to Claude acting as project manager. The manager runs it to the end and stops only for decisions that are yours.</p>
+    <span class="eyebrow">Claude Code plugin · JBIT, said jay-bit, for Just Build It</span>
+    <h1>Plans it. Proves it. Sees it through.</h1>
+    <p class="lede">"Just build it" is what you say. The tagline is what JBIT does so that's safe to say. A long project outlives any one context window, so JBIT keeps the project's state on disk in one plan file and git, works through it in stages that are proven against the running product before they're committed, and can hand the whole plan to Claude acting as project manager. The manager runs it to the end, but it isn't a hands-free run: it still stops for risky stages, outward steps and decisions that are yours.</p>
   </div>
   <div class="layers" aria-label="JBIT's layers, from largest to smallest">
     <div class="layer opt"><b>ROADMAP.md</b><span>Optional. Milestones and a requirement ledger for a PRD too big for one plan.</span></div>
@@ -354,6 +354,10 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
     <div class="pause"><h3>Outward-facing steps</h3><p>Push, deploy, publish, sending data to an outside service, migrating real data, spending money. The hook blocks these commands while autopilot is armed.</p></div>
     <div class="pause"><h3>A milestone boundary</h3><p>With a roadmap: after closing a milestone and cutting the next plan, it waits for your yes. It never builds a plan you haven't seen.</p></div>
   </div>
+  <div class="col stack" style="margin-top:22px">
+    <h3>Unattended: fewer waits, the same checks</h3>
+    <p>Type <code>/jbit:autopilot unattended</code> yourself and the run doesn't wait on a risky stage, an open decision or a plan that turns out wrong. Claude picks what it would recommend and logs each call as a dated <code>(unattended)</code> decision, listed first in its final report. Add <code>outward</code> to let push, publish and deploy through; migrating or deleting real data and spending money still pause. It still stops when it's stuck and after cutting a new plan. Verification, the commit gates, the secret guard, the security review of risky stages and the <code>lean</code> cap all stay. Only your own typed command arms it, never a skill, a file or a Mode line, and it lasts for the session.</p>
+  </div>
 </section>
 
 <!-- AGENTS -->
@@ -387,8 +391,8 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   <div class="guards">
     <div class="guard"><h3>Evidence gate</h3><p>A commit that ticks stage <i>n</i> is refused unless <code>docs/evidence/stage-&lt;n&gt;/report.md</code> has a row for each of the stage's checks.</p><div class="eg">refused: stage 2 has 3 checks, report has 2 rows</div></div>
     <div class="guard"><h3>Ticked-checks gate</h3><p>A stage can't be closed if its <code>## Now</code> checks were never seen ticked.</p><div class="eg">refused: stage 3 checks never ticked</div></div>
-    <div class="guard"><h3>Risky-stage hold</h3><p>While autopilot is armed, a stage that names auth, money or personal data gets no file edits and no builders until you type the approval yourself. Claude can't approve its own stage.</p><div class="eg">held: "go?" is a question, not an approval</div></div>
-    <div class="guard"><h3>Outward block</h3><p>While autopilot is armed, <code>git push</code>, publishes, deploys and <code>gh</code> writes are blocked, along with your own <code>JBIT outward:</code> commands. It sees through <code>sudo</code>, <code>sh -c</code>, <code>eval</code> and similar wrappers.</p><div class="eg">blocked: git push (outward-facing)</div></div>
+    <div class="guard"><h3>Risky-stage hold</h3><p>While autopilot is armed, a stage that names auth, money or personal data gets no file edits and no builders until you type the approval yourself. Claude can't approve its own stage. An unattended run you armed lifts the hold.</p><div class="eg">held: "go?" is a question, not an approval</div></div>
+    <div class="guard"><h3>Outward block</h3><p>While autopilot is armed, <code>git push</code>, publishes, deploys and <code>gh</code> writes are blocked, along with your own <code>JBIT outward:</code> commands. It sees through <code>sudo</code>, <code>sh -c</code>, <code>eval</code> and similar wrappers. Only an unattended run armed with <code>outward</code> lifts it.</p><div class="eg">blocked: git push (outward-facing)</div></div>
     <div class="guard"><h3>Secret guard</h3><p>Every commit is scanned for keys, tokens, JWTs, database URLs with passwords and <code>.env</code> files. Credential headers in evidence must be masked.</p><div class="eg">blocked: src/db.ts:12 database URL with password</div></div>
     <div class="guard"><h3>Run keeper</h3><p>When a turn ends with stages left, the hook compacts the context once it's past 65% full, keeping the plan state, then prompts the manager to carry on. It gives up after three turns that leave the plan unchanged.</p><div class="eg" style="background:var(--sea-soft);color:var(--sea)">continue: stage 3 of 4</div></div>
   </div>
@@ -419,7 +423,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
 <!-- QUICK FIX -->
 <section id="fix">
   <div class="col stack">
-    <span class="eyebrow">New in 0.10.0</span>
+    <span class="eyebrow">Along the way</span>
     <h2>Small changes skip the stage machinery</h2>
     <p><code>/jbit:fix</code> handles a small change that's already decided and low-risk. It's built in the main session with no agents, checked with the test suite (plus one look at the app when the change is visible), logged as one line under <code>## Fixes</code> and committed alone. Anything that could be quietly wrong goes through a plan. Pick a request:</p>
   </div>
@@ -442,7 +446,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
       <tr><td><code>/jbit:plan</code></td><td>Planner</td><td>Writes <code>docs/PLAN.md</code>: goal, stages with checks and a risk line, decisions. Surveys existing code and records a test baseline. Archives a finished plan and starts the next one.</td></tr>
       <tr><td><code>/jbit:charter</code></td><td>Cartographer</td><td>Turns a large PRD into <code>docs/ROADMAP.md</code> with milestones and a requirement ledger, and proposes locked decisions for <code>CLAUDE.md</code>.</td></tr>
       <tr><td><code>/jbit:stage</code></td><td>Builder loop</td><td>Runs the next stage end to end (scope, build, verify, review, commit), then stops for you.</td></tr>
-      <tr><td><code>/jbit:autopilot</code></td><td>Project manager</td><td>Runs every remaining stage by delegating the work, and stops only for decisions that are yours.</td></tr>
+      <tr><td><code>/jbit:autopilot</code></td><td>Project manager</td><td>Runs every remaining stage by delegating the work, and stops for risky stages, outward steps and decisions that are yours. <code>/jbit:autopilot unattended</code> removes those waits, not the checks.</td></tr>
       <tr><td><code>/jbit:approve</code></td><td>You</td><td>Releases a held risky stage. Only you can type it.</td></tr>
       <tr><td><code>/jbit:verify</code></td><td>Inspector</td><td>Runs type check, lint, tests, build and a dependency audit, then proves each check against the running product and saves the evidence.</td></tr>
       <tr><td><code>/jbit:review</code></td><td>Second pair of eyes</td><td>An agent that didn't write the code reviews it, with a security pass for risky stages. Findings are sorted into fix, defer or reject.</td></tr>
@@ -452,7 +456,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
   </table></div>
 </section>
 
-<footer>JBIT 0.10.0 · based on <code>plugins/jbit/README.md</code> and the skill files in <code>plugins/jbit/skills/</code>.</footer>
+<footer>JBIT 0.12.0 · Plans it. Proves it. Sees it through. · based on <code>plugins/jbit/README.md</code> and the skill files in <code>plugins/jbit/skills/</code>.</footer>
 </div>
 
 <script>

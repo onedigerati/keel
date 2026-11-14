@@ -1,0 +1,81 @@
+$ claude plugin validate plugins/jbit
+Validating plugin manifest: /home/jonah/repos/keel/plugins/jbit/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: jbit.armed, jbit.unattended, jbit.seenMode, jbit.cleared, jbit.openChecks, jbit.checkCounts, jbit.goal, jbit.firstAgents, jbit.projectRules
+
+Validating hooks: /home/jonah/repos/keel/plugins/jbit/hooks/hooks.json
+
+  ❯ ./register.ts hooks: prompt.compose, session.compact, turn.start, prompt.submit, turn.complete, tool.call{tool=Skill}, tool.call, tool.call{tool=Agent}, tool.call{tool=Bash}
+  ❯ ./register.ts gating hook with .catch: session.compact
+  ❯ ./register.ts gating hook with .catch: prompt.submit
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Skill}
+  ❯ ./register.ts gating hook with .catch: tool.call
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Agent}
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Bash}
+  ❯ ./register.ts calls: $.agent.list (via backgroundBusy), $.clock.after, $.clock.now (via clockNow), $.fs.exists, $.fs.read (via evidenceDenial, loadProjectRules, milestoneDenial, pendingChanges, readPlan, roadmapText), $.fs.stat (via loadProjectRules, roadmapText), $.process.run (via git), $.prompt.submit (via carryOn), $.session.compact (via carryOn), $.session.cwd, $.session.usage (via carryOn), $.state.get (via readSession, stickyRules, sync), $.state.set, $.ui.notify, $.ui.status, $.ui.toast
+  ❯ ./register.ts state writes: jbit.armed, jbit.checkCounts, jbit.cleared, jbit.firstAgents, jbit.goal, jbit.openChecks, jbit.projectRules, jbit.seenMode, jbit.unattended
+  ❯ ./register.ts state reads: jbit.armed, jbit.checkCounts, jbit.cleared, jbit.firstAgents, jbit.goal, jbit.openChecks, jbit.projectRules, jbit.seenMode, jbit.unattended
+
+Validating hooks: /home/jonah/repos/keel/plugins/jbit/hooks/project.ts
+
+⚠ Found 1 warning:
+
+  ❯ line 17, column 67: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+
+Validating hooks: /home/jonah/repos/keel/plugins/jbit/hooks/register.ts
+
+⚠ Found 3 warnings:
+
+  ❯ line 2, column 116: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+  ❯ line 3, column 43: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+  ❯ line 4, column 102: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+
+Validating hooks: /home/jonah/repos/keel/plugins/jbit/tests/jbit.test.ts
+
+⚠ Found 27 warnings:
+
+  ❯ line 3, column 29: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+  ❯ line 20, column 8: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+  ❯ line 21, column 78: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+  ❯ line 22, column 65: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+  ❯ line 23, column 34: error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+  ❯ line 678, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 729, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 731, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 897, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 910, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 2047, column 3: error TS2584: Cannot find name 'console'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+  ❯ line 2326, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 2329, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 2642, column 3: error TS2584: Cannot find name 'console'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+  ❯ line 3045, column 26: error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'. Type 'undefined' is not assignable to type 'string'.
+  ❯ line 3160, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3238, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3285, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3374, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3391, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3393, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3396, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3409, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3411, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3422, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3424, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+  ❯ line 3479, column 25: error TS2345: Argument of type '{ text: string; origin: { kind: "composer"; }; }' is not assignable to parameter of type 'PromptSubmitInput'. Property 'wait' is missing in type '{ text: string; origin: { kind: "composer"; }; }' but required in type 'PromptSubmitInput'.
+
+Plugin directory checks for /home/jonah/repos/keel/plugins/jbit. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.
+
+⚠ Found 1 plugin directory warning:
+
+  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin. The validator looked for `icon` in plugin.json and for a file at .claude-plugin/icon.png or .svg, assets/icon.png or .svg, or a similar path.
+    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png, or set `icon` in plugin.json to the path of a square PNG or JPEG in the plugin: 512 to 2048 px on each side, under 2 MB. SVG and WebP are not accepted. That file may become the listing icon only once: the first time the plugin is saved or submitted in the developer portal. Adding or changing it later does not change the icon.
+
+About these checks:
+
+  ❯ hooks/hooks.json names a hooks module (a code file listed under `modules`). The plugin directory has rules of its own for such code, and these checks apply none of them, so passing here does not mean the directory accepts the plugin. The developer portal's own validation applies those rules.
+
+These plugin directory checks do not change the result below.
+
+The directory also runs a safety scan and a policy review that this command does not.
+
+✔ Validation passed with warnings

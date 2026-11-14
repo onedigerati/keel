@@ -1,0 +1,12 @@
+$ grep -n -e 'keel-local' -e 'jbit-local' -e 'Keel risk' -e 'Keel outward' -e 'keel:allow-secret' README.md plugins/jbit/README.md
+README.md:35:claude plugin uninstall keel@keel-local
+README.md:36:claude plugin marketplace remove keel-local
+README.md:38:claude plugin install jbit@jbit-local
+README.md:41:Use the path to your local clone in place of `onedigerati/jbit` if you install from a clone, then start a new session. Commands are now `/jbit:*`; the old `/keel:*` commands no longer exist. Your repos need 
+README.md:55:claude plugin install jbit@jbit-local
+plugins/jbit/README.md:71:claude plugin uninstall keel@keel-local
+plugins/jbit/README.md:72:claude plugin marketplace remove keel-local
+plugins/jbit/README.md:74:claude plugin install jbit@jbit-local
+plugins/jbit/README.md:83:- Your repos need no edits. `Keel risk:` and `Keel outward:` lines in `CLAUDE.md` are still read, exactly like `JBIT risk:` and `JBIT outward:`, and a `keel:allow-secret` marker still exempts a 
+plugins/jbit/README.md:93:claude plugin install jbit@jbit-local
+plugins/jbit/README.md:100:claude plugin install jbit@jbit-local
