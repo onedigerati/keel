@@ -1,31 +1,40 @@
-# Keel plan
+# JBIT plan
 
 ## Goal
-Ship an unattended autopilot as keel 0.11.0, for a user who wants a whole approved plan run without stopping at the gates that wait for their word. The user arms it themselves by typing `/keel:autopilot unattended` (add `outward` to also let push, publish and deploy through). The hook then stops holding risky stages, and Claude makes its own call on judgment pauses (scope, product choices, trade-offs, a plan that turns out wrong), picking its recommended option and logging it as a dated `(unattended)` decision. These stay in place: the commit gate on unticked checks and missing evidence, the secret guard, the security review on risky stages, a pause after three failed fix rounds or a report the evidence contradicts, and never building a plan the user hasn't seen. Only the user's own typed prompt arms it, never a Mode line, a skill Claude runs or a file. It disarms with autopilot. Done means hook tests and validate are green, the skill, README and version say 0.11.0, and it's committed on main.
+Rename the plugin from keel to JBIT (pronounced jay-bit, "Just Build It"), with the tagline "Plans it. Proves it. Sees it through.", released as 0.12.0. Its users get `/jbit:*` skills, a `# JBIT` header in the session context and a `jbit` status line. Projects that already use keel keep working: the `keel:allow-secret` marker and the `Keel risk:` and `Keel outward:` rules in `CLAUDE.md` are still honoured next to their `jbit`/`JBIT` forms. The README, field guide and marketplace description lead with the name, the pronunciation and the tagline, and tell the story from goal to done in place of a feature list. Archived plans and evidence keep saying keel; they're history. Done means tests and validate are green, a grep finds `keel` only in history and the alias code, a live session shows the new name working, and it's committed on main. Pushing, the local folder move and reinstall, and the small cleanups in other projects stay with the user.
 
 ## Baseline
-2026-11-13 · tests: 282 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed with warnings (`claude plugin validate plugins/keel`)
+2026-11-13 · tests: 304 pass, 0 fail (`claude plugin test plugins/keel`) · validate: passed with warnings (`claude plugin validate plugins/keel`)
 
 ## Now
-All stages done. The plan's goal is met: keel 0.11.0 with unattended autopilot, committed on main (not pushed; the installed copy updates once it's pushed or reinstalled).
+Stage 1 of 2 · Rename to jbit
 Agents: lean
+Risk: secrets (the secret guard's allow marker), user input (prompt parsing for `/jbit:autopilot` and `/jbit:approve`)
+Checks:
+- [ ] The plugin is `jbit` 0.12.0: `plugins/jbit/`, plugin.json and marketplace.json name it, and the skills, hooks, tests and evals use `jbit:*` (proof: test)
+- [ ] `/jbit:autopilot unattended [outward]` arms and `/jbit:approve` releases a hold, exactly as the keel forms did (proof: test)
+- [ ] A line with `keel:allow-secret` and a `Keel risk:` / `Keel outward:` rule in `CLAUDE.md` still work, as do the `jbit:allow-secret`, `JBIT risk:` and `JBIT outward:` forms (proof: test)
+- [ ] Outside `docs/plans/`, `docs/decisions.md` and the alias code, `grep -ri keel` finds nothing (proof: command, a test can't scan the repo's prose)
+- [ ] A live session with the renamed plugin shows `# JBIT` in its context and the `jbit` status line, and `jbit:plan` loads (proof: headless run, a test can't see the engine's view)
 Open: none
+
 ## Stages
-- [x] 1. Unattended in the hook — arming from the user's prompt only, no risky hold, outward behind its own word, gates kept, tests
-- [x] 2. Skill, docs, 0.11.0 — autopilot's "Unattended runs" section, the README, the version
+- [ ] 1. Rename to jbit — folder, manifests, skills, hooks, tests, evals; legacy keel aliases; 0.12.0
+- [ ] 2. Identity and docs — README, field guide, marketplace description: name, jay-bit, tagline, goal-to-done story
 
 ## Decisions
-- 2026-11-13 · Design from the user ("go with your recommendations"): unattended skips the risky-stage hold and self-approves judgment pauses, each logged as a dated `(unattended)` decision. The checks/evidence gate stays, since it means unverified, not risky. Outward-facing commands need their own `outward` word, since they can't be undone. Three failed fix rounds still pause. Arming follows keel's rule that only the user's words in the session count.
-- 2026-11-13 · The word is `unattended`, not `lean`: `lean` is already an Agents level. The user's "autopilot lean" means running this plan under autopilot with `Agents: lean`.
-- 2026-11-13 · Arming is read from the user's prompt text (`/keel:autopilot` followed by `unattended`, then optionally `outward`), never from the Skill tool's args. Claude writes those args, the same reason `/keel:approve` clears only from prompt text (2026-11-09).
-- 2026-11-13 · The security review still runs on risky stages, and unattended never crosses into a plan the user hasn't seen (2026-11-08). It removes waiting for the user, not the checks.
+- 2026-11-13 · The name is JBIT, pronounced jay-bit, for "Just Build It"; written `JBIT` in prose and `jbit` in commands, paths and the plugin name — at least seven other Claude Code dev-framework repos are called keel on GitHub, and none of the `jbit` repos is in the AI space (from the user).
+- 2026-11-13 · Tagline: "Plans it. Proves it. Sees it through." — the user picked it to answer the name: "just build it" is what you say, and the tagline is what the plugin does so it's safe to say. Docs don't promise a hands-free run: autopilot still stops for risky stages, outward steps and real decisions.
+- 2026-11-13 · The GitHub repo is renamed `onedigerati/keel` → `onedigerati/jbit` (done 2026-11-13, by the user's word); GitHub redirects the old URLs, and the local remote points at the new name.
+- 2026-11-13 · Old forms stay honoured: `keel:allow-secret`, and `Keel risk:` / `Keel outward:` rules in a project's `CLAUDE.md` — they live in other people's committed files, and breaking them would silently drop a hold word or refuse a commit. Prompt forms (`/keel:autopilot`, `/keel:approve`) aren't kept: once the plugin is renamed those commands don't exist.
+- 2026-11-13 · Hook state keys move to `plugin: 'jbit'` with no migration: the state is per session (armed, seen mode, counts), so the switch costs one reset, done when no run is going.
+- 2026-11-13 · Archived plans, evidence and `docs/decisions.md` keep saying keel: they record what happened under that name.
+- 2026-11-13 · Version 0.12.0: a rename is a visible change, so a minor bump under the 2026-11-10 rule.
 - 2026-11-13 · Agents: lean, from the user.
-- 2026-11-13 · Scale: two stages, one feature, so it's planned as one plan with no charter.
-- 2026-11-13 · Stage 1 review, fixed: a Goal change ends unattended (otherwise a plan Claude cut after the arming ran unheld, and with `outward` could push); the "without a hold" notice fires where the hold would have denied, not at turn end; the band shows `unattended outward` and `paused · unattended`; re-arming autopilot without the word (the Skill from a plain-language ask, or a Mode line turned on) ends a latent unattended; the level is written before the armed flag.
-- 2026-11-13 · Stage 1 review, rejected: the once-only notice lives at module level like `heldNoticeFor`, so it can be skipped after `/clear` on the same stage key. It's consistent with the existing notice and costs one missed notification, not a guard.
+- 2026-11-13 · Scale: two stages, one change, planned as one plan with no charter.
 
 ## Open questions
-- `docs/field-guide.html` still says 0.10.0 and doesn't cover unattended; it needs a content update, not just a number bump — for the user.
+- After the build, for the user: push; move `~/repos/keel` to `~/repos/jbit`; remove the `keel-local` marketplace, add the folder as `jbit-local`, `/plugin install jbit@jbit-local`, uninstall `keel`; and a `Plan:` commit in eVelo-v2, Heel and ToDo updating `keel:*` mentions in their plans (cosmetic: the hook injects the current names).
 - In an unattended `outward` run, migrating or deleting real data and spending money still pause (the skill text); only push, publish, deploy and sending data out open. Decided by the stage 2 builder, in line with the Goal.
 - Stage 1 review, deferred: `sdk` counts as a user origin, so in a CI host that turns issue text into prompts, text opening with `/keel:autopilot unattended outward` arms a run that lifts every hold and allows push. That makes the known `sdk` approval question larger. Requiring `composer`/`bridge` for `outward` would also block headless runs the user starts themselves, so it's a call for the user.
 - `long pathological lines parse in well under 100 ms` failed at 300 ms twice in the stage 1 reviewer's runs and passed in verify's: it's timing-sensitive under load.
@@ -63,3 +72,4 @@ Open: none
 - 2026-11-08 · Large projects: `keel:charter` turns a PRD into `docs/ROADMAP.md`, plans are cut one milestone at a time, the archive fills coverage from evidence, milestones close on suite, coverage and fit; standing decisions move to `docs/decisions.md` past ten; projects add hold words and outward commands in `CLAUDE.md` (keel 0.8.0, published) — [plan](plans/2026-11-08-large-projects.md) · [evidence](plans/2026-11-08-large-projects/evidence/)
 - 2026-11-09 · Explicit approval and secret formats: a held risky stage is released only by an approval reply or `/keel:approve`, and the secret guard catches JWTs, bearer, GitLab, npm, PyPI and SendGrid tokens and unmasked credential headers in evidence (keel 0.9.0, published) — [plan](plans/2026-11-09-explicit-approval-secret-formats.md) · [evidence](plans/2026-11-09-explicit-approval-secret-formats/evidence/)
 - 2026-11-10 · Quick-fix path: `keel:fix` lets a small, already-decided, low-risk change skip the stage, logged under `## Fixes` and committed alone (keel 0.10.0, published) — [plan](plans/2026-11-10-quick-fix-path.md) · [evidence](plans/2026-11-10-quick-fix-path/evidence/)
+- 2026-11-13 · Unattended autopilot: `/keel:autopilot unattended [outward]`, typed by the user, runs a whole approved plan without the risky-stage hold, logging its own judgment calls; the commit gates, secret guard and security review stay (keel 0.11.0) — [plan](plans/2026-11-13-unattended-autopilot.md) · [evidence](plans/2026-11-13-unattended-autopilot/evidence/)
