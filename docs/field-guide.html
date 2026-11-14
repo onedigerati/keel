@@ -227,7 +227,7 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
 <div class="wrap">
 <nav class="top" aria-label="Sections">
   <span class="brand">JBIT 0.12.0</span>
-  <a href="#memory">Memory</a><a href="#stage">Stage loop</a><a href="#autopilot">Autopilot</a><a href="#agents">Agents level</a><a href="#guards">Guardrails</a><a href="#roadmap">Roadmap</a><a href="#fix">Quick fix</a><a href="#commands">Commands</a>
+  <a href="#memory">Memory</a><a href="#stage">Stage loop</a><a href="#autopilot">Autopilot</a><a href="#agents">Agents level</a><a href="#guards">Guardrails</a><a href="#roadmap">Roadmap</a><a href="#nextplan">Next plan</a><a href="#fix">Quick fix</a><a href="#commands">Commands</a>
 </nav>
 
 <div class="hero">
@@ -418,6 +418,45 @@ footer{padding-block:32px 48px;color:var(--muted);font-size:.84rem;border-top:1p
     <div><b>Cut</b>The next plan is cut from the next milestone, then autopilot waits for your yes.</div>
   </div>
   <div class="statusline" style="margin-top:18px">jbit · M2 10/31 · 2/5 done · next: 3. Booking calendar</div>
+</section>
+
+<!-- NEXT PLAN -->
+<section id="nextplan">
+  <div class="col stack">
+    <span class="eyebrow">Problem 3 · months, not days</span>
+    <h2>One plan after another</h2>
+    <p>A plan covers one body of work with one goal. When the goal is met and new work starts, <code>/jbit:plan</code> doesn't append to the old plan or start from nothing. It archives the finished plan, carries forward only what still binds, and plans the next work fresh. The plan you work from stays short however long the project runs, and nothing is lost.</p>
+  </div>
+  <div class="mem">
+    <div class="panel">
+      <h3>Before <span class="tag">goal met</span></h3>
+      <div class="planfile" style="border:0;padding:0">
+        <div class="ln">docs/PLAN.md            <span style="color:var(--muted)">plan 2, all stages done</span></div>
+        <div class="ln">docs/evidence/stage-1/</div>
+        <div class="ln">docs/evidence/stage-2/</div>
+        <div class="ln">docs/plans/2026-10-02-plot-map.md</div>
+        <div class="ln">docs/plans/2026-10-02-plot-map/evidence/</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>After <span class="tag">one commit</span></h3>
+      <div class="planfile" style="border:0;padding:0">
+        <div class="ln" style="color:var(--signal)">docs/PLAN.md            <span style="color:var(--muted)">plan 3: new goal, stages from 1</span></div>
+        <div class="ln">docs/plans/2026-10-02-plot-map.md</div>
+        <div class="ln">docs/plans/2026-10-02-plot-map/evidence/</div>
+        <div class="ln" style="color:var(--ok)">docs/plans/2026-11-10-booking.md</div>
+        <div class="ln" style="color:var(--ok)">docs/plans/2026-11-10-booking/evidence/</div>
+        <div class="ln" style="color:var(--muted)">docs/decisions.md       once more than ten bind</div>
+      </div>
+    </div>
+  </div>
+  <div class="road-steps">
+    <div><b>Archive</b>The finished plan goes to <code>docs/plans/&lt;date&gt;-&lt;plan&gt;.md</code>, its evidence beside it, whole: every decision and finding stays readable.</div>
+    <div><b>Carry forward</b>Only decisions that still constrain the work (formats, conventions, product rules) move into the new plan, word for word, dated and linked back. Open questions that are still open come too.</div>
+    <div><b>Record</b>A line in <code>## Shipped</code> says what the plan delivered and links its archive and evidence, so the plan doubles as the project's changelog.</div>
+    <div><b>Start fresh</b>A new goal, a new survey of what the work touches, a new test baseline and stages from 1. The switch is committed on its own, and a <code>/clear</code> loses nothing.</div>
+  </div>
+  <p style="margin-top:18px;font-size:.9rem;color:var(--muted);max-width:72ch">Past ten standing decisions, they move to <code>docs/decisions.md</code> and the plan keeps one line pointing there. Decisions in it are never deleted, only struck through with the reason when they stop binding. With a roadmap, archiving a plan also fills the requirement ledger, and a milestone it leaves covered is closed before the next plan's stages are cut.</p>
 </section>
 
 <!-- QUICK FIX -->

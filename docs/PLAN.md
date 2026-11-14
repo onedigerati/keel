@@ -15,6 +15,9 @@ Open: none
 - [x] 1. Rename to jbit — folder, manifests, skills, hooks, tests, evals; legacy keel aliases; 0.12.0
 - [x] 2. Identity and docs — README, field guide, marketplace description: name, jay-bit, tagline, goal-to-done story; how to move over from keel, and the legacy forms that still work
 
+## Fixes
+- 2026-11-13 · Field guide: a "One plan after another" section on archiving, carrying decisions forward and `## Shipped`, for projects that run across many plans
+
 ## Decisions
 - 2026-11-13 · The name is JBIT, pronounced jay-bit, for "Just Build It"; written `JBIT` in prose and `jbit` in commands, paths and the plugin name — at least seven other Claude Code dev-framework repos are called keel on GitHub, and none of the `jbit` repos is in the AI space (from the user).
 - 2026-11-13 · Tagline: "Plans it. Proves it. Sees it through." — the user picked it to answer the name: "just build it" is what you say, and the tagline is what the plugin does so it's safe to say. Docs don't promise a hands-free run: autopilot still stops for risky stages, outward steps and real decisions.
